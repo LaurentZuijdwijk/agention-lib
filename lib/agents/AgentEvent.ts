@@ -1,0 +1,25 @@
+import { BaseAgent } from "./BaseAgent";
+
+export class AgentEvent {
+  public static BEFORE_EXECUTE = "before_execute";
+  public static AFTER_EXECUTE = "after_execute";
+  public static DONE = "done";
+  public static TOOL_USE = "toolUse";
+  public static ERROR = "error";
+  public static RETRY = "retry";
+  public static MAX_RETRIES_EXCEEDED = "max_retries_exceeded";
+  public static MAX_TOKENS_EXCEEDED = "max_tokens_exceeded";
+  public static TOOL_ERROR = "tool_error";
+
+  private defaultPrevented = false;
+
+  constructor(public target: BaseAgent<any>) {}
+
+  preventDefault() {
+    this.defaultPrevented = true;
+  }
+
+  get isDefaultPrevented() {
+    return this.defaultPrevented;
+  }
+}

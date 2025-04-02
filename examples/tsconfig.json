@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "strictPropertyInitialization": false,
+    "baseUrl": "", // This must be specified if "paths" is.
+    "noEmit": true
+    // "paths": {
+    //   "modular-agent": ["../lib"]
+    // }
+  },
+  "include": ["./**/*", "../lib/**/*"]
+}

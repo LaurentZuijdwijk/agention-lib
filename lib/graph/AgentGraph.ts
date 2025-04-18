@@ -1,5 +1,7 @@
 import { BaseAgent } from "../agents/BaseAgent";
-import { SyncExecutor } from "./SyncExecutor";
+import { ParallelExecutor } from "./ParallelExecutor";
+import { SquentialExecutor } from "./SquentialExecutor";
+import { VotingOptions, VotingSystem } from "./VotingSystem";
 
 // class AgentNode {
 //   constructor(private agent: BaseAgent) {}
@@ -45,9 +47,14 @@ export class AgentGraph {
   // private edges: Map<string, string[]> = new Map(); // Agent connections
 
   static synchronous(...args: BaseAgent[]) {
-    return new SyncExecutor(...args);
+    return new SquentialExecutor(...args);
   }
-
+  static parallel(...args: BaseAgent[]) {
+    return new ParallelExecutor(...args);
+  }
+  static votingSystem(judge: BaseAgent, options: VotingOptions = {}) {
+    return new VotingSystem(judge, options);
+  }
   constructor() {}
   async execute() {}
   // addAgent(agent: BaseAgent, id?: string): string {

@@ -4,6 +4,7 @@ logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+yarn.lock
 pnpm-debug.log*
 lerna-debug.log*
 package-lock.json
@@ -11,7 +12,14 @@ node_modules
 dist
 dist-ssr
 *.local
-
+.env
+db/
+*.lance
+examples/research-agents/*
+examples/coach/*
+examples/software-team/*
+examples/book/*
+examples/aiAuthor/*
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

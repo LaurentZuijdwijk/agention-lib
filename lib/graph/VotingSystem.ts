@@ -1,34 +1,36 @@
 import { BaseAgent } from "../agents/BaseAgent";
+import { BaseExecutor } from "./BaseExecutor";
 
 /**
- * Options for the VotingSystem
+ * Selects or synthesizes from multiple solutions
  */
-export interface VotingOptions {
-  // Optional prompt template for the judge
-  promptTemplate?: string;
-}
-
-export class VotingSystem {
+export class VotingSystem extends BaseExecutor {
   private judge: BaseAgent;
-  private options: VotingOptions;
+  private promptTemplate?: string;
 
-  /**
-   * @param judge The agent responsible for making the selection
-   * @param options Configuration options for the voting process
-   */
-  constructor(judge: BaseAgent, options: VotingOptions = {}) {
+  constructor(
+    judge: BaseAgent,
+    { promptTemplate }: { promptTemplate?: string } = {}
+  ) {
+    super();
     this.judge = judge;
-    this.options = options;
+    this.promptTemplate = promptTemplate;
   }
 
-  /**
-   * Have the judge select the best solution from the provided options
-   * @param originalInput The original question or problem statement
-   * @param solutions Array of potential solutions to vote on
-   * @returns The selected solution
-   */
-  async vote(originalInput: string, solutions: string[]): Promise<string> {
-    // Default prompt if none provided
+  async execute(input: any): Promise<string> {
+    // Handle both string inputs and objects with originalInput and solutions
+    let originalInput: string;
+    let solutions: string[];
+
+    if (typeof input === "string") {
+      throw new Error(
+        "VotingSystem requires both originalInput and solutions. Use as part of a pipeline or provide an object."
+      );
+    } else {
+      originalInput = input.originalInput || "";
+      solutions = input.solutions || [];
+    }
+
     const defaultPromptTemplate = `You are a judge who must select the best answer from multiple experts.
 
        Original question: {originalQuestion}
@@ -39,8 +41,7 @@ export class VotingSystem {
        Select the best answer, or synthesize a better answer from the experts' inputs.
        Your response should be the final answer without explanation or preamble.`;
 
-    // Format the voting prompt
-    const template = this.options.promptTemplate || defaultPromptTemplate;
+    const template = this.promptTemplate || defaultPromptTemplate;
     const formattedAnswers = solutions
       .map((solution, index) => `Expert ${index + 1}: ${solution}`)
       .join("\n\n");
@@ -49,8 +50,6 @@ export class VotingSystem {
       .replace("{originalQuestion}", originalInput)
       .replace("{expertAnswers}", formattedAnswers);
 
-    // Ask the judge to decide
-    const decision = (await this.judge.execute(votingPrompt)) as string;
-    return decision;
+    return (await this.judge.execute(votingPrompt)) as string;
   }
 }

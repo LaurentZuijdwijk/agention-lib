@@ -1,24 +1,26 @@
 import { BaseAgent } from "../agents/BaseAgent";
+import { BaseExecutor } from "./BaseExecutor";
 
-export class SquentialExecutor {
+/**
+ * Executes agents in sequence
+ */
+export class SequentialExecutor extends BaseExecutor {
   private agents: BaseAgent[];
+
   constructor(...agents: BaseAgent[]) {
+    super();
     this.agents = agents;
   }
 
   async execute(input: string): Promise<string> {
-    let agentIndex = 0;
     let result = input;
-    while (agentIndex < this.agents.length) {
-      result = (await this.agents[agentIndex].execute(
+    for (const agent of this.agents) {
+      result = (await agent.execute(
         JSON.stringify({
           originalQuestion: input,
           resultFromPreviousAgent: result,
         })
       )) as string;
-      console.log("syncecexx", result);
-
-      agentIndex++;
     }
     return result;
   }

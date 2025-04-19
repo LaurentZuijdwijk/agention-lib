@@ -1,10 +1,16 @@
 {
-  "name": "agention-lib",
+  "name": "@agention/agents",
   "author": "Laurent Zuijdwijk",
-  "license": "ISC",
-  "version": "0.0.1",
-  "description": "Agent Library for Intelligent Versatile Execution",
+  "version": "0.1.0",
+  "description": "Agent Library",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laurentzuijdwijk/agention-lib.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "clean": "rimraf dist",
     "build": "npm run clean && tsc",

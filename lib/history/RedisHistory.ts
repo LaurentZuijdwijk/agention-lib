@@ -1,13 +1,13 @@
 import { History } from "./History";
 
 interface RedisInstance {
-  get(key: string): Promise<string>;
+  get(key: string): Promise<string | null>;
   set(key: string, content: string): Promise<"OK">;
 }
 
 export class RedisHistory extends History {
   constructor(private redisInstance: RedisInstance) {
-    super();
+    super([], { transient: false });
   }
 
   /**
@@ -26,21 +26,23 @@ export class RedisHistory extends History {
       if (!serializedHistory) {
         return;
       }
-
       // Parse the serialized history and create a new History instance
-      const loadedHistory = History.fromJSON(serializedHistory);
+      const entries = JSON.parse(serializedHistory);
 
+      this._entries = entries;
+
+      // console.log('rediHistory', this._entries)
       // Clear existing entries and replace with loaded entries
-      this.clear();
-      loadedHistory.entries.forEach((entry) => {
-        this.addEntry(entry);
-      });
+      // this.clear();
+      // loadedHistory.entries.forEach((entry) => {
+      //   this.addEntry(entry);
+      // });
     } catch (error: unknown) {
       console.error(`Error loading history from Redis key "${key}":`, error);
       throw new Error(
         `Failed to load history: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }
@@ -56,7 +58,7 @@ export class RedisHistory extends History {
     try {
       // Serialize the current history entries
       const serializedHistory = this.toJSON();
-
+      console.log("saving history");
       // Save the serialized history to Redis
       await this.redisInstance.set(key, serializedHistory);
     } catch (error) {
@@ -64,7 +66,7 @@ export class RedisHistory extends History {
       throw new Error(
         `Failed to save history: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }

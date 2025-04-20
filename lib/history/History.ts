@@ -45,7 +45,7 @@ type HistoryOptions = {
  * @template T Type of history entries
  */
 export class History extends EventEmitter implements IHistory {
-  private _entries: Entry[] = [];
+  protected _entries: Entry[] = [];
   private options?: HistoryOptions = {};
   public transient: boolean = false;
 

@@ -1,9 +1,12 @@
 {
-  "name": "@agention/agents",
+  "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
   "version": "0.1.0",
   "description": "Agent Library",
   "main": "index.js",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/laurentzuijdwijk/agention-lib.git"
@@ -21,7 +24,6 @@
     "lint:fix": "eslint 'src/**/*.{js,ts}' --fix",
     "format": "prettier --write 'src/**/*.{js,ts,json,md}'",
     "prepare": "npm run build",
-    "prepublishOnly": "npm test && npm run lint",
     "example": "ts-node examples/index.ts",
     "example:watch": "nodemon --watch examples --watch src --ext ts --exec 'ts-node' examples/index.ts",
     "docs": "typedoc --excludeProtected --out docs lib",

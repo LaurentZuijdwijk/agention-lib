@@ -30,3 +30,4 @@ examples/aiAuthor/*
 *.njsproj
 *.sln
 *.sw?
+.npmrc

@@ -1,2 +1,4 @@
 examples/
 lib
+*.md
+*.html

@@ -30,11 +30,13 @@ export class OpenAiAgent extends BaseAgent {
   constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
     super({ ...config, vendor: "openai" }, history);
 
-    this.addToHistory(
-      "system",
-      `System message: You are an agent called ${this.name}`
-    );
-    this.addToHistory("system", this.description);
+    if (this.history?.entries.length === 0) {
+      this.addToHistory(
+        "system",
+        `System message: You are an agent called ${this.name}`
+      );
+      this.addToHistory("system", this.description);
+    }
 
     this.client = new OpenAI({
       apiKey: config.apiKey,
@@ -70,14 +72,14 @@ export class OpenAiAgent extends BaseAgent {
   protected async process(_input: string): Promise<any> {}
 
   async execute(input: string): Promise<string> {
-    if (this.history.transient) {
-      this.history.clear();
-      this.addToHistory(
-        "system",
-        `System message: You are an agent called ${this.name}`
-      );
-      this.addToHistory("system", this.description);
-    }
+    // if (this.history.transient) {
+    //   this.history.clear();
+    //   this.addToHistory(
+    //     "system",
+    //     `System message: You are an agent called ${this.name}`
+    //   );
+    //   this.addToHistory("system", this.description);
+    // }
 
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.addToHistory("user", input);
@@ -285,7 +287,7 @@ export class OpenAiAgent extends BaseAgent {
             this.getId(),
             this.getName(),
             toolArgs,
-            toolCall.id
+            toolCall.id || ""
           );
 
           return {

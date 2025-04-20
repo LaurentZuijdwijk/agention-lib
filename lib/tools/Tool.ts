@@ -21,7 +21,8 @@ export interface ToolConfig<T> {
   name: string;
   description: string;
   inputSchema: ToolInputSchema;
-  execute: (input: any) => Promise<T>;
+  execute: (input: any, context?: Record<string, any> | null) => Promise<T>;
+  context?: Record<string, any>;
 }
 
 export class ToolEvent {
@@ -34,7 +35,7 @@ export class ToolEvent {
     public input: Record<string, any>,
     public id: string,
     public agentId: string,
-    public agentName: string
+    public agentName: string,
   ) {}
 
   preventDefault() {
@@ -56,7 +57,7 @@ export class ToolResultEvent extends ToolEvent {
     public id: string,
     public result: any,
     public agentId: string,
-    public agentName: string
+    public agentName: string,
   ) {
     super(target, input, id, agentId, agentName);
   }
@@ -70,9 +71,13 @@ export class ToolResultEvent extends ToolEvent {
 
  */
 export class Tool<T> extends EventEmitter {
-  protected executeFn: (input: unknown) => Promise<T>;
+  protected executeFn: (
+    input: unknown,
+    context: Record<string, any> | null,
+  ) => Promise<T>;
   name: string;
   protected description: string;
+  protected context: Record<string, any> | null;
   protected schema: ToolInputSchema;
 
   /**
@@ -110,7 +115,7 @@ export class Tool<T> extends EventEmitter {
   constructor(config: ToolConfig<T>) {
     super();
     this.executeFn = config.execute;
-
+    this.context = config.context || null;
     this.name = config.name;
     this.description = config.description;
     this.schema = config.inputSchema;
@@ -119,7 +124,7 @@ export class Tool<T> extends EventEmitter {
     agentId: string,
     agentName: string,
     input: Record<string, any>,
-    id: string
+    id: string,
   ): Promise<T> {
     const event = new ToolEvent(this, input, id, agentId, agentName);
 
@@ -134,14 +139,14 @@ export class Tool<T> extends EventEmitter {
       } as any;
     }
     try {
-      const result = await this.executeFn(input);
+      const result = await this.executeFn(input, this.context);
       const resultEvent = new ToolResultEvent(
         this,
         input,
         id,
         result,
         agentId,
-        agentName
+        agentName,
       );
 
       this.emit(ToolResultEvent.RESULT, resultEvent);

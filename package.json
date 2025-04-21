@@ -1,7 +1,7 @@
 {
   "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Agent Library",
   "main": "index.js",
   "publishConfig": {

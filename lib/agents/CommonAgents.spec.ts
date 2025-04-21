@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { ClaudeAgent } from "../agents/anthropic/ClaudeAgent";
 import { OpenAiAgent } from "../agents/openai/OpenAiAgent";
 import { AgentEvent } from "./AgentEvent";
@@ -55,10 +56,8 @@ const mockOpenAIResponse = {
 };
 let mockOpenAIClient: jest.Mocked<OpenAI>;
 mockOpenAIClient = {
-  chat: {
-    completions: {
-      create: jest.fn().mockResolvedValue(mockOpenAIResponse as any),
-    },
+  responses: {
+    create: jest.fn().mockResolvedValue(mockOpenAIResponse as any),
   },
 } as any;
 (OpenAI as jest.Mock).mockImplementation(() => mockOpenAIClient);

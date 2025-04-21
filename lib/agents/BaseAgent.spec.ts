@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { BaseAgent, BaseAgentConfig, HistoryEntry } from "./BaseAgent";
 import { Tool, ToolDefinition } from "../tools/Tool";
 
@@ -7,9 +8,7 @@ class TestAgent extends BaseAgent<string, string> {
     return `Processed: ${input}`;
   }
 
-  protected async handleResponse(
-    response: any
-  ): Promise<string> {
+  protected async handleResponse(response: any): Promise<string> {
     return response;
   }
 

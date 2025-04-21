@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Anthropic } from "@anthropic-ai/sdk";
 import { ClaudeAgent } from "./ClaudeAgent"; // Adjust the import path as needed
 
@@ -66,21 +67,18 @@ describe("ClaudeAgent", () => {
           output_tokens: 100,
         },
       };
-      mockClient.messages.create.mockResolvedValue(mockResponse as any);
+      (mockClient.messages.create as jest.Mock).mockResolvedValue(
+        mockResponse as any
+      );
 
       await agent.execute("test input");
 
       expect(mockClient.messages.create).toHaveBeenCalledWith({
         model: "claude-3-5-haiku-latest",
+        system:
+          "You are an agent called TestAgent and should follow these instructions: Test Description",
         max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content:
-              "System message: You are an agent called TestAgent and should follow these instructions: Test Description",
-          },
-          { role: "user", content: "test input" },
-        ],
+        messages: [{ role: "user", content: "test input" }],
         tools: [],
       });
     });

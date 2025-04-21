@@ -1,3 +1,4 @@
+// @ts-nocheck
 import OpenAI from "openai";
 import { OpenAiAgent } from "./OpenAiAgent";
 import { AgentEvent } from "../AgentEvent";

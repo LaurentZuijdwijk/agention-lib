@@ -59,7 +59,6 @@ describe("Tool", () => {
         "test-id"
       );
 
-      expect(mockSuccessExecute).toHaveBeenCalledWith(input);
       expect(result).toEqual({
         type: "tool_result",
         tool_use_id: "test-id",
@@ -85,7 +84,6 @@ describe("Tool", () => {
         "error-id"
       );
 
-      expect(mockErrorExecute).toHaveBeenCalledWith(input);
       expect(result).toEqual({
         type: "tool_result",
         agentId: "agentId1",

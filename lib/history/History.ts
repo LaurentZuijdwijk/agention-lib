@@ -115,6 +115,10 @@ export class History extends EventEmitter implements IHistory {
     return JSON.stringify(this._entries);
   }
 
+  lastEntry(): HistoryEntry | undefined {
+    return this._entries[this._entries.length - 1];
+  }
+
   /**
    * Creates a History instance from JSON
    *

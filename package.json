@@ -11,9 +11,6 @@
     "type": "git",
     "url": "git+https://github.com/laurentzuijdwijk/agention-lib.git"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "scripts": {
     "clean": "rimraf dist",
     "build": "npm run clean && tsc",
@@ -63,5 +60,8 @@
   "peerDependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "openai": "^4.86.2"
+  },
+  "dependencies": {
+    "@mistralai/mistralai": "^1.6.0"
   }
 }

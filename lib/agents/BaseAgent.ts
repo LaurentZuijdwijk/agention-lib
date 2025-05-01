@@ -9,7 +9,7 @@ export interface BaseAgentConfig {
   id: string;
   name: string;
   description: string;
-  vendor: "openai" | "anthropic";
+  vendor: "openai" | "anthropic" | "mistral";
   apiKey: string;
   debug?: boolean;
   maxHistoryLength?: number;

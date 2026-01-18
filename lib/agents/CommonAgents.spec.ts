@@ -27,20 +27,20 @@ mockAnthropicClient = {
 (Anthropic as jest.Mock).mockImplementation(() => mockAnthropicClient);
 
 const mockOpenAIResponse = {
-  stop_reason: "end_turn",
-  choices: [
+  output: [
     {
-      index: 0,
-      message: {
-        role: "assistant",
-        content:
-          "Under the soft glow of the moon, Luna the unicorn danced through fields of twinkling stardust, leaving trails of dreams for every child asleep.",
-        refusal: null,
-      },
-      logprobs: null,
-      finish_reason: "stop",
+      type: "message",
+      status: "completed",
+      content: [
+        {
+          type: "output_text",
+          text: "Under the soft glow of the moon, Luna the unicorn danced through fields of twinkling stardust, leaving trails of dreams for every child asleep.",
+        },
+      ],
     },
   ],
+  output_text:
+    "Under the soft glow of the moon, Luna the unicorn danced through fields of twinkling stardust, leaving trails of dreams for every child asleep.",
   usage: {
     prompt_tokens: 3406,
     completion_tokens: 347,

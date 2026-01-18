@@ -104,7 +104,6 @@ export abstract class BaseAgent<
         );
       }
     });
-    console.log(this.getToolDefinitions());
   }
 
   // Getters

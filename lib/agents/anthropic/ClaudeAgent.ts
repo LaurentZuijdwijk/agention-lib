@@ -36,6 +36,9 @@ export class ClaudeAgent extends BaseAgent {
   private client: Anthropic;
   protected config: Partial<AgentConfig>;
 
+  /** Token usage from the last execution (for metrics tracking) */
+  public lastTokenUsage?: TokenUsage;
+
   constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
     super({ ...config, vendor: "anthropic" }, history);
     this.client = new Anthropic({
@@ -63,6 +66,10 @@ export class ClaudeAgent extends BaseAgent {
 
   async execute(input: string): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
+
+    // Reset token usage for this execution
+    this.lastTokenUsage = undefined;
+
     if (this.history.transient) {
       this.history.clear();
     }
@@ -105,6 +112,16 @@ export class ClaudeAgent extends BaseAgent {
   protected async handleResponse(response: Message): Promise<any> {
     const usage = this.parseUsage(response.usage);
 
+    // Store token usage for metrics tracking
+    if (this.lastTokenUsage) {
+      // Accumulate if there are multiple calls (e.g., tool use loops)
+      this.lastTokenUsage.input_tokens += usage.input_tokens;
+      this.lastTokenUsage.output_tokens += usage.output_tokens;
+      this.lastTokenUsage.total_tokens += usage.total_tokens;
+    } else {
+      this.lastTokenUsage = { ...usage };
+    }
+
     // Handle API response based on stop_reason
     if (response.stop_reason === "max_tokens") {
       const error = new MaxTokensExceededError(
@@ -120,7 +137,6 @@ export class ClaudeAgent extends BaseAgent {
       // look at stop reasons
       if (response.content && response.content[0]?.type === "text") {
         this.emit(AgentEvent.DONE, response, usage);
-        console.log(response.content[0]);
         this.addToHistory("assistant", response.content);
 
         return response.content[0].text;

@@ -43,7 +43,7 @@ export class OpenAiAgent extends BaseAgent {
     });
 
     this.config = {
-      model: config.model || "gpt-4o-mini",
+      model: config.model || "gpt-4.1-mini",
       maxTokens: config.maxTokens || 1024,
       disableParallelToolUse: config.disableParallelToolUse || false,
       apiKey: config.apiKey,

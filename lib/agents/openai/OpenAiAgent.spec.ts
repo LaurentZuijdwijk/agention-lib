@@ -42,7 +42,7 @@ describe("OpenAiAgent", () => {
       expect(OpenAI).toHaveBeenCalledWith({ apiKey: "test-api-key" });
       expect(agent["config"]).toEqual({
         apiKey: "test-api-key",
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         maxTokens: 1024,
         disableParallelToolUse: false,
       });
@@ -141,7 +141,7 @@ describe("OpenAiAgent", () => {
 
       expect(result).toBe("Hello there");
       expect(mockClient.responses.create).toHaveBeenCalledWith({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         max_output_tokens: 1024,
         input: expect.any(Array),
         tools: [],

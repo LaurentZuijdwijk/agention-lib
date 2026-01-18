@@ -20,8 +20,16 @@ export interface NodeExecutionMetrics {
   id: string;
   /** Name of the node/agent */
   name: string;
-  /** Type of executor (sequential, parallel, pipeline, map, voting, agent) */
-  type: "sequential" | "parallel" | "pipeline" | "map" | "voting" | "agent" | "custom";
+  /** Type of executor (sequential, parallel, pipeline, map, voting, router, agent) */
+  type:
+    | "sequential"
+    | "parallel"
+    | "pipeline"
+    | "map"
+    | "voting"
+    | "router"
+    | "agent"
+    | "custom";
   /** Start timestamp */
   startTime: number;
   /** End timestamp */
@@ -69,7 +77,15 @@ export interface PipelineMetrics {
  */
 export interface PipelineStructure {
   /** Type of this node */
-  type: "sequential" | "parallel" | "pipeline" | "map" | "voting" | "agent" | "custom";
+  type:
+    | "sequential"
+    | "parallel"
+    | "pipeline"
+    | "map"
+    | "voting"
+    | "router"
+    | "agent"
+    | "custom";
   /** Display name */
   name: string;
   /** Child nodes */
@@ -154,7 +170,8 @@ export class MetricsCollector {
     metrics.endTime = Date.now();
     metrics.durationMs = metrics.endTime - metrics.startTime;
     metrics.success = success;
-    metrics.outputSummary = output !== undefined ? this.truncate(output) : undefined;
+    metrics.outputSummary =
+      output !== undefined ? this.truncate(output) : undefined;
     metrics.tokenUsage = tokenUsage;
     metrics.error = error;
 
@@ -163,14 +180,17 @@ export class MetricsCollector {
     if (index !== -1) {
       this.executionStack.splice(index, 1);
     }
-    this.currentExecution = this.executionStack[this.executionStack.length - 1] ?? null;
+    this.currentExecution =
+      this.executionStack[this.executionStack.length - 1] ?? null;
   }
 
   /**
    * Find an execution by ID.
    */
   private findExecution(id: string): NodeExecutionMetrics | null {
-    const search = (metrics: NodeExecutionMetrics[]): NodeExecutionMetrics | null => {
+    const search = (
+      metrics: NodeExecutionMetrics[]
+    ): NodeExecutionMetrics | null => {
       for (const m of metrics) {
         if (m.id === id) return m;
         if (m.children) {
@@ -310,7 +330,9 @@ export class MetricsCollector {
         ? ` [${metrics.tokenUsage.totalTokens} tokens]`
         : "";
 
-      lines.push(`${prefix}${status} ${metrics.name} (${metrics.type}) - ${duration}${tokens}`);
+      lines.push(
+        `${prefix}${status} ${metrics.name} (${metrics.type}) - ${duration}${tokens}`
+      );
 
       if (metrics.children) {
         for (const child of metrics.children) {

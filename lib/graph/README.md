@@ -23,6 +23,7 @@ interface GraphNode<TInput = unknown, TOutput = unknown> {
 | `Pipeline` | Chains any GraphNodes together | Generic | Generic |
 | `MapExecutor` | Applies processor to each array item | `T[]` | `R[]` |
 | `VotingSystem` | Judge selects best from solutions | `VotingInput` | `string` |
+| `RouterExecutor` | Routes input to selected handler | `string` | `string` |
 
 ## Usage
 
@@ -39,6 +40,7 @@ const parallel = AgentGraph.parallel({}, expertA, expertB, expertC);
 const voting = AgentGraph.votingSystem(judgeAgent);
 const mapper = AgentGraph.map(processorAgent);
 const pipeline = AgentGraph.pipeline(stage1, stage2, stage3);
+const router = AgentGraph.router(routerAgent, routes);
 ```
 
 ### Sequential Execution
@@ -151,6 +153,57 @@ const mapper = AgentGraph.map(processor, {
 });
 ```
 
+### Router Execution
+
+Routes input to one of several handlers based on an agent's decision. The router agent analyzes the input and selects the most appropriate route:
+
+```typescript
+const router = AgentGraph.router(routerAgent, [
+  { name: "technical", description: "Technical questions about code and programming", handler: techAgent },
+  { name: "general", description: "General knowledge questions", handler: generalAgent },
+  { name: "creative", description: "Creative writing and brainstorming tasks", handler: creativeAgent },
+]);
+
+const result = await router.execute("How do I fix this TypeScript error?");
+// Router agent analyzes input, selects "technical", executes techAgent
+```
+
+**Options:**
+
+```typescript
+const router = AgentGraph.router(
+  routerAgent,
+  routes,
+  {
+    includeRouterContext: true,   // Pass route context to handler (default)
+    fallbackRoute: "general",     // Use this route if selection fails
+    promptTemplate: "...",        // Custom prompt for router agent
+  }
+);
+```
+
+**Route Definition:**
+
+Each route requires:
+- `name`: Unique identifier the router will output
+- `description`: Helps the router understand when to select this route
+- `handler`: A `BaseAgent` or `GraphNode` to execute when selected
+
+**Custom Prompt Template:**
+
+```typescript
+const router = AgentGraph.router(routerAgent, routes, {
+  promptTemplate: `
+    Analyze: {input}
+    
+    Options:
+    {routes}
+    
+    Output only the route name.
+  `,
+});
+```
+
 ### Voting System
 
 Uses a judge agent to select or synthesize the best answer from multiple solutions:
@@ -237,6 +290,32 @@ const batchProcessor = AgentGraph.pipeline(
   // Combine results (custom node)
   { execute: async (chunks: string[]) => chunks.join("\n") }
 );
+```
+
+### Intelligent Routing
+
+Route requests to specialized handlers:
+
+```typescript
+const supportRouter = AgentGraph.router(classifierAgent, [
+  { 
+    name: "billing", 
+    description: "Questions about invoices, payments, and subscriptions",
+    handler: AgentGraph.sequential(billingLookup, billingAgent)
+  },
+  { 
+    name: "technical", 
+    description: "Technical issues, bugs, and how-to questions",
+    handler: AgentGraph.sequential(docsSearch, techSupportAgent)
+  },
+  { 
+    name: "sales", 
+    description: "Pricing, upgrades, and feature inquiries",
+    handler: salesAgent
+  },
+], { fallbackRoute: "technical" });
+
+const response = await supportRouter.execute(customerMessage);
 ```
 
 ### Hierarchical Analysis

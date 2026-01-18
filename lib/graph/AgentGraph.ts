@@ -3,6 +3,7 @@ import { GraphNode } from "./BaseExecutor";
 import { MapExecutor, MapExecutorOptions } from "./MapExecutor";
 import { ParallelExecutor, ParallelExecutorOptions } from "./ParallelExecutor";
 import { Pipeline } from "./Pipeline";
+import { RouterExecutor, RouterExecutorOptions, Route } from "./RouterExecutor";
 import {
   SequentialExecutor,
   SequentialExecutorOptions,
@@ -19,6 +20,7 @@ export { ParallelExecutor, ParallelExecutorOptions } from "./ParallelExecutor";
 export { Pipeline } from "./Pipeline";
 export { MapExecutor, MapExecutorOptions } from "./MapExecutor";
 export { VotingSystem, VotingSystemOptions, VotingInput } from "./VotingSystem";
+export { RouterExecutor, RouterExecutorOptions, Route } from "./RouterExecutor";
 export {
   BaseExecutor,
   PipelineContext,
@@ -129,5 +131,31 @@ export class AgentGraph {
     ...stages: GraphNode<unknown, unknown>[]
   ): Pipeline<TInput, TOutput> {
     return new Pipeline<TInput, TOutput>(...stages);
+  }
+
+  /**
+   * Creates a router executor that routes input to one of several handlers.
+   * A router agent analyzes the input and selects the most appropriate route.
+   *
+   * @param router - Agent that decides which route to select
+   * @param routes - Array of available routes with names, descriptions, and handlers
+   * @param options - Configuration options
+   * @returns RouterExecutor instance
+   *
+   * @example
+   * ```typescript
+   * const router = AgentGraph.router(routerAgent, [
+   *   { name: "technical", description: "Technical questions", handler: techAgent },
+   *   { name: "general", description: "General questions", handler: generalAgent },
+   * ]);
+   * const result = await router.execute("How do I fix this bug?");
+   * ```
+   */
+  static router(
+    router: BaseAgent,
+    routes: Route[],
+    options: RouterExecutorOptions = {}
+  ): RouterExecutor {
+    return new RouterExecutor(router, routes, options);
   }
 }

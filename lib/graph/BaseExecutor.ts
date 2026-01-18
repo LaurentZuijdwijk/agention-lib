@@ -13,6 +13,7 @@ export type GraphNodeType =
   | "pipeline"
   | "map"
   | "voting"
+  | "router"
   | "agent"
   | "custom";
 

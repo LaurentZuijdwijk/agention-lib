@@ -149,4 +149,49 @@ describe("BaseAgent", () => {
     // Note: Full history management tests would be added once the implementation is complete
     // This would include testing maxHistoryLength enforcement and history trimming
   });
+
+  describe("addSystemMessage", () => {
+    it("should add system message to history", () => {
+      const systemMessage = "You are a helpful assistant";
+      agent["addSystemMessage"](systemMessage);
+
+      const historySystemMessage = agent["history"].getSystemMessage();
+      expect(historySystemMessage).toBe(systemMessage);
+    });
+
+    it("should not duplicate system message with same content", () => {
+      const systemMessage = "You are a helpful assistant";
+
+      // Add same message twice
+      agent["addSystemMessage"](systemMessage);
+      agent["addSystemMessage"](systemMessage);
+
+      // Should only have one system entry
+      const entries = agent["history"].entries;
+      const systemEntries = entries.filter((e) => e.role === "system");
+      expect(systemEntries).toHaveLength(1);
+    });
+
+    it("should add new system message if content differs", () => {
+      const firstMessage = "You are assistant A";
+      const secondMessage = "You are assistant B";
+
+      agent["addSystemMessage"](firstMessage);
+      agent["addSystemMessage"](secondMessage);
+
+      // Should have two system entries
+      const entries = agent["history"].entries;
+      const systemEntries = entries.filter((e) => e.role === "system");
+      expect(systemEntries).toHaveLength(2);
+    });
+  });
+
+  describe("getSystemMessage", () => {
+    it("should return formatted system message", () => {
+      const systemMessage = agent["getSystemMessage"]();
+      expect(systemMessage).toBe(
+        "You are an agent called Test Agent and should follow these instructions: Test Description"
+      );
+    });
+  });
 });

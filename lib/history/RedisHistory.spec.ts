@@ -1,4 +1,5 @@
 import { RedisHistory } from "./RedisHistory";
+import { text } from "./types";
 
 // Mock Redis instance interface
 interface MockRedisInstance {
@@ -25,7 +26,7 @@ describe("RedisHistory", () => {
     it("should save history to Redis successfully", async () => {
       // Arrange
       redisInstance.set.mockResolvedValue("OK");
-      redisHistory.addEntry("user", "Test message");
+      redisHistory.addText("user", "Test message");
 
       // Act
       await redisHistory.save("conversation:test");
@@ -41,7 +42,7 @@ describe("RedisHistory", () => {
       // Arrange
       const saveError = new Error("Redis save failed");
       redisInstance.set.mockRejectedValue(saveError);
-      redisHistory.addEntry("user", "Test message");
+      redisHistory.addText("user", "Test message");
 
       // Act & Assert
       await expect(redisHistory.save("conversation:test")).rejects.toThrow(
@@ -54,8 +55,8 @@ describe("RedisHistory", () => {
     it("should load history from Redis successfully", async () => {
       // Arrange
       const mockHistoryEntries = JSON.stringify([
-        { role: "user", content: "Hello" },
-        { role: "assistant", content: "Hi there" },
+        { role: "user", content: [{ type: "text", text: "Hello" }] },
+        { role: "assistant", content: [{ type: "text", text: "Hi there" }] },
       ]);
 
       redisInstance.get.mockResolvedValue(mockHistoryEntries);
@@ -67,7 +68,9 @@ describe("RedisHistory", () => {
       expect(redisInstance.get).toHaveBeenCalledWith("conversation:test");
       expect(redisHistory.entries.length).toBe(2);
       expect(redisHistory.entries[0].role).toBe("user");
-      expect(redisHistory.entries[0].content).toBe("Hello");
+      expect(redisHistory.entries[0].content).toEqual([
+        { type: "text", text: "Hello" },
+      ]);
     });
 
     it("should handle empty history gracefully", async () => {
@@ -100,14 +103,19 @@ describe("RedisHistory", () => {
       redisInstance.get.mockImplementation((key) => {
         if (key === "conversation:integration") {
           return Promise.resolve(
-            JSON.stringify([{ role: "user", content: "Test message" }])
+            JSON.stringify([
+              {
+                role: "user",
+                content: [{ type: "text", text: "Test message" }],
+              },
+            ])
           );
         }
         return Promise.resolve(null);
       });
 
       // Add some entries
-      redisHistory.addEntry("user", "Test message");
+      redisHistory.addText("user", "Test message");
       await redisHistory.save("conversation:integration");
 
       // Create a new history instance and load
@@ -116,7 +124,9 @@ describe("RedisHistory", () => {
 
       // Assert
       expect(newRedisHistory.entries.length).toBe(1);
-      expect(newRedisHistory.entries[0].content).toBe("Test message");
+      expect(newRedisHistory.entries[0].content).toEqual([
+        { type: "text", text: "Test message" },
+      ]);
     });
   });
 

@@ -1,98 +1,143 @@
 import EventEmitter from "events";
-import { BaseAgent } from "../agents/BaseAgent";
+import {
+  HistoryEntry,
+  MessageRole,
+  MessageContent,
+  text,
+  isTextContent,
+} from "./types";
 
-export type Role = "user" | "assistant";
+// Re-export types for convenience
+export type { HistoryEntry, MessageRole, MessageContent } from "./types";
+export {
+  text,
+  toolUse,
+  toolResult,
+  textMessage,
+  isTextContent,
+  isToolUseContent,
+  isToolResultContent,
+} from "./types";
 
-export type HistoryEntry =
-  | {
-      role: string;
-      content: any;
-    } & Record<string, any>;
-
-type HistoryEntryMetadata = {
-  date: string;
-  contentLength: number;
-};
 /**
- * Represents a single entry in the conversation history
+ * Internal entry with metadata
  */
-type Entry = HistoryEntry & {
-  __metadata: HistoryEntryMetadata;
+type EntryWithMetadata = HistoryEntry & {
+  __metadata: {
+    date: string;
+    contentLength: number;
+  };
 };
 
-interface IHistory {
-  addEntry(role: string, content: any): void;
-  get entries(): HistoryEntry[];
-}
-
+/**
+ * History configuration options
+ */
 type HistoryOptions = {
   maxLength?: number;
-  addDate?: boolean;
-  agent?: BaseAgent;
   transient?: boolean;
 };
 
 /**
- * Manages conversation history.
- * This class contains history and can be shared between agents. History can be serialised
- * so it can be stored in a (vector) database or to be summarised by an agent.
- * History can be loaded from a JSON object that was previously serialised.
+ * Manages conversation history in a provider-agnostic format.
  *
- * History can be shared by multiple agents or it can be constructed for each individual agent.
- * If no history is provided to an agent, a new history object will be created for each request.
+ * This class stores history entries in a normalized format that can be
+ * transformed to any LLM provider's native format using the transformers.
  *
- * @implements {EventEmitter}
- * @template T Type of history entries
+ * History can be shared between agents of different providers, enabling
+ * cross-provider conversations and handoffs.
+ *
+ * @example Basic usage
+ * ```typescript
+ * const history = new History();
+ * history.addText("user", "Hello!");
+ * history.addText("assistant", "Hi there!");
+ * ```
+ *
+ * @example Sharing between agents
+ * ```typescript
+ * const history = new History();
+ * const claudeAgent = new ClaudeAgent({ ... }, history);
+ * const openAiAgent = new OpenAiAgent({ ... }, history);
+ * // Both agents share the same conversation history
+ * ```
  */
-export class History extends EventEmitter implements IHistory {
-  protected _entries: Entry[] = [];
-  private options?: HistoryOptions = {};
+export class History extends EventEmitter {
+  protected _entries: EntryWithMetadata[] = [];
+  private options: HistoryOptions;
   public transient: boolean = false;
 
-  constructor(entries: Entry[] = [], options: HistoryOptions = {}) {
+  constructor(entries: HistoryEntry[] = [], options: HistoryOptions = {}) {
     super();
-    this._entries = entries;
     this.options = options;
     this.transient = Boolean(options?.transient);
-    this.options;
+
+    // Convert initial entries to internal format with metadata
+    for (const entry of entries) {
+      this.addEntry(entry);
+    }
   }
 
   /**
-   * Adds a new entry to the history
-   *
-   * @param role The role of the message sender
-   * @param content The content of the message
+   * Add a complete history entry
    */
-  addEntry(role: string | HistoryEntry, content?: any): void {
-    const __metadata: HistoryEntryMetadata = {
+  addEntry(entry: HistoryEntry): void {
+    const __metadata = {
       date: new Date().toISOString(),
-      contentLength: 0,
+      contentLength: JSON.stringify(entry.content).length,
     };
 
-    if (typeof role !== "string") {
-      __metadata.contentLength = JSON.stringify(role).length;
-      this._entries.push({
-        ...(role as Entry),
-        __metadata,
-      });
+    this._entries.push({
+      ...entry,
+      __metadata,
+    });
 
-      return;
-    }
-    __metadata.contentLength = content.length
-      ? content.length
-      : JSON.stringify(content).length;
-
-    this._entries.push({ role, content, __metadata: __metadata });
+    this.emit("entry", entry);
   }
 
-  get entries(): HistoryEntry[] {
-    return this._entries.map((entry) => {
-      const e = { ...entry } as HistoryEntry;
-      delete e["__metadata"];
-      return e;
+  /**
+   * Add a simple text message
+   */
+  addText(role: MessageRole, content: string): void {
+    this.addEntry({
+      role,
+      content: [text(content)],
     });
   }
 
+  /**
+   * Add a message with multiple content blocks
+   */
+  addMessage(role: MessageRole, content: MessageContent[]): void {
+    this.addEntry({ role, content });
+  }
+
+  /**
+   * Add a system message
+   */
+  addSystem(content: string): void {
+    this.addText("system", content);
+  }
+
+  /**
+   * Get all entries (without internal metadata)
+   */
+  get entries(): HistoryEntry[] {
+    return this._entries.map((entry) => {
+      const { __metadata, ...rest } = entry;
+      return rest;
+    });
+  }
+
+  /**
+   * Get the number of entries
+   */
+  get length(): number {
+    return this._entries.length;
+  }
+
+  /**
+   * Get total content size in characters
+   */
   get size(): number {
     return this._entries.reduce((total, { __metadata }) => {
       return total + __metadata.contentLength;
@@ -100,33 +145,61 @@ export class History extends EventEmitter implements IHistory {
   }
 
   /**
-   * Clears all history entries
+   * Get the last entry
+   */
+  lastEntry(): HistoryEntry | undefined {
+    if (this._entries.length === 0) return undefined;
+    const { __metadata, ...entry } = this._entries[this._entries.length - 1];
+    return entry;
+  }
+
+  /**
+   * Get system message if present
+   */
+  getSystemMessage(): string | undefined {
+    const systemEntry = this._entries.find((e) => e.role === "system");
+    if (!systemEntry) return undefined;
+
+    return systemEntry.content
+      .filter(isTextContent)
+      .map((c) => c.text)
+      .join("\n");
+  }
+
+  /**
+   * Get entries without system messages
+   */
+  getMessagesWithoutSystem(): HistoryEntry[] {
+    return this.entries.filter((e) => e.role !== "system");
+  }
+
+  /**
+   * Clear all history entries
    */
   clear(): void {
     this._entries = [];
+    this.emit("clear");
   }
 
   /**
-   * Serializes history to JSON
-   *
-   * @returns JSON representation of history
+   * Serialize history to JSON
    */
   toJSON(): string {
-    return JSON.stringify(this._entries);
-  }
-
-  lastEntry(): HistoryEntry | undefined {
-    return this._entries[this._entries.length - 1];
+    return JSON.stringify(this.entries);
   }
 
   /**
-   * Creates a History instance from JSON
-   *
-   * @param {string} json JSON string of history entries
-   * @returns {History<T>} New History instance
+   * Create a History instance from JSON
    */
-  static fromJSON<T extends Entry>(json: string): History {
-    const entries = JSON.parse(json) as T[];
-    return new History(entries);
+  static fromJSON(json: string, options?: HistoryOptions): History {
+    const entries = JSON.parse(json) as HistoryEntry[];
+    return new History(entries, options);
+  }
+
+  /**
+   * Create a copy of this history
+   */
+  clone(options?: HistoryOptions): History {
+    return new History(this.entries, options ?? this.options);
   }
 }

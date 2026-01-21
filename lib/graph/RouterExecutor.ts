@@ -1,5 +1,5 @@
 import { BaseAgent } from "../agents/BaseAgent";
-import { BaseExecutor, GraphNode, TokenUsage } from "./BaseExecutor";
+import { BaseExecutor, GraphNode, MetricsTokenUsage } from "./BaseExecutor";
 
 /**
  * Represents a route option that the router can select.
@@ -81,7 +81,9 @@ export class RouterExecutor extends BaseExecutor<string, string> {
     this.name = "RouterExecutor";
     this.nodeType = "router";
     this.router = router;
-    this.routes = new Map(routes.map((route) => [route.name.toLowerCase(), route]));
+    this.routes = new Map(
+      routes.map((route) => [route.name.toLowerCase(), route])
+    );
     this.routeNames = routes.map((r) => r.name);
 
     this.options = {
@@ -155,6 +157,7 @@ export class RouterExecutor extends BaseExecutor<string, string> {
       }
 
       // Get the selected route
+      console.log("Picked selectedRouteName", selectedRouteName);
       const route = this.routes.get(selectedRouteName.toLowerCase());
       if (!route) {
         // Try fallback if configured
@@ -167,7 +170,9 @@ export class RouterExecutor extends BaseExecutor<string, string> {
           }
         }
         throw new Error(
-          `Router selected invalid route: "${selectedRouteName}". Available routes: ${this.routeNames.join(", ")}`
+          `Router selected invalid route: "${selectedRouteName}". Available routes: ${this.routeNames.join(
+            ", "
+          )}`
         );
       }
 
@@ -196,7 +201,11 @@ export class RouterExecutor extends BaseExecutor<string, string> {
     parentExecId: string | undefined
   ): Promise<string> {
     const handlerName = route.name;
-    const handlerExecId = collector?.startExecution(handlerName, "agent", input);
+    const handlerExecId = collector?.startExecution(
+      handlerName,
+      "agent",
+      input
+    );
 
     try {
       // Prepare input for the handler
@@ -221,7 +230,7 @@ export class RouterExecutor extends BaseExecutor<string, string> {
       }
 
       // Try to extract token usage if handler is an agent
-      let tokenUsage: TokenUsage | undefined;
+      let tokenUsage: MetricsTokenUsage | undefined;
       if (!this.isGraphNode(route.handler)) {
         tokenUsage = this.extractTokenUsage(route.handler as BaseAgent);
       }
@@ -287,7 +296,7 @@ export class RouterExecutor extends BaseExecutor<string, string> {
   /**
    * Attempt to extract token usage from an agent.
    */
-  private extractTokenUsage(agent: BaseAgent): TokenUsage | undefined {
+  private extractTokenUsage(agent: BaseAgent): MetricsTokenUsage | undefined {
     const agentWithUsage = agent as BaseAgent & {
       lastTokenUsage?: {
         input_tokens: number;

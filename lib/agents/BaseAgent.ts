@@ -1,6 +1,14 @@
 import EventEmitter from "events";
 import { Tool } from "../tools/Tool";
-import { History, type HistoryEntry } from "../history/History";
+import {
+  History,
+  HistoryEntry,
+  MessageRole,
+  MessageContent,
+} from "../history/History";
+
+// Re-export for convenience
+export type { HistoryEntry, MessageRole, MessageContent };
 
 /**
  * Agent config as used across all agents
@@ -14,7 +22,7 @@ export interface BaseAgentConfig {
   debug?: boolean;
   maxHistoryLength?: number;
   model?: string;
-  tools?: Tool<any>[];
+  tools?: Tool<unknown>[];
   agents?: BaseAgent[];
   maxTokens?: number;
   timeout?: number;
@@ -41,7 +49,7 @@ export abstract class BaseAgent<
 
   protected name: string;
   protected description: string;
-  protected tools: Map<string, Tool<any>>;
+  protected tools: Map<string, Tool<unknown>>;
   protected maxHistoryLength: number;
 
   /**
@@ -84,17 +92,57 @@ export abstract class BaseAgent<
 
   protected abstract process(input: TInput): Promise<TOutput>;
 
-  protected abstract handleResponse(response: unknown): Promise<any>;
+  protected abstract handleResponse(response: unknown): Promise<unknown>;
 
   protected getToolDefinitions(): unknown[] {
     return Array.from(this.tools.values()).map((tool) => tool.getPrompt());
   }
 
-  protected addToHistory(role: string | HistoryEntry, content?: any): void {
-    this.history.addEntry(role, content);
+  /**
+   * Add an entry to history
+   */
+  protected addToHistory(entry: HistoryEntry): void {
+    this.history.addEntry(entry);
   }
 
-  public addTools(tools: Tool<any>[]) {
+  /**
+   * Add a text message to history
+   */
+  protected addTextToHistory(role: MessageRole, content: string): void {
+    this.history.addText(role, content);
+  }
+
+  /**
+   * Add system message to history if it doesn't already exist.
+   * Checks if the first system message matches the provided content.
+   */
+  protected addSystemMessage(content: string): void {
+    const existingSystem = this.history.getSystemMessage();
+    if (existingSystem === content) {
+      // System message already exists with same content, skip
+      return;
+    }
+    this.history.addSystem(content);
+  }
+
+  /**
+   * Get the standard system message for this agent
+   */
+  protected getSystemMessage(): string {
+    return `You are an agent called ${this.getName()} and should follow these instructions: ${this.getDescription()}`;
+  }
+
+  /**
+   * Add a message with content blocks to history
+   */
+  protected addMessageToHistory(
+    role: MessageRole,
+    content: MessageContent[]
+  ): void {
+    this.history.addMessage(role, content);
+  }
+
+  public addTools(tools: Tool<unknown>[]) {
     tools.forEach((tool) => {
       if (!this.tools.has(tool.name)) {
         this.tools.set(tool.name, tool);
@@ -123,7 +171,7 @@ export abstract class BaseAgent<
     return this.history.entries;
   }
 
-  getTools(): Tool<any>[] {
+  getTools(): Tool<unknown>[] {
     return [...this.tools.values()];
   }
 

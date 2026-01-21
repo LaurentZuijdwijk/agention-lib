@@ -78,7 +78,9 @@ describe("ClaudeAgent", () => {
         system:
           "You are an agent called TestAgent and should follow these instructions: Test Description",
         max_tokens: 1024,
-        messages: [{ role: "user", content: "test input" }],
+        messages: [
+          { role: "user", content: [{ type: "text", text: "test input" }] },
+        ],
         tools: [],
       });
     });

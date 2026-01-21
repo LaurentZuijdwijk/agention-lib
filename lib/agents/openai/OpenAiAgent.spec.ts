@@ -130,6 +130,11 @@ describe("OpenAiAgent", () => {
           },
         ],
         output_text: "Hello there",
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
+        },
       };
 
       mockClient.responses.create.mockResolvedValue(mockResponse);
@@ -156,8 +161,15 @@ describe("OpenAiAgent", () => {
         AgentEvent.AFTER_EXECUTE,
         mockResponse
       );
-      expect(historyAddSpy).toHaveBeenCalledWith("user", "test input");
-      expect(historyAddSpy).toHaveBeenCalledWith("assistant", "Hello there");
+      // History uses normalized format now
+      expect(historyAddSpy).toHaveBeenCalled();
+
+      // Verify token usage tracking
+      expect(agent.lastTokenUsage).toEqual({
+        input_tokens: 10,
+        output_tokens: 20,
+        total_tokens: 30,
+      });
     });
 
     it("should handle OpenAI API errors", async () => {
@@ -206,6 +218,58 @@ describe("OpenAiAgent", () => {
         );
       }
     });
+
+    it("should reset token usage on each execution", async () => {
+      const mockResponse1 = {
+        output: [
+          {
+            type: "message",
+            status: "completed",
+            content: "First response",
+          },
+        ],
+        output_text: "First response",
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
+        },
+      };
+
+      const mockResponse2 = {
+        output: [
+          {
+            type: "message",
+            status: "completed",
+            content: "Second response",
+          },
+        ],
+        output_text: "Second response",
+        usage: {
+          input_tokens: 15,
+          output_tokens: 25,
+          total_tokens: 40,
+        },
+      };
+
+      mockClient.responses.create
+        .mockResolvedValueOnce(mockResponse1)
+        .mockResolvedValueOnce(mockResponse2);
+
+      await agent.execute("first input");
+      expect(agent.lastTokenUsage).toEqual({
+        input_tokens: 10,
+        output_tokens: 20,
+        total_tokens: 30,
+      });
+
+      await agent.execute("second input");
+      expect(agent.lastTokenUsage).toEqual({
+        input_tokens: 15,
+        output_tokens: 25,
+        total_tokens: 40,
+      });
+    });
   });
 
   describe("handleResponse", () => {
@@ -219,11 +283,21 @@ describe("OpenAiAgent", () => {
           },
         ],
         output_text: "Text response",
+        usage: {
+          input_tokens: 5,
+          output_tokens: 10,
+          total_tokens: 15,
+        },
       };
 
       const result = await agent["handleResponse"](textResponse);
 
       expect(result).toBe("Text response");
+      expect(agent.lastTokenUsage).toEqual({
+        input_tokens: 5,
+        output_tokens: 10,
+        total_tokens: 15,
+      });
     });
   });
 

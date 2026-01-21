@@ -2,7 +2,6 @@ import { Anthropic, APIError } from "@anthropic-ai/sdk";
 import {
   ContentBlock,
   Message,
-  MessageParam,
   ToolUseBlock,
   Usage,
 } from "@anthropic-ai/sdk/resources";
@@ -15,7 +14,8 @@ import {
   MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
-import { History } from "../../history/History";
+import { History, toolResult, toolUse, text } from "../../history/History";
+import { anthropicTransformer } from "../../history/transformers";
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
@@ -24,13 +24,20 @@ type AgentConfig = BaseAgentConfig & {
   disableParallelToolUse?: boolean;
 };
 
-// TODO: type the agents that are available.
-
 /**
  * Agent for Anthropic models.
  *
- *
  * @example
+ * ```typescript
+ * const agent = new ClaudeAgent({
+ *   id: "1",
+ *   name: "Assistant",
+ *   description: "A helpful assistant",
+ *   apiKey: process.env.ANTHROPIC_API_KEY,
+ * });
+ *
+ * const response = await agent.execute("Hello!");
+ * ```
  */
 export class ClaudeAgent extends BaseAgent {
   private client: Anthropic;
@@ -52,17 +59,18 @@ export class ClaudeAgent extends BaseAgent {
       apiKey: config.apiKey,
       temperature: config.temperature,
     };
-    this.addToHistory(
-      "user",
-      `System message: You are an agent called ${this.getName()} and should follow these instructions: ${this.getDescription()}`
-    );
+
+    // Add system message to history (skips if already exists with same content)
+    this.addSystemMessage(this.getSystemMessage());
   }
 
   protected getToolDefinitions(): ToolDefinition[] {
     return Array.from(this.tools.values()).map((tool) => tool.getPrompt());
   }
 
-  protected async process(_input: string): Promise<any> {}
+  protected async process(_input: string): Promise<string> {
+    return "";
+  }
 
   async execute(input: string): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
@@ -72,15 +80,21 @@ export class ClaudeAgent extends BaseAgent {
 
     if (this.history.transient) {
       this.history.clear();
+      // Re-add system message after clear
+      this.addSystemMessage(this.getSystemMessage());
     }
-    this.addToHistory("user", input);
-    // console.log(this.history.entries);
+
+    this.addTextToHistory("user", input);
+
     try {
+      const messages = anthropicTransformer.toProvider(this.history.entries);
+      const systemMessage = this.history.getSystemMessage();
+
       const response = await this.client.messages.create({
         model: this.config.model!,
-        system: `You are an agent called ${this.getName()} and should follow these instructions: ${this.getDescription()}`,
+        system: systemMessage,
         max_tokens: this.config.maxTokens!,
-        messages: this.history.entries as MessageParam[],
+        messages,
         tools: this.getToolDefinitions(),
       });
 
@@ -88,7 +102,6 @@ export class ClaudeAgent extends BaseAgent {
       return await this.handleResponse(response);
     } catch (error) {
       if (error instanceof APIError) {
-        // Handle Anthropic API errors
         const apiError = new ApiError(
           `Anthropic API error: ${error.message}`,
           error.status,
@@ -97,7 +110,6 @@ export class ClaudeAgent extends BaseAgent {
         this.emit(AgentEvent.ERROR, apiError);
         throw apiError;
       } else {
-        // Handle other execution errors
         const executionError = new ExecutionError(
           `Error executing agent: ${
             error instanceof Error ? error.message : "Unknown error"
@@ -109,12 +121,11 @@ export class ClaudeAgent extends BaseAgent {
     }
   }
 
-  protected async handleResponse(response: Message): Promise<any> {
+  protected async handleResponse(response: Message): Promise<string> {
     const usage = this.parseUsage(response.usage);
 
     // Store token usage for metrics tracking
     if (this.lastTokenUsage) {
-      // Accumulate if there are multiple calls (e.g., tool use loops)
       this.lastTokenUsage.input_tokens += usage.input_tokens;
       this.lastTokenUsage.output_tokens += usage.output_tokens;
       this.lastTokenUsage.total_tokens += usage.total_tokens;
@@ -122,7 +133,6 @@ export class ClaudeAgent extends BaseAgent {
       this.lastTokenUsage = { ...usage };
     }
 
-    // Handle API response based on stop_reason
     if (response.stop_reason === "max_tokens") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
@@ -134,14 +144,18 @@ export class ClaudeAgent extends BaseAgent {
     }
 
     if (response.stop_reason !== "tool_use") {
-      // look at stop reasons
       if (response.content && response.content[0]?.type === "text") {
         this.emit(AgentEvent.DONE, response, usage);
-        this.addToHistory("assistant", response.content);
+
+        // Convert response to normalized format and add to history
+        const entry = anthropicTransformer.fromProviderContent(
+          "assistant",
+          response.content
+        );
+        this.addToHistory(entry);
 
         return response.content[0].text;
       } else {
-        // Unexpected response format
         const error = new ExecutionError(
           `Unexpected response format: ${JSON.stringify(response.content)}`
         );
@@ -149,26 +163,35 @@ export class ClaudeAgent extends BaseAgent {
         throw error;
       }
     } else if (response.stop_reason === "tool_use") {
-      // Tool use detected
       try {
         this.emit(AgentEvent.TOOL_USE, response.content);
 
-        // Add assistant response to history
-        this.addToHistory("assistant", response.content);
+        // Add assistant response to history (normalized format)
+        const assistantEntry = anthropicTransformer.fromProviderContent(
+          "assistant",
+          response.content
+        );
+        this.addToHistory(assistantEntry);
 
-        const res = await this.handleToolUse(response.content);
-        this.addToHistory("user", res);
+        const toolResults = await this.handleToolUse(response.content);
+
+        // Add tool results to history (normalized format)
+        this.addMessageToHistory("user", toolResults);
 
         // Continue conversation with tool results
         try {
+          const messages = anthropicTransformer.toProvider(
+            this.history.entries
+          );
+
           const newResponse = await this.client.messages.create({
             model: this.config.model!,
             max_tokens: this.config.maxTokens!,
-            messages: this.history.entries as MessageParam[],
+            messages,
             tools: this.getToolDefinitions(),
           });
-          this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
 
+          this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
           return this.handleResponse(newResponse);
         } catch (error) {
           if (error instanceof APIError) {
@@ -188,7 +211,6 @@ export class ClaudeAgent extends BaseAgent {
           }
         }
       } catch (error) {
-        // Error during tool execution
         if (error instanceof ToolExecutionError) {
           this.emit(AgentEvent.TOOL_ERROR, error);
           throw error;
@@ -204,7 +226,6 @@ export class ClaudeAgent extends BaseAgent {
       }
     }
 
-    // Fallback for unexpected stop_reason
     const error = new ExecutionError(
       `Unexpected stop_reason: ${response.stop_reason}`
     );
@@ -214,16 +235,16 @@ export class ClaudeAgent extends BaseAgent {
 
   private async handleToolUse(
     content: ContentBlock[]
-  ): Promise<ContentBlock[]> {
+  ): Promise<ReturnType<typeof toolResult>[]> {
     const toolUseBlocks = content.filter(
       (block) => block.type === "tool_use"
     ) as Array<ToolUseBlock>;
+
     if (!toolUseBlocks.length) {
-      console.error("No tool use blocks found in content");
       throw new ExecutionError("No tool use blocks found in content");
     }
 
-    const toolResults = await Promise.all(
+    const results = await Promise.all(
       toolUseBlocks.map(async (block) => {
         const tool = this.tools.get(block.name);
 
@@ -235,63 +256,44 @@ export class ClaudeAgent extends BaseAgent {
             block.input
           );
 
-          // Log the error but continue with other tools
           if (this.debug) {
             console.error(error);
           }
 
-          return {
-            type: "tool_result" as const,
-            tool_use_id: block.id,
-            content: errorMessage,
-            is_error: true,
-          };
+          return toolResult(block.id, errorMessage, true);
         }
 
         try {
           const result = await tool.execute(
             this.getId(),
             this.getName(),
-            block.input as any,
+            block.input as Record<string, unknown>,
             block.id
           );
-          return {
-            type: "tool_result" as const,
-            tool_use_id: block.id,
-            content: JSON.stringify(result),
-          } as any;
+
+          return toolResult(block.id, JSON.stringify(result));
         } catch (error) {
-          // Handle errors from tool execution
           const errorMessage = `Error executing tool '${block.name}': ${
             error instanceof Error ? error.message : "Unknown error"
           }`;
-          if (this.debug) console.error(errorMessage);
+
+          if (this.debug) {
+            console.error(errorMessage);
+          }
 
           const toolError = new ToolExecutionError(
             errorMessage,
             block.name,
             block.input
           );
-
-          // Emit tool error event
           this.emit(AgentEvent.TOOL_ERROR, toolError);
 
-          // Log error in debug mode
-          if (this.debug) {
-            console.error(toolError);
-          }
-
-          return {
-            type: "tool_result" as const,
-            tool_use_id: block.id,
-            content: errorMessage,
-            is_error: true,
-          };
+          return toolResult(block.id, errorMessage, true);
         }
       })
     );
 
-    return toolResults;
+    return results;
   }
 
   protected parseUsage(input: Usage): TokenUsage {

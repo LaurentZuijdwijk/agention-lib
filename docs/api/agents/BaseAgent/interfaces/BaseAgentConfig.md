@@ -1,0 +1,117 @@
+# Interface: BaseAgentConfig
+
+Defined in: [lib/agents/BaseAgent.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L16)
+
+Agent config as used across all agents
+
+## Properties
+
+### agents?
+
+> `optional` **agents**: [`BaseAgent`](../classes/BaseAgent.md)\<`unknown`, `unknown`\>[]
+
+Defined in: [lib/agents/BaseAgent.ts:26](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L26)
+
+***
+
+### apiKey
+
+> **apiKey**: `string`
+
+Defined in: [lib/agents/BaseAgent.ts:21](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L21)
+
+***
+
+### debug?
+
+> `optional` **debug**: `boolean`
+
+Defined in: [lib/agents/BaseAgent.ts:22](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L22)
+
+***
+
+### description
+
+> **description**: `string`
+
+Defined in: [lib/agents/BaseAgent.ts:19](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L19)
+
+***
+
+### id
+
+> **id**: `string`
+
+Defined in: [lib/agents/BaseAgent.ts:17](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L17)
+
+***
+
+### maxHistoryLength?
+
+> `optional` **maxHistoryLength**: `number`
+
+Defined in: [lib/agents/BaseAgent.ts:23](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L23)
+
+***
+
+### maxRetries?
+
+> `optional` **maxRetries**: `number`
+
+Defined in: [lib/agents/BaseAgent.ts:29](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L29)
+
+***
+
+### maxTokens?
+
+> `optional` **maxTokens**: `number`
+
+Defined in: [lib/agents/BaseAgent.ts:27](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L27)
+
+***
+
+### model?
+
+> `optional` **model**: `string`
+
+Defined in: [lib/agents/BaseAgent.ts:24](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L24)
+
+***
+
+### name
+
+> **name**: `string`
+
+Defined in: [lib/agents/BaseAgent.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L18)
+
+***
+
+### temperature?
+
+> `optional` **temperature**: `number`
+
+Defined in: [lib/agents/BaseAgent.ts:30](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L30)
+
+***
+
+### timeout?
+
+> `optional` **timeout**: `number`
+
+Defined in: [lib/agents/BaseAgent.ts:28](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L28)
+
+***
+
+### tools?
+
+> `optional` **tools**: [`Tool`](../../../tools/Tool/classes/Tool.md)\<`unknown`\>[]
+
+Defined in: [lib/agents/BaseAgent.ts:25](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L25)
+
+***
+
+### vendor
+
+> **vendor**: `"anthropic"` \| `"openai"` \| `"mistral"`
+
+Defined in: [lib/agents/BaseAgent.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L20)

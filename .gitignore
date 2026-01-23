@@ -31,3 +31,4 @@ examples/aiAuthor/*
 *.sln
 *.sw?
 .npmrc
+examples/history.json

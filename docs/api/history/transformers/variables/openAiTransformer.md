@@ -1,0 +1,71 @@
+# Variable: openAiTransformer
+
+> `const` **openAiTransformer**: `object`
+
+Defined in: [lib/history/transformers.ts:146](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/transformers.ts#L146)
+
+## Type Declaration
+
+### fromProviderMessage()
+
+> **fromProviderMessage**(`role`, `outputText`, `functionCalls?`): [`HistoryEntry`](../../types/type-aliases/HistoryEntry.md)
+
+Convert OpenAI response to normalized HistoryEntry
+
+#### Parameters
+
+##### role
+
+`"user"` | `"assistant"`
+
+##### outputText
+
+`string`
+
+##### functionCalls?
+
+`object`[]
+
+#### Returns
+
+[`HistoryEntry`](../../types/type-aliases/HistoryEntry.md)
+
+### toolResultEntry()
+
+> **toolResultEntry**(`call_id`, `output`, `is_error?`): [`HistoryEntry`](../../types/type-aliases/HistoryEntry.md)
+
+Create a tool result entry from OpenAI function call output
+
+#### Parameters
+
+##### call\_id
+
+`string`
+
+##### output
+
+`string`
+
+##### is\_error?
+
+`boolean`
+
+#### Returns
+
+[`HistoryEntry`](../../types/type-aliases/HistoryEntry.md)
+
+### toProvider()
+
+> **toProvider**(`entries`): `ResponseInputItem`[]
+
+Convert normalized entries to OpenAI ResponseInputItem format
+
+#### Parameters
+
+##### entries
+
+[`HistoryEntry`](../../types/type-aliases/HistoryEntry.md)[]
+
+#### Returns
+
+`ResponseInputItem`[]

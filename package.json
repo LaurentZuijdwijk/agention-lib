@@ -23,8 +23,11 @@
     "prepare": "npm run build",
     "example": "ts-node examples/index.ts",
     "example:watch": "nodemon --watch examples --watch src --ext ts --exec 'ts-node' examples/index.ts",
-    "docs": "typedoc --excludeProtected --out docs lib",
-    "jsdoc": "jsdoc -a all -c jsdoc.json -r -R lib/agents/BaseAgent.ts -d docs/jsdoc && jsdoc2md --files index.js > docs/API.md"
+    "docs": "npm run docs:api && npm run docs:site",
+    "docs:api": "typedoc",
+    "docs:site": "vitepress build docs",
+    "docs:dev": "vitepress dev docs",
+    "docs:preview": "vitepress preview docs"
   },
   "overrides": {
     "ajv": "^8.17.1",
@@ -35,10 +38,12 @@
     "@babel/preset-env": "^7.26.9",
     "@babel/preset-typescript": "^7.26.0",
     "@eslint/js": "^9.23.0",
+    "@lancedb/lancedb": "^0.23.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^18.15.11",
     "@typescript-eslint/eslint-plugin": "^5.57.1",
     "@typescript-eslint/parser": "^5.57.1",
+    "apache-arrow": "^18.1.0",
     "babel-jest": "^29.7.0",
     "docdash": "^2.0.2",
     "eslint": "^8.57.1",
@@ -53,15 +58,28 @@
     "rimraf": "^4.4.1",
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.1",
-    "typedoc": "^0.24.1",
+    "typedoc": "^0.28.16",
+    "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5.0.3",
-    "typescript-eslint": "^8.28.0"
+    "typescript-eslint": "^8.28.0",
+    "vitepress": "^1.6.4"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@lancedb/lancedb": "^0.13.0",
+    "apache-arrow": "^18.0.0",
     "openai": "^4.86.2"
   },
+  "peerDependenciesMeta": {
+    "@lancedb/lancedb": {
+      "optional": true
+    },
+    "apache-arrow": {
+      "optional": true
+    }
+  },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@mistralai/mistralai": "^1.6.0"
   }
 }

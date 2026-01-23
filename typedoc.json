@@ -1,0 +1,12 @@
+{
+  "entryPoints": ["lib"],
+  "entryPointStrategy": "expand",
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown"],
+  "excludeProtected": true,
+  "excludePrivate": true,
+  "readme": "none",
+  "githubPages": false,
+  "hideBreadcrumbs": true,
+  "hidePageHeader": true
+}

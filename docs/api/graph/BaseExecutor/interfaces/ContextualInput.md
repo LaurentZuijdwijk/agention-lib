@@ -1,0 +1,27 @@
+# Interface: ContextualInput\<T\>
+
+Defined in: [lib/graph/BaseExecutor.ts:119](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L119)
+
+Input wrapper that includes both the value and pipeline context.
+
+## Type Parameters
+
+### T
+
+`T` = `unknown`
+
+## Properties
+
+### context
+
+> **context**: [`PipelineContext`](PipelineContext.md)
+
+Defined in: [lib/graph/BaseExecutor.ts:121](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L121)
+
+***
+
+### value
+
+> **value**: `T`
+
+Defined in: [lib/graph/BaseExecutor.ts:120](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L120)

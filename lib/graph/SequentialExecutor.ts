@@ -1,5 +1,9 @@
 import { BaseAgent } from "../agents/BaseAgent";
-import { BaseExecutor, MetricsCollector, TokenUsage } from "./BaseExecutor";
+import {
+  BaseExecutor,
+  MetricsCollector,
+  MetricsTokenUsage,
+} from "./BaseExecutor";
 
 /**
  * Options for configuring sequential execution behavior.
@@ -136,7 +140,7 @@ export class SequentialExecutor extends BaseExecutor<string, string> {
    * Attempt to extract token usage from an agent.
    * Converts from agent's snake_case format to metrics camelCase format.
    */
-  private extractTokenUsage(agent: BaseAgent): TokenUsage | undefined {
+  private extractTokenUsage(agent: BaseAgent): MetricsTokenUsage | undefined {
     // Check if agent has lastTokenUsage property
     const agentWithUsage = agent as BaseAgent & {
       lastTokenUsage?: {

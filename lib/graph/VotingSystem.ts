@@ -1,5 +1,5 @@
 import { BaseAgent } from "../agents/BaseAgent";
-import { BaseExecutor, TokenUsage } from "./BaseExecutor";
+import { BaseExecutor, MetricsTokenUsage } from "./BaseExecutor";
 
 /**
  * Input format for the VotingSystem.
@@ -156,7 +156,7 @@ export class VotingSystem extends BaseExecutor<VotingInput, string> {
    * Attempt to extract token usage from an agent.
    * Converts from agent's snake_case format to metrics camelCase format.
    */
-  private extractTokenUsage(agent: BaseAgent): TokenUsage | undefined {
+  private extractTokenUsage(agent: BaseAgent): MetricsTokenUsage | undefined {
     const agentWithUsage = agent as BaseAgent & {
       lastTokenUsage?: {
         input_tokens: number;

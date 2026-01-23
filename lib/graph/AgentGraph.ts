@@ -29,7 +29,7 @@ export {
   NodeOutput,
   MetricsCollector,
   NodeExecutionMetrics,
-  TokenUsage,
+  MetricsTokenUsage,
   GraphNodeType,
 } from "./BaseExecutor";
 export {

@@ -4,9 +4,9 @@
  */
 
 /**
- * Token usage statistics from an LLM call.
+ * Token usage statistics from an LLM call (for metrics tracking).
  */
-export interface TokenUsage {
+export interface MetricsTokenUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -37,7 +37,7 @@ export interface NodeExecutionMetrics {
   /** Duration in milliseconds */
   durationMs: number;
   /** Token usage if applicable */
-  tokenUsage?: TokenUsage;
+  tokenUsage?: MetricsTokenUsage;
   /** Whether execution succeeded */
   success: boolean;
   /** Error message if failed */
@@ -59,7 +59,7 @@ export interface PipelineMetrics {
   /** Total execution time in milliseconds */
   totalDurationMs: number;
   /** Total tokens used across all nodes */
-  totalTokens: TokenUsage;
+  totalTokens: MetricsTokenUsage;
   /** Number of nodes executed */
   nodeCount: number;
   /** Number of successful executions */
@@ -161,7 +161,7 @@ export class MetricsCollector {
     id: string,
     success: boolean,
     output?: unknown,
-    tokenUsage?: TokenUsage,
+    tokenUsage?: MetricsTokenUsage,
     error?: string
   ): void {
     const metrics = this.findExecution(id);
@@ -206,7 +206,7 @@ export class MetricsCollector {
   /**
    * Add token usage to the current execution.
    */
-  addTokenUsage(usage: TokenUsage): void {
+  addTokenUsage(usage: MetricsTokenUsage): void {
     if (this.currentExecution) {
       if (this.currentExecution.tokenUsage) {
         this.currentExecution.tokenUsage.inputTokens += usage.inputTokens;
@@ -229,7 +229,7 @@ export class MetricsCollector {
    * Calculate aggregate metrics.
    */
   getAggregateMetrics(): PipelineMetrics {
-    const totalTokens: TokenUsage = {
+    const totalTokens: MetricsTokenUsage = {
       inputTokens: 0,
       outputTokens: 0,
       totalTokens: 0,

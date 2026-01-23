@@ -1,7 +1,7 @@
 import {
   MetricsCollector,
   NodeExecutionMetrics,
-  TokenUsage,
+  MetricsTokenUsage,
 } from "./GraphMetrics";
 
 /**
@@ -135,5 +135,5 @@ export type NodeOutput<T> = T extends GraphNode<unknown, infer O> ? O : never;
 export {
   MetricsCollector,
   NodeExecutionMetrics,
-  TokenUsage,
+  MetricsTokenUsage,
 } from "./GraphMetrics";

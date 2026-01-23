@@ -1,5 +1,5 @@
 import { BaseAgent } from "../agents/BaseAgent";
-import { BaseExecutor, TokenUsage } from "./BaseExecutor";
+import { BaseExecutor, MetricsTokenUsage } from "./BaseExecutor";
 
 /**
  * Options for configuring parallel execution behavior.
@@ -124,7 +124,7 @@ export class ParallelExecutor extends BaseExecutor<string, string[]> {
    * Attempt to extract token usage from an agent.
    * Converts from agent's snake_case format to metrics camelCase format.
    */
-  private extractTokenUsage(agent: BaseAgent): TokenUsage | undefined {
+  private extractTokenUsage(agent: BaseAgent): MetricsTokenUsage | undefined {
     const agentWithUsage = agent as BaseAgent & {
       lastTokenUsage?: {
         input_tokens: number;

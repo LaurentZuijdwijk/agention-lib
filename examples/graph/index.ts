@@ -7,6 +7,7 @@
  *   npx ts-node examples/graph/voting-example.ts
  *   npx ts-node examples/graph/pipeline-example.ts
  *   npx ts-node examples/graph/map-example.ts
+ *   npx ts-node examples/graph/router-example.ts
  *
  * Or run this file for a quick demo:
  *   npx ts-node examples/graph/index.ts
@@ -34,7 +35,8 @@ async function quickDemo() {
   const uppercaseAgent = new ClaudeAgent({
     id: "uppercase",
     name: "Uppercase Agent",
-    description: "Convert the input to uppercase. Output only the uppercase text.",
+    description:
+      "Convert the input to uppercase. Output only the uppercase text.",
     apiKey,
     maxTokens: 100,
   });
@@ -42,7 +44,8 @@ async function quickDemo() {
   const excitedAgent = new ClaudeAgent({
     id: "excited",
     name: "Excited Agent",
-    description: "Add excitement to the text by adding exclamation marks and enthusiastic words. Keep it short.",
+    description:
+      "Add excitement to the text by adding exclamation marks and enthusiastic words. Keep it short.",
     apiKey,
     maxTokens: 100,
   });
@@ -50,7 +53,8 @@ async function quickDemo() {
   const calmAgent = new ClaudeAgent({
     id: "calm",
     name: "Calm Agent",
-    description: "Make the text calmer and more relaxed. Use peaceful language. Keep it short.",
+    description:
+      "Make the text calmer and more relaxed. Use peaceful language. Keep it short.",
     apiKey,
     maxTokens: 100,
   });
@@ -58,7 +62,8 @@ async function quickDemo() {
   const judgeAgent = new ClaudeAgent({
     id: "judge",
     name: "Judge Agent",
-    description: "You receive two versions of text. Pick the better one. Output only 'Version 1' or 'Version 2'.",
+    description:
+      "You receive two versions of text. Pick the better one. Output only 'Version 1' or 'Version 2'.",
     apiKey,
     maxTokens: 20,
   });

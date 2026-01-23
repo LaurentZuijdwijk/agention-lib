@@ -7,7 +7,7 @@
     "@lancedb/lancedb": "^0.18.1",
     "@types/ws": "^8.18.0",
     "colors": "^1.4.0",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.6.1",
     "install": "^0.13.0",
     "npm": "^11.2.0",
     "ora": "^8.2.0",

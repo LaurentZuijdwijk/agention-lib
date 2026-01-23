@@ -17,6 +17,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { ClaudeAgent } from "../lib/agents/anthropic/ClaudeAgent";
 import { OpenAiAgent } from "../lib/agents/openai/OpenAiAgent";
+import { MistralAgent } from "../lib/agents/mistral/MistralAgent";
 import { History, HistoryEntry } from "../lib/history/History";
 import { BaseAgent } from "../lib/agents/BaseAgent";
 import { Tool } from "../lib/tools/Tool";
@@ -161,7 +162,7 @@ Be concise but helpful.`;
  * Create the agent with shared history
  */
 function createAgent(
-  provider: "claude" | "openai",
+  provider: "claude" | "openai" | "mistral",
   history: History
 ): BaseAgent {
   if (provider === "openai") {
@@ -172,6 +173,20 @@ function createAgent(
         description: AGENT_DESCRIPTION,
         apiKey: process.env.OPENAI_API_KEY as string,
         model: "gpt-4o-mini",
+        maxTokens: 1024,
+        tools,
+      },
+      history
+    );
+  }
+
+  if (provider === "mistral") {
+    return new MistralAgent(
+      {
+        id: "assistant",
+        name: "Assistant",
+        description: AGENT_DESCRIPTION,
+        apiKey: process.env.MISTRAL_API_KEY as string,
         maxTokens: 1024,
         tools,
       },
@@ -238,9 +253,14 @@ async function main() {
 
   // Choose provider
   const providerChoice = await rl.question(
-    "Which provider? [1] Claude (default) or [2] OpenAI: "
+    "Which provider? [1] Claude (default), [2] OpenAI, or [3] Mistral: "
   );
-  const provider = providerChoice === "2" ? "openai" : "claude";
+  let provider: "claude" | "openai" | "mistral" = "claude";
+  if (providerChoice === "2") {
+    provider = "openai";
+  } else if (providerChoice === "3") {
+    provider = "mistral";
+  }
   console.log(`Using ${provider}`);
 
   // Create agent with the loaded history

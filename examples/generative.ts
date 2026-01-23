@@ -109,7 +109,7 @@ async function example() {
   });
 
   try {
-    directoryReadTool.on(ToolEvent.RESULT, () => {
+    directoryReadTool.on(ToolEvent.EXECUTE, () => {
       // console.log("directoryReadTool.on(ToolEvent.EXECUTE", args);
       // args.event.preventDefault();
     });

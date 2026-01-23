@@ -1,5 +1,8 @@
 import EventEmitter from "events";
-import { BaseAgent } from "../agents/BaseAgent";
+import { BaseAgent, AgentVendor } from "../agents/BaseAgent";
+import { vizReporter } from "../viz/VizReporter";
+import { vizConfig } from "../viz/VizConfig";
+import { VizSource } from "../viz/types";
 
 export interface ToolInputSchema {
   type: "object";
@@ -35,7 +38,7 @@ export class ToolEvent {
     public input: Record<string, any>,
     public id: string,
     public agentId: string,
-    public agentName: string,
+    public agentName: string
   ) {}
 
   preventDefault() {
@@ -57,7 +60,7 @@ export class ToolResultEvent extends ToolEvent {
     public id: string,
     public result: any,
     public agentId: string,
-    public agentName: string,
+    public agentName: string
   ) {
     super(target, input, id, agentId, agentName);
   }
@@ -73,7 +76,7 @@ export class ToolResultEvent extends ToolEvent {
 export class Tool<T> extends EventEmitter {
   protected executeFn: (
     input: unknown,
-    context: Record<string, any> | null,
+    context: Record<string, any> | null
   ) => Promise<T>;
   name: string;
   protected description: string;
@@ -125,19 +128,30 @@ export class Tool<T> extends EventEmitter {
     agentName: string,
     input: Record<string, any>,
     id: string,
+    agentModel?: string,
+    agentVendor?: AgentVendor
   ): Promise<T> {
     const event = new ToolEvent(this, input, id, agentId, agentName);
 
     this.emit(ToolEvent.EXECUTE, event);
     if (event.isDefaultPrevented) {
-      return {
-        type: "tool_result" as const,
-        tool_use_id: id,
-        content:
-          "Tool execution prevented, do not try this tool again with this input",
-        is_error: true,
-      } as any;
+      throw new Error(
+        "Tool execution prevented, do not try this tool again with this input"
+      );
     }
+
+    // Visualization reporting
+    let vizEventId: string | undefined;
+    if (vizConfig.isEnabled()) {
+      const vizSource: VizSource = {
+        agentId,
+        agentName,
+        model: agentModel || "unknown",
+        vendor: agentVendor || "anthropic",
+      };
+      vizEventId = vizReporter.toolStart(this.name, id, input, vizSource);
+    }
+
     try {
       const result = await this.executeFn(input, this.context);
       const resultEvent = new ToolResultEvent(
@@ -146,33 +160,33 @@ export class Tool<T> extends EventEmitter {
         id,
         result,
         agentId,
-        agentName,
+        agentName
       );
 
       this.emit(ToolResultEvent.RESULT, resultEvent);
       if (resultEvent.isDefaultPrevented) {
-        return {
-          type: "tool_result" as const,
-          tool_use_id: id,
-          content:
-            "Tool result prevented, do not try this tool again with this input",
-          is_error: true,
-        } as any;
+        throw new Error(
+          "Tool result prevented, do not try this tool again with this input"
+        );
       }
 
-      return {
-        type: "tool_result" as const,
-        tool_use_id: id,
-        content: JSON.stringify(result),
-      } as any;
+      // Report tool completion to viz
+      if (vizEventId) {
+        vizReporter.toolComplete(vizEventId, this.name, id, true, result);
+      }
+
+      return result;
     } catch (error: any) {
-      return {
-        type: "tool_result" as const,
-        tool_use_id: id,
-        agentId,
-        content: error.message,
-        is_error: true,
-      } as any;
+      // Report tool error to viz
+      if (vizEventId) {
+        vizReporter.toolError(
+          vizEventId,
+          this.name,
+          id,
+          error?.message || "Unknown error"
+        );
+      }
+      throw error;
     }
   }
   getPrompt(_vendor?: string) {

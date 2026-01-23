@@ -41,7 +41,7 @@ describe("Tool", () => {
   });
 
   describe("execute", () => {
-    it("should successfully execute and return tool result", async () => {
+    it("should successfully execute and return raw result", async () => {
       const config: ToolConfig<any> = {
         name: "TestTool",
         description: "A test tool",
@@ -59,14 +59,10 @@ describe("Tool", () => {
         "test-id"
       );
 
-      expect(result).toEqual({
-        type: "tool_result",
-        tool_use_id: "test-id",
-        content: JSON.stringify({ result: "Processed test query" }),
-      });
+      expect(result).toEqual({ result: "Processed test query" });
     });
 
-    it("should handle execution errors", async () => {
+    it("should handle execution errors by throwing", async () => {
       const config: ToolConfig<any> = {
         name: "ErrorTool",
         description: "A tool that throws an error",
@@ -77,20 +73,9 @@ describe("Tool", () => {
       const tool = new Tool(config);
       const input = { query: "error query" };
 
-      const result = await tool.execute(
-        "agentId1",
-        "agentNameJames",
-        input,
-        "error-id"
-      );
-
-      expect(result).toEqual({
-        type: "tool_result",
-        agentId: "agentId1",
-        tool_use_id: "error-id",
-        content: "Test error",
-        is_error: true,
-      });
+      await expect(
+        tool.execute("agentId1", "agentNameJames", input, "error-id")
+      ).rejects.toThrow("Test error");
     });
   });
 

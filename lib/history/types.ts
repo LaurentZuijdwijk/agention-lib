@@ -68,12 +68,24 @@ export type OpenAiMeta = {
 export type MistralMeta = {
   provider: "mistral";
   tool_call_id?: string;
+  tool_name?: string;
+};
+
+/**
+ * Gemini-specific metadata
+ */
+export type GeminiMeta = {
+  provider: "gemini";
 };
 
 /**
  * Union of all provider metadata types
  */
-export type ProviderMeta = AnthropicMeta | OpenAiMeta | MistralMeta;
+export type ProviderMeta =
+  | AnthropicMeta
+  | OpenAiMeta
+  | MistralMeta
+  | GeminiMeta;
 
 // =============================================================================
 // History Entry

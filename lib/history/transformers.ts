@@ -14,6 +14,8 @@ import type {
 } from "@anthropic-ai/sdk/resources";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 
+import type { Content, Part, FunctionCall } from "@google/generative-ai";
+
 import {
   HistoryEntry,
   MessageContent,
@@ -276,12 +278,12 @@ export const openAiTransformer = {
 type MistralMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
-  tool_calls?: Array<{
+  toolCalls?: Array<{
     id: string;
     function: { name: string; arguments: string };
   }>;
   name?: string;
-  tool_call_id?: string;
+  toolCallId?: string;
 };
 
 // Type for Mistral's response message
@@ -314,13 +316,17 @@ export const mistralTransformer = {
       }
 
       if (entry.role === "assistant") {
+        const contentText = textBlocks.map((c) => c.text).join("\n");
+        // When there are tool calls but no text content, content should be null or empty string
+        // Some APIs are picky about this
+        const content = contentText || (toolUseBlocks.length > 0 ? null : "");
         const msg: MistralMessage = {
           role: "assistant",
-          content: textBlocks.map((c) => c.text).join("\n"),
+          content: content as string,
         };
 
         if (toolUseBlocks.length > 0) {
-          msg.tool_calls = toolUseBlocks.map((block) => ({
+          msg.toolCalls = toolUseBlocks.map((block) => ({
             id: block.id,
             function: {
               name: block.name,
@@ -336,11 +342,15 @@ export const mistralTransformer = {
       // User role - could be text or tool results
       if (toolResultBlocks.length > 0) {
         // Mistral uses separate "tool" role messages for each result
+        // We need to find the corresponding tool name from the assistant's tool_calls
         for (const result of toolResultBlocks) {
+          // Find the tool name from meta if available
+          const toolName = (entry.meta as any)?.tool_name || "";
           messages.push({
             role: "tool",
             content: result.content,
-            tool_call_id: result.tool_use_id,
+            toolCallId: result.tool_use_id,
+            name: toolName,
           });
         }
       } else if (textBlocks.length > 0) {
@@ -402,13 +412,138 @@ export const mistralTransformer = {
    */
   toolResultEntry(
     tool_call_id: string,
-    _name: string,
+    name: string,
     output: string
   ): HistoryEntry {
     return {
       role: "user",
       content: [toolResult(tool_call_id, output)],
-      meta: { provider: "mistral", tool_call_id },
+      meta: { provider: "mistral", tool_call_id, tool_name: name },
     };
+  },
+};
+
+// =============================================================================
+// Gemini Transformer
+// =============================================================================
+
+export const geminiTransformer = {
+  /**
+   * Convert normalized entries to Gemini Content format
+   */
+  toProvider(entries: HistoryEntry[]): Content[] {
+    const contents: Content[] = [];
+
+    for (const entry of entries) {
+      // Skip system messages - Gemini handles these separately via systemInstruction
+      if (entry.role === "system") {
+        continue;
+      }
+
+      const textBlocks = entry.content.filter(isTextContent);
+      const toolUseBlocks = entry.content.filter(isToolUseContent);
+      const toolResultBlocks = entry.content.filter(isToolResultContent);
+
+      // Gemini uses "user" and "model" roles
+      const role = entry.role === "assistant" ? "model" : "user";
+
+      const parts: Part[] = [];
+
+      // Add text parts
+      for (const block of textBlocks) {
+        parts.push({ text: block.text });
+      }
+
+      // Add function call parts (for assistant/model messages)
+      for (const block of toolUseBlocks) {
+        parts.push({
+          functionCall: {
+            name: block.name,
+            args: block.input,
+          },
+        });
+      }
+
+      // Add function response parts (for user messages with tool results)
+      for (const block of toolResultBlocks) {
+        // Parse content if it's JSON, otherwise wrap in response object
+        let responseData: object;
+        try {
+          responseData = JSON.parse(block.content);
+        } catch {
+          responseData = { result: block.content };
+        }
+
+        parts.push({
+          functionResponse: {
+            name: block.tool_use_id, // Gemini uses the function name, but we store tool_use_id
+            response: responseData,
+          },
+        });
+      }
+
+      if (parts.length > 0) {
+        contents.push({ role, parts });
+      }
+    }
+
+    return contents;
+  },
+
+  /**
+   * Convert Gemini response parts to normalized HistoryEntry
+   */
+  fromProviderContent(role: "user" | "assistant", parts: Part[]): HistoryEntry {
+    const normalizedContent: MessageContent[] = [];
+
+    for (const part of parts) {
+      if ("text" in part && part.text) {
+        normalizedContent.push(text(part.text));
+      }
+      if ("functionCall" in part && part.functionCall) {
+        const fc = part.functionCall as FunctionCall;
+        normalizedContent.push(
+          toolUse(
+            fc.name, // Gemini doesn't have separate IDs, use function name
+            fc.name,
+            (fc.args || {}) as Record<string, unknown>
+          )
+        );
+      }
+    }
+
+    return {
+      role,
+      content: normalizedContent,
+      meta: { provider: "gemini" },
+    };
+  },
+
+  /**
+   * Create a tool result entry for Gemini
+   */
+  toolResultEntry(
+    functionName: string,
+    output: string,
+    is_error?: boolean
+  ): HistoryEntry {
+    return {
+      role: "user",
+      content: [toolResult(functionName, output, is_error)],
+      meta: { provider: "gemini" },
+    };
+  },
+
+  /**
+   * Extract system message from entries
+   */
+  getSystemMessage(entries: HistoryEntry[]): string | undefined {
+    const systemEntry = entries.find((e) => e.role === "system");
+    if (!systemEntry) return undefined;
+
+    return systemEntry.content
+      .filter(isTextContent)
+      .map((c) => c.text)
+      .join("\n");
   },
 };

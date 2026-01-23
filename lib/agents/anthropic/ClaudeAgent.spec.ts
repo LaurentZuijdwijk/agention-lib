@@ -166,9 +166,7 @@ describe("ClaudeAgent", () => {
       ] as any;
 
       const mockToolResult = {
-        type: "tool_result",
-        tool_use_id: "tool1",
-        content: "Tool output",
+        data: "Tool output",
       };
 
       const expectedResult = {

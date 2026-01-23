@@ -10,6 +10,9 @@ import {
 // Re-export for convenience
 export type { HistoryEntry, MessageRole, MessageContent };
 
+/** Supported LLM vendors */
+export type AgentVendor = "openai" | "anthropic" | "mistral" | "gemini";
+
 /**
  * Agent config as used across all agents
  */
@@ -17,7 +20,7 @@ export interface BaseAgentConfig {
   id: string;
   name: string;
   description: string;
-  vendor: "openai" | "anthropic" | "mistral";
+  vendor: AgentVendor;
   apiKey: string;
   debug?: boolean;
   maxHistoryLength?: number;
@@ -52,6 +55,12 @@ export abstract class BaseAgent<
   protected tools: Map<string, Tool<unknown>>;
   protected maxHistoryLength: number;
 
+  /** The vendor/provider for this agent (anthropic, openai, mistral, gemini) */
+  protected vendor: AgentVendor;
+
+  /** The model identifier for this agent */
+  protected model: string;
+
   /**
    * An Agent is the primary LLM entity.
    *
@@ -71,6 +80,9 @@ export abstract class BaseAgent<
     this.debug = config.debug || false;
     this.name = config.name;
     this.description = config.description;
+    this.vendor = config.vendor;
+    this.model = config.model || "unknown";
+
     if (config.agents) {
       const agentTools = config.agents.map((agent) => {
         return Tool.fromAgent(
@@ -165,6 +177,14 @@ export abstract class BaseAgent<
 
   getDescription(): string {
     return this.description;
+  }
+
+  getVendor(): AgentVendor {
+    return this.vendor;
+  }
+
+  getModel(): string {
+    return this.model;
   }
 
   getHistoryEntries(): HistoryEntry[] {

@@ -335,9 +335,7 @@ describe("OpenAiAgent", () => {
         },
       ] as ResponseFunctionToolCall[];
 
-      const mockToolResult = {
-        content: "Tool execution result",
-      };
+      const mockToolResult = "Tool execution result";
 
       const mockTool = {
         execute: jest.fn().mockResolvedValue(mockToolResult),
@@ -348,13 +346,15 @@ describe("OpenAiAgent", () => {
 
       const result = await agent["handleToolUse"](toolCall);
 
-      expect(result[0].output).toBe("Tool execution result");
+      expect(result[0].output).toBe(JSON.stringify(mockToolResult));
 
       expect(mockTool.execute).toHaveBeenCalledWith(
         "1",
         "TestAgent",
         { param: "value" },
-        "123"
+        "123",
+        "gpt-4.1-mini",
+        "openai"
       );
     });
 

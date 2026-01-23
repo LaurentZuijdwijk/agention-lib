@@ -8,7 +8,7 @@ import {
   MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
-import { History, toolResult } from "../../history/History";
+import { History } from "../../history/History";
 import { mistralTransformer } from "../../history/transformers";
 import {
   ChatCompletionResponse,
@@ -19,6 +19,8 @@ import {
   UsageInfo,
 } from "@mistralai/mistralai/models/components";
 import { setTimeout } from "timers/promises";
+import { vizReporter } from "../../viz/VizReporter";
+import { vizConfig } from "../../viz/VizConfig";
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
@@ -48,6 +50,12 @@ export class MistralAgent extends BaseAgent {
 
   /** Token usage from the last execution (for metrics tracking) */
   public lastTokenUsage?: TokenUsage;
+
+  /** Current visualization event ID for tracking */
+  private vizEventId?: string;
+
+  /** Count of tool calls in current execution */
+  private currentToolCallCount: number = 0;
 
   constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
     super({ ...config, vendor: "mistral" }, history);
@@ -87,6 +95,18 @@ export class MistralAgent extends BaseAgent {
 
     // Reset token usage for this execution
     this.lastTokenUsage = undefined;
+    this.currentToolCallCount = 0;
+
+    // Start visualization reporting
+    if (vizConfig.isEnabled()) {
+      this.vizEventId = vizReporter.agentStart(
+        this.id,
+        this.name,
+        this.config.model!,
+        "mistral",
+        input
+      );
+    }
 
     if (this.history.transient) {
       this.history.clear();
@@ -98,7 +118,6 @@ export class MistralAgent extends BaseAgent {
 
     try {
       const messages = mistralTransformer.toProvider(this.history.entries);
-
       const response = await this.client.chat.complete({
         model: this.config.model!,
         messages: messages as Parameters<
@@ -119,6 +138,18 @@ export class MistralAgent extends BaseAgent {
           error
         );
         this.emit(AgentEvent.ERROR, apiError);
+
+        // Report error to viz
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "ApiError",
+            apiError.message,
+            err.status === 429
+          );
+          this.vizEventId = undefined;
+        }
+
         throw apiError;
       } else {
         const executionError = new ExecutionError(
@@ -127,6 +158,18 @@ export class MistralAgent extends BaseAgent {
           }`
         );
         this.emit(AgentEvent.ERROR, executionError);
+
+        // Report error to viz
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "ExecutionError",
+            executionError.message,
+            false
+          );
+          this.vizEventId = undefined;
+        }
+
         throw executionError;
       }
     }
@@ -160,11 +203,22 @@ export class MistralAgent extends BaseAgent {
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);
+
+      // Report error to viz
+      if (this.vizEventId) {
+        vizReporter.agentError(
+          this.vizEventId,
+          "MaxTokensExceededError",
+          error.message,
+          false
+        );
+        this.vizEventId = undefined;
+      }
+
       throw error;
     }
 
     const message = choice.message;
-
     if (choice.finishReason !== "tool_calls" && !message.toolCalls) {
       // Regular text response
       let textContent: string;
@@ -191,6 +245,24 @@ export class MistralAgent extends BaseAgent {
       this.addToHistory(entry);
 
       this.emit(AgentEvent.DONE, message, usage);
+
+      // Report completion to viz
+      if (this.vizEventId) {
+        vizReporter.agentComplete(
+          this.vizEventId,
+          {
+            input: this.lastTokenUsage?.input_tokens || 0,
+            output: this.lastTokenUsage?.output_tokens || 0,
+            total: this.lastTokenUsage?.total_tokens || 0,
+          },
+          "end_turn",
+          this.currentToolCallCount > 0,
+          this.currentToolCallCount,
+          textContent
+        );
+        this.vizEventId = undefined;
+      }
+
       return textContent;
     } else if (choice.finishReason === "tool_calls" || message.toolCalls) {
       try {
@@ -201,7 +273,6 @@ export class MistralAgent extends BaseAgent {
         this.addToHistory(assistantEntry);
 
         const toolResults = await this.handleToolCalls(message.toolCalls || []);
-
         // Add tool results to history (normalized)
         for (const result of toolResults) {
           const resultEntry = mistralTransformer.toolResultEntry(
@@ -270,6 +341,18 @@ export class MistralAgent extends BaseAgent {
       `Unexpected finish_reason: ${choice.finishReason}`
     );
     this.emit(AgentEvent.ERROR, error);
+
+    // Report error to viz
+    if (this.vizEventId) {
+      vizReporter.agentError(
+        this.vizEventId,
+        "ExecutionError",
+        error.message,
+        false
+      );
+      this.vizEventId = undefined;
+    }
+
     throw error;
   }
 
@@ -279,6 +362,9 @@ export class MistralAgent extends BaseAgent {
     if (!toolCalls.length) {
       throw new ExecutionError("No tool calls found in response");
     }
+
+    // Track tool call count for viz reporting
+    this.currentToolCallCount += toolCalls.length;
 
     const toolResults = await Promise.all(
       toolCalls.map(async (toolCall) => {
@@ -306,13 +392,20 @@ export class MistralAgent extends BaseAgent {
         }
 
         try {
-          const args = toolCall.function.arguments as Record<string, unknown>;
+          let args: Record<string, unknown>;
+          if (typeof toolCall.function.arguments === "string") {
+            args = JSON.parse(toolCall.function.arguments);
+          } else {
+            args = toolCall.function.arguments as Record<string, unknown>;
+          }
 
           const result = await tool.execute(
             this.getId(),
             this.getName(),
             args,
-            toolCallId
+            toolCallId,
+            this.config.model,
+            "mistral"
           );
 
           return {

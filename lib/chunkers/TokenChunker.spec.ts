@@ -1,6 +1,4 @@
-import { TokenChunker } from "./TokenChunker";
-
-// Mock tokenx to avoid actual dependency in tests
+// Mock tokenx module before importing TokenChunker
 jest.mock("tokenx", () => ({
   estimateTokenCount: jest.fn((text: string) => {
     // Simple mock: ~4 characters per token
@@ -35,9 +33,13 @@ jest.mock("tokenx", () => ({
   }),
 }));
 
+import * as TokenChunkerModule from "./TokenChunker";
+import { TokenChunker } from "./TokenChunker";
+
 describe("TokenChunker", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    TokenChunkerModule.resetTokenxCache();
   });
 
   describe("constructor", () => {

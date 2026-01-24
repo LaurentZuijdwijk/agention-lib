@@ -1,6 +1,30 @@
 import { Chunker } from "./Chunker";
 import { Chunk, TokenChunkerConfig } from "./types";
 
+// Cache the tokenx module after first import
+let tokenxModule: typeof import("tokenx") | null = null;
+
+/**
+ * Load tokenx module using dynamic import.
+ * This function can be mocked in tests.
+ * @internal
+ */
+export async function loadTokenx(): Promise<typeof import("tokenx")> {
+  if (!tokenxModule) {
+    // Use dynamic import for ESM module
+    tokenxModule = await import("tokenx");
+  }
+  return tokenxModule;
+}
+
+/**
+ * Reset the tokenx module cache. Used in tests.
+ * @internal
+ */
+export function resetTokenxCache(): void {
+  tokenxModule = null;
+}
+
 /**
  * Token-aware text chunker using the tokenx library.
  * Splits text based on token count rather than character count,
@@ -27,15 +51,19 @@ export class TokenChunker extends Chunker {
   }
 
   /**
+   * Protected method to get tokenx - can be overridden in tests
+   */
+  protected async getTokenx(): Promise<typeof import("tokenx")> {
+    return loadTokenx();
+  }
+
+  /**
    * Split text by token count using tokenx.
    */
   protected async splitText(text: string): Promise<string[]> {
     const { chunkSize, chunkOverlap = 0 } = this.config;
 
-    // Use dynamic import for ESM module (keep as Function to prevent TS from converting to require)
-    const tokenx = (await Function(
-      'return import("tokenx")'
-    )()) as typeof import("tokenx");
+    const tokenx = await this.getTokenx();
     const { splitByTokens } = tokenx;
 
     // Use tokenx's splitByTokens for token-aware splitting
@@ -83,9 +111,7 @@ export class TokenChunker extends Chunker {
     text: string,
     overlapTokens: number
   ): Promise<string> {
-    const tokenx = (await Function(
-      'return import("tokenx")'
-    )()) as typeof import("tokenx");
+    const tokenx = await this.getTokenx();
     const { estimateTokenCount } = tokenx;
 
     // Estimate characters per token (roughly 4 chars per token for English)
@@ -128,9 +154,7 @@ export class TokenChunker extends Chunker {
     options?: import("./types").ChunkOptions
   ): Promise<Chunk[]> {
     const chunks = await super.chunk(text, options);
-    const tokenx = (await Function(
-      'return import("tokenx")'
-    )()) as typeof import("tokenx");
+    const tokenx = await this.getTokenx();
     const { estimateTokenCount } = tokenx;
 
     // Add token count to each chunk's metadata
@@ -145,9 +169,7 @@ export class TokenChunker extends Chunker {
    * Estimate token count for a given text.
    */
   static async estimateTokens(text: string): Promise<number> {
-    const tokenx = (await Function(
-      'return import("tokenx")'
-    )()) as typeof import("tokenx");
+    const tokenx = await loadTokenx();
     return tokenx.estimateTokenCount(text);
   }
 }

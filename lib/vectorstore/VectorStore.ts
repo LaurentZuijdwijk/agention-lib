@@ -100,6 +100,18 @@ export interface AddDocumentsToolOptions {
 }
 
 /**
+ * Options for creating a get chunk by ID tool from a vector store.
+ */
+export interface GetChunkByIdToolOptions {
+  /** Custom name for the tool (defaults to `${storeName}_get_chunk`) */
+  toolName?: string;
+  /** Namespace to search in */
+  namespace?: string;
+  /** Whether to include document metadata in results */
+  includeMetadata?: boolean;
+}
+
+/**
  * Abstract interface for vector database implementations.
  *
  * Implementations should handle:
@@ -209,6 +221,19 @@ export abstract class VectorStore {
   ): Promise<Document | null>;
 
   /**
+   * Get existing documents by their content hashes.
+   * Used for deduplication during ingestion.
+   *
+   * @param hashes - Array of content hashes to check
+   * @param options - Optional configuration including namespace
+   * @returns Map of hash to document ID
+   */
+  abstract getByHashes(
+    hashes: string[],
+    options?: DeleteOptions
+  ): Promise<Map<string, string>>;
+
+  /**
    * Create a retrieval tool that agents can use to search this vector store.
    *
    * @param description - Description of what data the store contains (e.g., "Search product documentation for technical specifications")
@@ -231,7 +256,7 @@ export abstract class VectorStore {
   ): Tool<SearchResult[]> {
     const {
       toolName = `${this.name}_search`,
-      defaultLimit = 5,
+      defaultLimit = 3,
       defaultScoreThreshold,
       namespace,
       includeMetadata = true,
@@ -257,7 +282,7 @@ export abstract class VectorStore {
           },
         }),
       },
-      required: ["query"],
+      required: ["query", "limit"],
     };
 
     return new Tool<SearchResult[]>({
@@ -342,7 +367,7 @@ export abstract class VectorStore {
                 description: "Optional metadata for the document",
               },
             },
-            required: ["id", "content"],
+            required: ["id", "content", "metadata"],
           },
         },
       },
@@ -364,6 +389,68 @@ export abstract class VectorStore {
           namespace,
         });
         return { added: ids, count: ids.length };
+      },
+    });
+  }
+
+  /**
+   * Create a tool that agents can use to retrieve a chunk by its ID.
+   * Useful for navigating chunk chains using previousChunkId/nextChunkId metadata.
+   *
+   * @param description - Description of what the tool does (e.g., "Get a specific chunk by ID to read adjacent context")
+   * @param options - Configuration options for the tool
+   * @returns A Tool instance that can be added to an agent
+   *
+   * @example
+   * ```typescript
+   * const store = new LanceDBVectorStore({ ... });
+   * const tool = store.toGetChunkByIdTool(
+   *   "Retrieve a specific chunk by ID. Use previousChunkId or nextChunkId from search results to get surrounding context."
+   * );
+   * agent.addTools([tool]);
+   * ```
+   */
+  toGetChunkByIdTool(
+    description: string,
+    options: GetChunkByIdToolOptions = {}
+  ): Tool<Document | null> {
+    const {
+      toolName = `${this.name}_get_chunk`,
+      namespace,
+      includeMetadata = true,
+    } = options;
+
+    const inputSchema: ToolInputSchema = {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description:
+            "The chunk ID to retrieve (e.g., from previousChunkId or nextChunkId metadata)",
+        },
+      },
+      required: ["id"],
+    };
+
+    return new Tool<Document | null>({
+      name: toolName,
+      description,
+      inputSchema,
+      execute: async (input: { id: string }) => {
+        const document = await this.getById(input.id, { namespace });
+
+        if (!document) {
+          return null;
+        }
+
+        if (!includeMetadata) {
+          return {
+            id: document.id,
+            content: document.content,
+          };
+        }
+
+        return document;
       },
     });
   }

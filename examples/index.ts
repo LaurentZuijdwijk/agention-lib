@@ -5,11 +5,14 @@ import { OpenAiAgent } from "../lib/agents/openai/OpenAiAgent";
 import { Tool, ToolEvent } from "../lib/tools/Tool";
 import { readFile, readdir } from "fs/promises";
 
+// Import chunking demo
+import "./chunking-demo";
+
 // const config =
 // const agent = new ClaudeAgent();
 
 // Example usage
-async function example() {
+async function exampleAgents() {
   const geoCodingTool = new Tool({
     name: "geocodingTool",
     description: `This tool accepts a search term and returns a list of matching locations.
@@ -152,9 +155,8 @@ async function example() {
     // );
     //
     //
-    directoryReadTool.on(ToolEvent.RESULT, (args) => {
-      console.log("directoryReadTool.on(ToolEvent.EXECUTE", args);
-      // args.event.preventDefault();
+    directoryReadTool.on(ToolEvent.EXECUTE, (event) => {
+      console.log("directoryReadTool execution:", event);
     });
     agent;
     agent2;
@@ -169,4 +171,5 @@ async function example() {
   }
 }
 
-example();
+// Uncomment to run agent examples
+// exampleAgents();

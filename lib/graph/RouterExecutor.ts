@@ -157,7 +157,6 @@ export class RouterExecutor extends BaseExecutor<string, string> {
       }
 
       // Get the selected route
-      console.log("Picked selectedRouteName", selectedRouteName);
       const route = this.routes.get(selectedRouteName.toLowerCase());
       if (!route) {
         // Try fallback if configured

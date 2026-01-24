@@ -1,6 +1,5 @@
 import { Chunker } from "./Chunker";
 import { Chunk, TokenChunkerConfig } from "./types";
-import { estimateTokenCount, splitByTokens } from "tokenx";
 
 /**
  * Token-aware text chunker using the tokenx library.
@@ -30,8 +29,14 @@ export class TokenChunker extends Chunker {
   /**
    * Split text by token count using tokenx.
    */
-  protected splitText(text: string): string[] {
+  protected async splitText(text: string): Promise<string[]> {
     const { chunkSize, chunkOverlap = 0 } = this.config;
+
+    // Use dynamic import for ESM module (keep as Function to prevent TS from converting to require)
+    const tokenx = (await Function(
+      'return import("tokenx")'
+    )()) as typeof import("tokenx");
+    const { splitByTokens } = tokenx;
 
     // Use tokenx's splitByTokens for token-aware splitting
     const chunks = splitByTokens(text, chunkSize);
@@ -47,7 +52,10 @@ export class TokenChunker extends Chunker {
   /**
    * Apply token-based overlap between chunks.
    */
-  private applyTokenOverlap(chunks: string[], _originalText: string): string[] {
+  private async applyTokenOverlap(
+    chunks: string[],
+    _originalText: string
+  ): Promise<string[]> {
     const { chunkOverlap = 0 } = this.config;
     const result: string[] = [chunks[0]];
 
@@ -56,7 +64,7 @@ export class TokenChunker extends Chunker {
       const currentChunk = chunks[i];
 
       // Get overlap from end of previous chunk
-      const overlapText = this.getTokenOverlap(prevChunk, chunkOverlap);
+      const overlapText = await this.getTokenOverlap(prevChunk, chunkOverlap);
 
       if (overlapText && overlapText.trim()) {
         result.push(overlapText + " " + currentChunk);
@@ -71,7 +79,15 @@ export class TokenChunker extends Chunker {
   /**
    * Get approximately chunkOverlap tokens from the end of text.
    */
-  private getTokenOverlap(text: string, overlapTokens: number): string {
+  private async getTokenOverlap(
+    text: string,
+    overlapTokens: number
+  ): Promise<string> {
+    const tokenx = (await Function(
+      'return import("tokenx")'
+    )()) as typeof import("tokenx");
+    const { estimateTokenCount } = tokenx;
+
     // Estimate characters per token (roughly 4 chars per token for English)
     const estimatedChars = overlapTokens * 4;
 
@@ -112,6 +128,10 @@ export class TokenChunker extends Chunker {
     options?: import("./types").ChunkOptions
   ): Promise<Chunk[]> {
     const chunks = await super.chunk(text, options);
+    const tokenx = (await Function(
+      'return import("tokenx")'
+    )()) as typeof import("tokenx");
+    const { estimateTokenCount } = tokenx;
 
     // Add token count to each chunk's metadata
     for (const chunk of chunks) {
@@ -124,7 +144,10 @@ export class TokenChunker extends Chunker {
   /**
    * Estimate token count for a given text.
    */
-  static estimateTokens(text: string): number {
-    return estimateTokenCount(text);
+  static async estimateTokens(text: string): Promise<number> {
+    const tokenx = (await Function(
+      'return import("tokenx")'
+    )()) as typeof import("tokenx");
+    return tokenx.estimateTokenCount(text);
   }
 }

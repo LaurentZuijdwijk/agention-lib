@@ -306,6 +306,40 @@ export class LanceDBVectorStore extends VectorStore {
   }
 
   /**
+   * Get existing documents by their content hashes.
+   * Used for deduplication during ingestion.
+   */
+  async getByHashes(
+    hashes: string[],
+    _options?: DeleteOptions
+  ): Promise<Map<string, string>> {
+    const hashMap = new Map<string, string>();
+
+    if (hashes.length === 0) {
+      return hashMap;
+    }
+
+    // Query for documents with matching hashes
+    // Since hash is stored in the metadata JSON, we need to check each hash
+    for (const hash of hashes) {
+      // LanceDB doesn't support JSON path queries, so we search for the hash string
+      // in the metadata field. This works because the hash is a unique string.
+      const results = await this.table
+        .query()
+        .where(`metadata LIKE '%${hash}%'`)
+        .limit(1)
+        .toArray();
+
+      if (results.length > 0) {
+        const record = results[0] as unknown as LanceDBRecord;
+        hashMap.set(hash, record.id);
+      }
+    }
+
+    return hashMap;
+  }
+
+  /**
    * Get the underlying LanceDB connection.
    */
   getConnection(): Connection {

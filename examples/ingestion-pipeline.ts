@@ -3,11 +3,12 @@
  *
  * Demonstrates how to use the chunkers and ingestion pipeline
  * to process documents and store them in a vector database.
+ *
+ * Prerequisites:
+ * - Set OPENAI_API_KEY environment variable for full pipeline example
+ * - Run with: npm run example -- examples/ingestion-pipeline.ts
  */
-
-import * as fs from "fs";
-import * as path from "path";
-
+import "dotenv/config";
 import {
   TextChunker,
   RecursiveChunker,
@@ -94,7 +95,9 @@ Choose the right chunker based on your use case and document types.`;
   for (let i = 0; i < Math.min(3, recursiveChunks.length); i++) {
     const chunk = recursiveChunks[i];
     console.log(
-      `  Chunk ${i}: ${chunk.metadata.charCount} chars, section: ${chunk.metadata.sectionTitle ?? "N/A"}`
+      `  Chunk ${i}: ${chunk.metadata.charCount} chars, section: ${
+        (chunk.metadata.sectionTitle ?? "N/A", chunk.content)
+      }`
     );
   }
   console.log();
@@ -130,7 +133,11 @@ Choose the right chunker based on your use case and document types.`;
     chunkProcessor: (chunk) => {
       // Filter out very short chunks
       if (chunk.content.trim().length < 50) {
-        console.log(`  Filtered out short chunk: "${chunk.content.trim().substring(0, 30)}..."`);
+        console.log(
+          `  Filtered out short chunk: "${chunk.content
+            .trim()
+            .substring(0, 30)}..."`
+        );
         return null;
       }
       // Add custom metadata
@@ -151,9 +158,12 @@ Choose the right chunker based on your use case and document types.`;
   console.log("5. Chunk linking (previous/next)");
   console.log("-".repeat(40));
 
-  const linkedChunks = await textChunker.chunk("First part. Second part. Third part. Fourth part.", {
-    sourceId: "linked-doc",
-  });
+  const linkedChunks = await textChunker.chunk(
+    "First part. Second part. Third part. Fourth part.",
+    {
+      sourceId: "linked-doc",
+    }
+  );
 
   for (const chunk of linkedChunks) {
     console.log(`  ${chunk.id}:`);
@@ -218,7 +228,9 @@ Choose the right chunker based on your use case and document types.`;
       console.log(`Found ${searchResults.length} results:`);
       for (const result of searchResults) {
         console.log(`  - Score: ${result.score.toFixed(3)}`);
-        console.log(`    Content: ${result.document.content.substring(0, 80)}...`);
+        console.log(
+          `    Content: ${result.document.content.substring(0, 80)}...`
+        );
       }
     } catch (error) {
       console.error("Pipeline error:", error);

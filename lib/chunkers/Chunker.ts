@@ -42,7 +42,7 @@ export abstract class Chunker {
     }
 
     // Get raw splits from the subclass implementation
-    const splits = this.splitText(text);
+    const splits = await this.splitText(text);
 
     if (splits.length === 0) {
       return [];
@@ -105,7 +105,7 @@ export abstract class Chunker {
    * Split the text into raw string segments.
    * Must be implemented by subclasses.
    */
-  protected abstract splitText(text: string): string[];
+  protected abstract splitText(text: string): Promise<string[]> | string[];
 
   /**
    * Generate a unique ID for a chunk.
@@ -166,7 +166,8 @@ export abstract class Chunker {
     for (let i = 0; i < processed.length; i++) {
       processed[i].metadata.chunkIndex = i;
       processed[i].metadata.totalChunks = processed.length;
-      processed[i].metadata.previousChunkId = i > 0 ? processed[i - 1].id : null;
+      processed[i].metadata.previousChunkId =
+        i > 0 ? processed[i - 1].id : null;
       processed[i].metadata.nextChunkId =
         i < processed.length - 1 ? processed[i + 1].id : null;
     }

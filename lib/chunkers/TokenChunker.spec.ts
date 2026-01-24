@@ -179,10 +179,9 @@ describe("TokenChunker", () => {
   });
 
   describe("estimateTokens", () => {
-    it("should estimate token count for text", () => {
-      const count = TokenChunker.estimateTokens("Hello, world!");
-      expect(typeof count).toBe("number");
-      expect(count).toBeGreaterThan(0);
+    it("should estimate token count for text", async () => {
+      const count = await TokenChunker.estimateTokens("Hello, world!");
+      expect(count).toEqual(4);
     });
   });
 });

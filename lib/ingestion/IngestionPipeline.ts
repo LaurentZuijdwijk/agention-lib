@@ -151,7 +151,12 @@ export class IngestionPipeline {
     options: IngestionOptions,
     startTime: number
   ): Promise<IngestionResult> {
-    const { batchSize = 100, onProgress, onError, skipDuplicates = false } = options;
+    const {
+      batchSize = 100,
+      onProgress,
+      onError,
+      skipDuplicates = false,
+    } = options;
 
     const result: IngestionResult = {
       success: true,
@@ -273,13 +278,21 @@ export class IngestionPipeline {
 
   /**
    * Filter out chunks that already exist in the store (by hash).
-   * This is a simple implementation - stores may want to override with native support.
+   * Checks the store for existing documents with the same content hash.
    */
   private async filterDuplicates(chunks: Chunk[]): Promise<Chunk[]> {
-    // For now, we don't have a hash lookup in the store interface
-    // This would need to be implemented based on store capabilities
-    // For now, just return all chunks
-    return chunks;
+    if (chunks.length === 0) {
+      return chunks;
+    }
+
+    // Extract all hashes from chunks
+    const hashes = chunks.map((chunk) => chunk.metadata.hash);
+
+    // Check which hashes already exist in the store
+    const existingHashes = await this.store.getByHashes(hashes);
+
+    // Filter out chunks whose hashes exist
+    return chunks.filter((chunk) => !existingHashes.has(chunk.metadata.hash));
   }
 
   /**

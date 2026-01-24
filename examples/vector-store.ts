@@ -2,6 +2,7 @@ import "dotenv/config";
 import { ClaudeAgent } from "../lib/agents/anthropic/ClaudeAgent";
 import { LanceDBVectorStore } from "../lib/vectorstore/LanceDBVectorStore";
 import { OpenAIEmbeddings } from "../lib/vectorstore/OpenAIEmbeddings";
+import { RecursiveChunker, IngestionPipeline, OpenAiAgent } from "../lib";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 
@@ -42,33 +43,6 @@ function loadMarkdownFiles(
   return files;
 }
 
-/**
- * Split content into chunks for better retrieval
- */
-function chunkContent(content: string, maxChunkSize: number = 1000): string[] {
-  const chunks: string[] = [];
-  const lines = content.split("\n");
-  let currentChunk = "";
-
-  for (const line of lines) {
-    if (
-      (currentChunk + line).length > maxChunkSize &&
-      currentChunk.length > 0
-    ) {
-      chunks.push(currentChunk.trim());
-      currentChunk = line + "\n";
-    } else {
-      currentChunk += line + "\n";
-    }
-  }
-
-  if (currentChunk.trim().length > 0) {
-    chunks.push(currentChunk.trim());
-  }
-
-  return chunks;
-}
-
 async function vectorStoreExample() {
   console.log("Vector Store Example with RAG Agent\n");
   console.log("====================================\n");
@@ -103,44 +77,58 @@ async function vectorStoreExample() {
     });
     console.log("   Store created successfully\n");
 
-    // Step 3: Load documentation files
-    console.log("3. Loading documentation files from docs/guide/...");
+    // Step 3: Create chunker
+    console.log("3. Creating RecursiveChunker for semantic splitting...");
+    const chunker = new RecursiveChunker({
+      chunkSize: 1000,
+      chunkOverlap: 100,
+      separators: ["\n\n", "\n", ". ", " "],
+    });
+    console.log("   Chunker created\n");
+
+    // Step 4: Create ingestion pipeline
+    console.log("4. Creating ingestion pipeline...");
+    const pipeline = new IngestionPipeline(chunker, embeddings, store);
+    console.log("   Pipeline ready\n");
+
+    // Step 5: Load and ingest documentation files
+    console.log("5. Loading documentation files from docs/guide/...");
     const docsPath = join(__dirname, "../docs/guide");
     const markdownFiles = loadMarkdownFiles(docsPath);
     console.log(`   Found ${markdownFiles.length} markdown files\n`);
 
-    // Step 4: Process and chunk documents
-    console.log("4. Processing and chunking documents...");
-    const documents = [];
-    let docId = 0;
+    // Step 6: Ingest documents using pipeline
+    console.log("6. Ingesting documents (this may take a moment)...");
 
-    for (const file of markdownFiles) {
-      const chunks = chunkContent(file.content);
-      console.log(`   ${file.path}: ${chunks.length} chunks`);
+    const documents = markdownFiles.map((file) => ({
+      text: file.content,
+      options: {
+        sourceId: file.path,
+        sourcePath: file.path,
+        metadata: {
+          source: file.path,
+          type: "documentation",
+        },
+      },
+    }));
 
-      for (let i = 0; i < chunks.length; i++) {
-        documents.push({
-          id: `doc-${docId++}`,
-          content: chunks[i],
-          metadata: {
-            source: file.path,
-            chunk: i,
-            totalChunks: chunks.length,
-          },
-        });
-      }
-    }
-    console.log(`   Total documents: ${documents.length}\n`);
+    const result = await pipeline.ingestMany(documents, {
+      batchSize: 10,
+      skipDuplicates: true, // Skip chunks that already exist (by content hash)
+      onProgress: ({ phase, processed, total }) => {
+        console.log(`   ${phase}: ${processed}/${total}`);
+      },
+    });
 
-    // Step 5: Add documents to vector store
-    console.log(
-      "5. Adding documents to vector store (this may take a moment)..."
-    );
-    const ids = await store.addDocuments(documents);
-    console.log(`   Successfully added ${ids.length} document chunks\n`);
+    console.log("\n   Ingestion complete:");
+    console.log(`   - Chunks processed: ${result.chunksProcessed}`);
+    console.log(`   - Chunks skipped (duplicates): ${result.chunksSkipped}`);
+    console.log(`   - Chunks stored: ${result.chunksStored}`);
+    console.log(`   - Duration: ${result.duration}ms`);
+    console.log(`   - Errors: ${result.errors.length}\n`);
 
-    // Step 6: Test direct search
-    console.log('6. Testing direct search for "pipeline"...');
+    // Step 7: Test direct search
+    console.log('7. Testing direct search for "pipeline"...');
     const searchResults = await store.search(
       "How do I chain agents together?",
       {
@@ -155,29 +143,33 @@ async function vectorStoreExample() {
       console.log(`     ${result.document.content.substring(0, 100)}...\n`);
     }
 
-    // Step 7: Create retrieval tool
-    console.log("7. Creating retrieval tool for the agent...");
+    // Step 8: Create retrieval and navigation tools
+    console.log("8. Creating tools for the agent...");
     const searchTool = store.toRetrievalTool(
       "Search the Agention documentation for information about agents, tools, pipelines, vector stores, and other features",
       { defaultLimit: 3 }
     );
-    console.log(`   Tool name: ${searchTool.name}\n`);
+    const getChunkTool = store.toGetChunkByIdTool(
+      "Retrieve a specific chunk by ID. Use this to get more context by reading previous or next chunks. Check the metadata.previousChunkId and metadata.nextChunkId fields from search results."
+    );
+    console.log(`   Search tool: ${searchTool.name}`);
+    console.log(`   Get chunk tool: ${getChunkTool.name}\n`);
 
-    // Step 8: Create agent with the tool
-    console.log("8. Creating Claude agent with search tool...");
-    const agent = new ClaudeAgent({
+    // Step 9: Create agent with the tools
+    console.log("9. Creating Claude agent with search and navigation tools...");
+    const agent = new OpenAiAgent({
       id: "rag-agent",
       name: "Documentation Assistant",
       description:
-        "You are a helpful assistant that answers questions about Agention. Always use the search tool to find relevant documentation before answering. Base your answers on the search results and cite the source files.",
-      apiKey: process.env.ANTHROPIC_API_KEY as string,
-      tools: [searchTool],
-      model: "claude-haiku-4-5",
+        "You are a helpful assistant that answers questions about Agention. Always use the search tool to find relevant documentation before answering. If you need more context, use the get_chunk tool with previousChunkId or nextChunkId to read surrounding chunks. Base your answers on the search results and cite the source files.",
+      apiKey: process.env.OPENAI_API_KEY as string,
+      tools: [searchTool, getChunkTool],
+      model: "gpt-4.1-nano",
     });
     console.log("   Agent created\n");
 
-    // Step 9: Interactive Q&A
-    console.log("9. Interactive Q&A (type 'exit' to quit)\n");
+    // Step 10: Interactive Q&A
+    console.log("10. Interactive Q&A (type 'exit' to quit)\n");
     console.log("   Try asking:\n");
     console.log("   - What are the different types of executors?");
     console.log("   - How do I create a pipeline?");

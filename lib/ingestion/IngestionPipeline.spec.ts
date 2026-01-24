@@ -54,6 +54,10 @@ class MockVectorStore extends VectorStore {
     return null;
   }
 
+  async getByHashes(): Promise<Map<string, string>> {
+    return new Map();
+  }
+
   getStoredDocuments(): EmbeddedDocument[] {
     return this.documents;
   }

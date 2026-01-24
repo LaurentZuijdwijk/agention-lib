@@ -172,7 +172,7 @@ async function vectorStoreExample() {
         "You are a helpful assistant that answers questions about Agention. Always use the search tool to find relevant documentation before answering. Base your answers on the search results and cite the source files.",
       apiKey: process.env.ANTHROPIC_API_KEY as string,
       tools: [searchTool],
-      model: "claude-sonnet-4-20250514",
+      model: "claude-haiku-4-5",
     });
     console.log("   Agent created\n");
 

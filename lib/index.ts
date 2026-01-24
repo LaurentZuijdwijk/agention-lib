@@ -26,3 +26,9 @@ export * from "./viz";
 
 // Vector Store
 export * from "./vectorstore";
+
+// Chunkers
+export * from "./chunkers";
+
+// Ingestion
+export * from "./ingestion";

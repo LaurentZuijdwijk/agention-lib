@@ -168,7 +168,6 @@ const history = new History();
 
 const medicalResearchAgent = new ClaudeAgent(
   {
-    vendor: "anthropic",
     id: "medical-research",
     name: "Medical Research Assistant",
     description: `You are a medical research expert specializing in coming up with novel and in-depth knowledge based on literature research and extensive experience.
@@ -202,7 +201,6 @@ const medicalResearchAgent = new ClaudeAgent(
 // Alternative using OpenAI
 const openAiMedicalAgent = new OpenAiAgent(
   {
-    vendor: "openai",
     id: "openai-medical-research",
     name: "Medical Research Assistant",
     description: `You are a medical research expert specializing in coming up with novel and in-depth knowledge based on literature research and extensive experience.

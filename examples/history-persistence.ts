@@ -200,7 +200,7 @@ function createAgent(
       name: "Assistant",
       description: AGENT_DESCRIPTION,
       apiKey: process.env.ANTHROPIC_API_KEY as string,
-      model: "claude-3-5-haiku-latest",
+      model: "claude-haiku-4-5",
       maxTokens: 1024,
       tools,
     },

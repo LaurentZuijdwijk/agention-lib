@@ -99,6 +99,7 @@ function createAgent(provider: "claude" | "openai" | "mistral"): BaseAgent {
 
   return new ClaudeAgent({
     id: "1",
+    model: "claude-haiku-4-5",
     name: "Weather agent",
     description: AGENT_DESCRIPTION,
     apiKey: process.env.ANTHROPIC_API_KEY as string,

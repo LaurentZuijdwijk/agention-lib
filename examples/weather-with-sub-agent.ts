@@ -143,7 +143,7 @@ function createWeathermanAgent(
   return new ClaudeAgent({
     ...config,
     apiKey: process.env.ANTHROPIC_API_KEY as string,
-    model: "claude-3-5-haiku-latest", // Cheap model for tool calls
+    model: "claude-haiku-4-5", // Cheap model for tool calls
   });
 }
 
@@ -191,7 +191,7 @@ function createMainAgent(
   return new ClaudeAgent({
     ...config,
     apiKey: process.env.ANTHROPIC_API_KEY as string,
-    model: "claude-sonnet-4-20250514", // More capable model for the main agent
+    model: "claude-sonnet-4-5", // More capable model for the main agent
   });
 }
 
@@ -201,7 +201,9 @@ function createMainAgent(
 
 async function main() {
   console.log("=== Weather Assistant with Sub-Agent ===\n");
-  console.log("This example uses a cheap 'weatherman' agent to handle API calls,");
+  console.log(
+    "This example uses a cheap 'weatherman' agent to handle API calls,"
+  );
   console.log("while a smarter main agent provides the final response.\n");
 
   // Choose provider

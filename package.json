@@ -80,6 +80,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@mistralai/mistralai": "^1.6.0"
+    "@mistralai/mistralai": "^1.6.0",
+    "tokenx": "^1.2.1"
   }
 }

@@ -28,6 +28,10 @@ export default defineConfig({
             { text: "History Management", link: "/guide/history" },
             { text: "Graph Pipelines", link: "/guide/graph-pipelines" },
             { text: "Vector Stores", link: "/guide/vector-stores" },
+            {
+              text: "Chunking & Ingestion",
+              link: "/guide/chunking-and-ingestion",
+            },
           ],
         },
         {

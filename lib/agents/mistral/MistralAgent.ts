@@ -21,10 +21,11 @@ import {
 import { setTimeout } from "timers/promises";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
+import { MistralModel } from "../model-types";
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
-  model?: string | "mistral-small-latest" | "mistral-large-latest";
+  model?: MistralModel;
   maxTokens?: number;
   disableParallelToolUse?: boolean;
 };

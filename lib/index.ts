@@ -4,6 +4,7 @@ export * from "./agents/anthropic/ClaudeAgent";
 export { OpenAiAgent } from "./agents/openai/OpenAiAgent";
 export { MistralAgent } from "./agents/mistral/MistralAgent";
 export { GeminiAgent } from "./agents/google/GeminiAgent";
+export * from "./agents/model-types";
 
 // History
 export * from "./history/History";

@@ -16,12 +16,15 @@ import {
 } from "openai/resources/responses/responses";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
+import { OpenAIModel } from "../model-types";
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
-  model?: string;
+  model?: OpenAIModel;
   maxTokens?: number;
   disableParallelToolUse?: boolean;
+  /** Disable extended thinking/reasoning for models that support it (like gpt-5-nano) */
+  disableReasoning?: boolean;
 };
 
 /**
@@ -63,6 +66,7 @@ export class OpenAiAgent extends BaseAgent {
       model: config.model || "gpt-4.1-mini",
       maxTokens: config.maxTokens || 1024,
       disableParallelToolUse: config.disableParallelToolUse || false,
+      disableReasoning: config.disableReasoning || false,
       apiKey: config.apiKey,
       temperature: config.temperature,
     };
@@ -130,6 +134,7 @@ export class OpenAiAgent extends BaseAgent {
         tools: this.getToolDefinitions(),
         store: false,
         temperature: this.config.temperature,
+        ...(this.config.disableReasoning && { reasoning: { effort: null } }),
       });
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
@@ -215,10 +220,45 @@ export class OpenAiAgent extends BaseAgent {
       (output) => output.type === "function_call"
     ) as unknown as ResponseFunctionToolCall[];
 
+    // Find the message output (skip reasoning outputs)
+    const messageOutput = response.output.find(
+      (output) => output.type === "message"
+    );
+
+    // Handle incomplete responses (e.g., reasoning hit token limit)
     if (
       !toolCalls.length &&
-      response.output[0].type === "message" &&
-      response.output[0].status === "completed"
+      messageOutput &&
+      messageOutput.type === "message" &&
+      messageOutput.status === "incomplete"
+    ) {
+      const error = new ExecutionError(
+        `Response incomplete: ${
+          response.incomplete_details?.reason || "unknown reason"
+        }. ` +
+          `Try increasing maxTokens or setting disableReasoning: true for this agent.`
+      );
+      this.emit(AgentEvent.ERROR, error);
+
+      // Report error to viz
+      if (this.vizEventId) {
+        vizReporter.agentError(
+          this.vizEventId,
+          "ExecutionError",
+          error.message,
+          false
+        );
+        this.vizEventId = undefined;
+      }
+
+      throw error;
+    }
+
+    if (
+      !toolCalls.length &&
+      messageOutput &&
+      messageOutput.type === "message" &&
+      messageOutput.status === "completed"
     ) {
       // Normal text response - add to history in normalized format
       const entry = openAiTransformer.fromProviderMessage(
@@ -289,6 +329,9 @@ export class OpenAiAgent extends BaseAgent {
             tools: this.getToolDefinitions(),
             store: false,
             temperature: this.config.temperature,
+            ...(this.config.disableReasoning && {
+              reasoning: { effort: null },
+            }),
           });
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);

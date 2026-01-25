@@ -22,10 +22,11 @@ import { History, toolResult } from "../../history/History";
 import { geminiTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
+import { GeminiModel } from "../model-types";
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
-  model?: string;
+  model?: GeminiModel;
   maxTokens?: number;
 };
 

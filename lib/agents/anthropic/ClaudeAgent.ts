@@ -19,10 +19,11 @@ import { anthropicTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { VizStopReason } from "../../viz/types";
+import { ClaudeModel } from "../model-types";
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
-  model?: string;
+  model?: ClaudeModel;
   maxTokens?: number;
   disableParallelToolUse?: boolean;
 };

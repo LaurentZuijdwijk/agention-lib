@@ -1,6 +1,6 @@
 # Interface: PipelineMetrics
 
-Defined in: [lib/graph/GraphMetrics.ts:58](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L58)
+Defined in: [lib/graph/GraphMetrics.ts:58](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L58)
 
 Aggregate metrics for a complete pipeline execution.
 
@@ -10,7 +10,7 @@ Aggregate metrics for a complete pipeline execution.
 
 > **failureCount**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:68](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L68)
+Defined in: [lib/graph/GraphMetrics.ts:68](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L68)
 
 Number of failed executions
 
@@ -20,7 +20,7 @@ Number of failed executions
 
 > **nodeCount**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L64)
+Defined in: [lib/graph/GraphMetrics.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L64)
 
 Number of nodes executed
 
@@ -30,7 +30,7 @@ Number of nodes executed
 
 > **stages**: [`NodeExecutionMetrics`](NodeExecutionMetrics.md)[]
 
-Defined in: [lib/graph/GraphMetrics.ts:70](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L70)
+Defined in: [lib/graph/GraphMetrics.ts:70](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L70)
 
 Detailed metrics for each stage
 
@@ -40,7 +40,7 @@ Detailed metrics for each stage
 
 > **structure**: [`PipelineStructure`](PipelineStructure.md)
 
-Defined in: [lib/graph/GraphMetrics.ts:72](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L72)
+Defined in: [lib/graph/GraphMetrics.ts:72](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L72)
 
 Pipeline structure for visualization
 
@@ -50,7 +50,7 @@ Pipeline structure for visualization
 
 > **successCount**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:66](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L66)
+Defined in: [lib/graph/GraphMetrics.ts:66](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L66)
 
 Number of successful executions
 
@@ -60,7 +60,7 @@ Number of successful executions
 
 > **totalDurationMs**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:60](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L60)
+Defined in: [lib/graph/GraphMetrics.ts:60](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L60)
 
 Total execution time in milliseconds
 
@@ -70,6 +70,6 @@ Total execution time in milliseconds
 
 > **totalTokens**: [`MetricsTokenUsage`](MetricsTokenUsage.md)
 
-Defined in: [lib/graph/GraphMetrics.ts:62](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L62)
+Defined in: [lib/graph/GraphMetrics.ts:62](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L62)
 
 Total tokens used across all nodes

@@ -2,7 +2,7 @@
 
 > **TeamConfig** = `object`
 
-Defined in: [lib/team/Team.ts:6](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L6)
+Defined in: [lib/team/Team.ts:6](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L6)
 
 ## Properties
 
@@ -10,7 +10,7 @@ Defined in: [lib/team/Team.ts:6](https://github.com/LaurentZuijdwijk/agention-li
 
 > **agents**: [`BaseAgent`](../../../agents/BaseAgent/classes/BaseAgent.md)[]
 
-Defined in: [lib/team/Team.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L8)
+Defined in: [lib/team/Team.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L8)
 
 ***
 
@@ -18,7 +18,7 @@ Defined in: [lib/team/Team.ts:8](https://github.com/LaurentZuijdwijk/agention-li
 
 > `optional` **delegationPrompt**: `string`
 
-Defined in: [lib/team/Team.ts:10](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L10)
+Defined in: [lib/team/Team.ts:10](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L10)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [lib/team/Team.ts:10](https://github.com/LaurentZuijdwijk/agention-l
 
 > **leadAgent**: [`BaseAgent`](../../../agents/BaseAgent/classes/BaseAgent.md)
 
-Defined in: [lib/team/Team.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L9)
+Defined in: [lib/team/Team.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L9)
 
 ***
 
@@ -34,4 +34,4 @@ Defined in: [lib/team/Team.ts:9](https://github.com/LaurentZuijdwijk/agention-li
 
 > **name**: `string`
 
-Defined in: [lib/team/Team.ts:7](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L7)
+Defined in: [lib/team/Team.ts:7](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L7)

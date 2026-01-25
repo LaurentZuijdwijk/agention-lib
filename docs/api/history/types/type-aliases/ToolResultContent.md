@@ -2,7 +2,7 @@
 
 > **ToolResultContent** = `object`
 
-Defined in: [lib/history/types.ts:33](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L33)
+Defined in: [lib/history/types.ts:33](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L33)
 
 Result of a tool execution
 
@@ -12,7 +12,7 @@ Result of a tool execution
 
 > **content**: `string`
 
-Defined in: [lib/history/types.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L36)
+Defined in: [lib/history/types.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L36)
 
 ***
 
@@ -20,7 +20,7 @@ Defined in: [lib/history/types.ts:36](https://github.com/LaurentZuijdwijk/agenti
 
 > `optional` **is\_error**: `boolean`
 
-Defined in: [lib/history/types.ts:37](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L37)
+Defined in: [lib/history/types.ts:37](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L37)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [lib/history/types.ts:37](https://github.com/LaurentZuijdwijk/agenti
 
 > **tool\_use\_id**: `string`
 
-Defined in: [lib/history/types.ts:35](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L35)
+Defined in: [lib/history/types.ts:35](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L35)
 
 ***
 
@@ -36,4 +36,4 @@ Defined in: [lib/history/types.ts:35](https://github.com/LaurentZuijdwijk/agenti
 
 > **type**: `"tool_result"`
 
-Defined in: [lib/history/types.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L34)
+Defined in: [lib/history/types.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L34)

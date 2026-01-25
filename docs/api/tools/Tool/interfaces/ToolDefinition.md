@@ -1,6 +1,6 @@
 # Interface: ToolDefinition
 
-Defined in: [lib/tools/Tool.ts:10](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L10)
+Defined in: [lib/tools/Tool.ts:13](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L13)
 
 ## Properties
 
@@ -8,7 +8,7 @@ Defined in: [lib/tools/Tool.ts:10](https://github.com/LaurentZuijdwijk/agention-
 
 > **description**: `string`
 
-Defined in: [lib/tools/Tool.ts:12](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L12)
+Defined in: [lib/tools/Tool.ts:15](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L15)
 
 ***
 
@@ -16,7 +16,7 @@ Defined in: [lib/tools/Tool.ts:12](https://github.com/LaurentZuijdwijk/agention-
 
 > **input\_schema**: `object`
 
-Defined in: [lib/tools/Tool.ts:13](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L13)
+Defined in: [lib/tools/Tool.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L16)
 
 #### properties
 
@@ -36,4 +36,4 @@ Defined in: [lib/tools/Tool.ts:13](https://github.com/LaurentZuijdwijk/agention-
 
 > **name**: `string`
 
-Defined in: [lib/tools/Tool.ts:11](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L11)
+Defined in: [lib/tools/Tool.ts:14](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L14)

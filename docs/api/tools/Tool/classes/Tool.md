@@ -1,6 +1,6 @@
 # Class: Tool\<T\>
 
-Defined in: [lib/tools/Tool.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L73)
+Defined in: [lib/tools/Tool.ts:76](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L76)
 
 Tools are used to retrieve additional information for LLMs, so they can provide better results. Examples could be
 Retrieving weather information, stock prices or specific price information.
@@ -23,7 +23,7 @@ Generic. Format of the tool result
 
 > **new Tool**\<`T`\>(`config`): `Tool`\<`T`\>
 
-Defined in: [lib/tools/Tool.ts:115](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L115)
+Defined in: [lib/tools/Tool.ts:118](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L118)
 
 #### Parameters
 
@@ -45,7 +45,7 @@ Defined in: [lib/tools/Tool.ts:115](https://github.com/LaurentZuijdwijk/agention
 
 > **name**: `string`
 
-Defined in: [lib/tools/Tool.ts:78](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L78)
+Defined in: [lib/tools/Tool.ts:81](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L81)
 
 ***
 
@@ -293,9 +293,9 @@ v6.0.0
 
 ### execute()
 
-> **execute**(`agentId`, `agentName`, `input`, `id`): `Promise`\<`T`\>
+> **execute**(`agentId`, `agentName`, `input`, `id`, `agentModel?`, `agentVendor?`): `Promise`\<`T`\>
 
-Defined in: [lib/tools/Tool.ts:123](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L123)
+Defined in: [lib/tools/Tool.ts:126](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L126)
 
 #### Parameters
 
@@ -314,6 +314,14 @@ Defined in: [lib/tools/Tool.ts:123](https://github.com/LaurentZuijdwijk/agention
 ##### id
 
 `string`
+
+##### agentModel?
+
+`string`
+
+##### agentVendor?
+
+[`AgentVendor`](../../../agents/BaseAgent/type-aliases/AgentVendor.md)
 
 #### Returns
 
@@ -348,7 +356,7 @@ v1.0.0
 
 > **getPrompt**(`_vendor?`): `object`
 
-Defined in: [lib/tools/Tool.ts:178](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L178)
+Defined in: [lib/tools/Tool.ts:192](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L192)
 
 #### Parameters
 
@@ -1040,7 +1048,7 @@ v18.18.0
 
 > `static` **fromAgent**(`agent`, `description`): `Tool`\<`string`\>
 
-Defined in: [lib/tools/Tool.ts:89](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L89)
+Defined in: [lib/tools/Tool.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L92)
 
 Agents can act as assistants to other agents. This static method creates a tool
 

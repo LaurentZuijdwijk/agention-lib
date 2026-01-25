@@ -1,0 +1,5 @@
+# Type Alias: VizEventPayload
+
+> **VizEventPayload** = [`SessionStartPayload`](../interfaces/SessionStartPayload.md) \| [`SessionEndPayload`](../interfaces/SessionEndPayload.md) \| [`PipelineStartPayload`](../interfaces/PipelineStartPayload.md) \| [`PipelineEndPayload`](../interfaces/PipelineEndPayload.md) \| [`ExecutorStartPayload`](../interfaces/ExecutorStartPayload.md) \| [`ExecutorEndPayload`](../interfaces/ExecutorEndPayload.md) \| [`AgentStartPayload`](../interfaces/AgentStartPayload.md) \| [`AgentCompletePayload`](../interfaces/AgentCompletePayload.md) \| [`AgentErrorPayload`](../interfaces/AgentErrorPayload.md) \| [`ToolStartPayload`](../interfaces/ToolStartPayload.md) \| [`ToolCompletePayload`](../interfaces/ToolCompletePayload.md) \| [`ToolErrorPayload`](../interfaces/ToolErrorPayload.md) \| [`MessagePayload`](../interfaces/MessagePayload.md)
+
+Defined in: [lib/viz/types.ts:159](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/viz/types.ts#L159)

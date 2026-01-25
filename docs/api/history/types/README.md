@@ -3,6 +3,7 @@
 ## Type Aliases
 
 - [AnthropicMeta](type-aliases/AnthropicMeta.md)
+- [GeminiMeta](type-aliases/GeminiMeta.md)
 - [HistoryEntry](type-aliases/HistoryEntry.md)
 - [MessageContent](type-aliases/MessageContent.md)
 - [MessageRole](type-aliases/MessageRole.md)

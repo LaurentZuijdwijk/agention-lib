@@ -2,7 +2,7 @@
 
 > **isTextContent**(`content`): `content is TextContent`
 
-Defined in: [lib/history/types.ts:129](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L129)
+Defined in: [lib/history/types.ts:141](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L141)
 
 ## Parameters
 

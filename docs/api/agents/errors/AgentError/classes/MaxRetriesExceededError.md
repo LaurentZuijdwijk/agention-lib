@@ -1,6 +1,6 @@
 # Class: MaxRetriesExceededError
 
-Defined in: [lib/agents/errors/AgentError.ts:52](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L52)
+Defined in: [lib/agents/errors/AgentError.ts:52](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L52)
 
 Error thrown when maximum retries are exceeded
 
@@ -14,7 +14,7 @@ Error thrown when maximum retries are exceeded
 
 > **new MaxRetriesExceededError**(`message`, `maxRetries`): `MaxRetriesExceededError`
 
-Defined in: [lib/agents/errors/AgentError.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L53)
+Defined in: [lib/agents/errors/AgentError.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L53)
 
 #### Parameters
 
@@ -40,7 +40,7 @@ Defined in: [lib/agents/errors/AgentError.ts:53](https://github.com/LaurentZuijd
 
 > **maxRetries**: `number`
 
-Defined in: [lib/agents/errors/AgentError.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L53)
+Defined in: [lib/agents/errors/AgentError.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L53)
 
 ***
 

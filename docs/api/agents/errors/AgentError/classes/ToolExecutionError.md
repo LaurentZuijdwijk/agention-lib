@@ -1,6 +1,6 @@
 # Class: ToolExecutionError
 
-Defined in: [lib/agents/errors/AgentError.ts:62](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L62)
+Defined in: [lib/agents/errors/AgentError.ts:62](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L62)
 
 Error thrown when tool execution fails
 
@@ -14,7 +14,7 @@ Error thrown when tool execution fails
 
 > **new ToolExecutionError**(`message`, `toolName`, `input`): `ToolExecutionError`
 
-Defined in: [lib/agents/errors/AgentError.ts:63](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L63)
+Defined in: [lib/agents/errors/AgentError.ts:63](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L63)
 
 #### Parameters
 
@@ -44,7 +44,7 @@ Defined in: [lib/agents/errors/AgentError.ts:63](https://github.com/LaurentZuijd
 
 > **input**: `any`
 
-Defined in: [lib/agents/errors/AgentError.ts:63](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L63)
+Defined in: [lib/agents/errors/AgentError.ts:63](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L63)
 
 ***
 
@@ -88,7 +88,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1069
 
 > **toolName**: `string`
 
-Defined in: [lib/agents/errors/AgentError.ts:63](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L63)
+Defined in: [lib/agents/errors/AgentError.ts:63](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L63)
 
 ***
 

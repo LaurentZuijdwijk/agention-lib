@@ -1,6 +1,6 @@
 # Class: ClaudeAgent
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:42](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/anthropic/ClaudeAgent.ts#L42)
+Defined in: [lib/agents/anthropic/ClaudeAgent.ts:46](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L46)
 
 Agent for Anthropic models.
 
@@ -27,7 +27,7 @@ const response = await agent.execute("Hello!");
 
 > **new ClaudeAgent**(`config`, `history?`): `ClaudeAgent`
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:49](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/anthropic/ClaudeAgent.ts#L49)
+Defined in: [lib/agents/anthropic/ClaudeAgent.ts:59](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L59)
 
 #### Parameters
 
@@ -53,7 +53,7 @@ Defined in: [lib/agents/anthropic/ClaudeAgent.ts:49](https://github.com/LaurentZ
 
 > `optional` **lastTokenUsage**: [`TokenUsage`](../../../BaseAgent/type-aliases/TokenUsage.md)
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:47](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/anthropic/ClaudeAgent.ts#L47)
+Defined in: [lib/agents/anthropic/ClaudeAgent.ts:51](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L51)
 
 Token usage from the last execution (for metrics tracking)
 
@@ -195,7 +195,7 @@ v0.1.26
 
 > **addTools**(`tools`): `void`
 
-Defined in: [lib/agents/BaseAgent.ts:145](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L145)
+Defined in: [lib/agents/BaseAgent.ts:157](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L157)
 
 #### Parameters
 
@@ -217,7 +217,7 @@ Defined in: [lib/agents/BaseAgent.ts:145](https://github.com/LaurentZuijdwijk/ag
 
 > **clearHistory**(): `void`
 
-Defined in: [lib/agents/BaseAgent.ts:178](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L178)
+Defined in: [lib/agents/BaseAgent.ts:198](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L198)
 
 #### Returns
 
@@ -343,7 +343,7 @@ v6.0.0
 
 > **execute**(`input`): `Promise`\<`string`\>
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:75](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/anthropic/ClaudeAgent.ts#L75)
+Defined in: [lib/agents/anthropic/ClaudeAgent.ts:85](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L85)
 
 #### Parameters
 
@@ -365,7 +365,7 @@ Defined in: [lib/agents/anthropic/ClaudeAgent.ts:75](https://github.com/LaurentZ
 
 > **getDescription**(): `string`
 
-Defined in: [lib/agents/BaseAgent.ts:166](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L166)
+Defined in: [lib/agents/BaseAgent.ts:178](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L178)
 
 #### Returns
 
@@ -381,7 +381,7 @@ Defined in: [lib/agents/BaseAgent.ts:166](https://github.com/LaurentZuijdwijk/ag
 
 > **getHistoryEntries**(): [`HistoryEntry`](../../../../history/types/type-aliases/HistoryEntry.md)[]
 
-Defined in: [lib/agents/BaseAgent.ts:170](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L170)
+Defined in: [lib/agents/BaseAgent.ts:190](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L190)
 
 #### Returns
 
@@ -397,7 +397,7 @@ Defined in: [lib/agents/BaseAgent.ts:170](https://github.com/LaurentZuijdwijk/ag
 
 > **getId**(): `string`
 
-Defined in: [lib/agents/BaseAgent.ts:158](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L158)
+Defined in: [lib/agents/BaseAgent.ts:170](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L170)
 
 #### Returns
 
@@ -432,11 +432,27 @@ v1.0.0
 
 ***
 
+### getModel()
+
+> **getModel**(): `string`
+
+Defined in: [lib/agents/BaseAgent.ts:186](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L186)
+
+#### Returns
+
+`string`
+
+#### Inherited from
+
+[`BaseAgent`](../../../BaseAgent/classes/BaseAgent.md).[`getModel`](../../../BaseAgent/classes/BaseAgent.md#getmodel)
+
+***
+
 ### getName()
 
 > **getName**(): `string`
 
-Defined in: [lib/agents/BaseAgent.ts:162](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L162)
+Defined in: [lib/agents/BaseAgent.ts:174](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L174)
 
 #### Returns
 
@@ -452,7 +468,7 @@ Defined in: [lib/agents/BaseAgent.ts:162](https://github.com/LaurentZuijdwijk/ag
 
 > **getTools**(): [`Tool`](../../../../tools/Tool/classes/Tool.md)\<`unknown`\>[]
 
-Defined in: [lib/agents/BaseAgent.ts:174](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L174)
+Defined in: [lib/agents/BaseAgent.ts:194](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L194)
 
 #### Returns
 
@@ -461,6 +477,22 @@ Defined in: [lib/agents/BaseAgent.ts:174](https://github.com/LaurentZuijdwijk/ag
 #### Inherited from
 
 [`BaseAgent`](../../../BaseAgent/classes/BaseAgent.md).[`getTools`](../../../BaseAgent/classes/BaseAgent.md#gettools)
+
+***
+
+### getVendor()
+
+> **getVendor**(): [`AgentVendor`](../../../BaseAgent/type-aliases/AgentVendor.md)
+
+Defined in: [lib/agents/BaseAgent.ts:182](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L182)
+
+#### Returns
+
+[`AgentVendor`](../../../BaseAgent/type-aliases/AgentVendor.md)
+
+#### Inherited from
+
+[`BaseAgent`](../../../BaseAgent/classes/BaseAgent.md).[`getVendor`](../../../BaseAgent/classes/BaseAgent.md#getvendor)
 
 ***
 

@@ -1,6 +1,6 @@
 # Class: Pipeline\<TInput, TOutput\>
 
-Defined in: [lib/graph/Pipeline.ts:21](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/Pipeline.ts#L21)
+Defined in: [lib/graph/Pipeline.ts:21](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/Pipeline.ts#L21)
 
 Builds a pipeline of graph nodes that execute in sequence,
 where the output of each stage becomes the input of the next.
@@ -44,7 +44,7 @@ const result = await pipeline.execute("Research topic X");
 
 > **new Pipeline**\<`TInput`, `TOutput`\>(...`stages`): `Pipeline`\<`TInput`, `TOutput`\>
 
-Defined in: [lib/graph/Pipeline.ts:27](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/Pipeline.ts#L27)
+Defined in: [lib/graph/Pipeline.ts:27](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/Pipeline.ts#L27)
 
 #### Parameters
 
@@ -66,7 +66,7 @@ Defined in: [lib/graph/Pipeline.ts:27](https://github.com/LaurentZuijdwijk/agent
 
 > **name**: `string`
 
-Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L50)
+Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L50)
 
 Display name for this executor
 
@@ -84,7 +84,7 @@ Display name for this executor
 
 > **nodeType**: [`GraphNodeType`](../../BaseExecutor/type-aliases/GraphNodeType.md) = `"custom"`
 
-Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L53)
+Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L53)
 
 Type of this node for metrics and visualization
 
@@ -104,7 +104,7 @@ Type of this node for metrics and visualization
 
 > **get** **length**(): `number`
 
-Defined in: [lib/graph/Pipeline.ts:120](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/Pipeline.ts#L120)
+Defined in: [lib/graph/Pipeline.ts:120](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/Pipeline.ts#L120)
 
 Returns the number of stages in the pipeline.
 
@@ -118,7 +118,7 @@ Returns the number of stages in the pipeline.
 
 > **addStage**\<`TStageOutput`\>(`stage`): `Pipeline`\<`TInput`, `TStageOutput`\>
 
-Defined in: [lib/graph/Pipeline.ts:39](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/Pipeline.ts#L39)
+Defined in: [lib/graph/Pipeline.ts:39](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/Pipeline.ts#L39)
 
 Adds a stage to the end of the pipeline.
 
@@ -148,7 +148,7 @@ The pipeline instance for chaining
 
 > **execute**(`input`): `Promise`\<`TOutput`\>
 
-Defined in: [lib/graph/Pipeline.ts:51](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/Pipeline.ts#L51)
+Defined in: [lib/graph/Pipeline.ts:51](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/Pipeline.ts#L51)
 
 Executes all stages in sequence.
 
@@ -180,7 +180,7 @@ The output from the final stage
 
 > **getMetrics**(): [`NodeExecutionMetrics`](../../GraphMetrics/interfaces/NodeExecutionMetrics.md)[] \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L92)
+Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L92)
 
 Get collected metrics (if metrics collection is enabled).
 
@@ -198,7 +198,7 @@ Get collected metrics (if metrics collection is enabled).
 
 > **getMetricsCollector**(): [`MetricsCollector`](../../GraphMetrics/classes/MetricsCollector.md) \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L99)
+Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L99)
 
 Get the metrics collector instance.
 
@@ -216,7 +216,7 @@ Get the metrics collector instance.
 
 > **withMetrics**(`collector?`): `this`
 
-Defined in: [lib/graph/Pipeline.ts:127](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/Pipeline.ts#L127)
+Defined in: [lib/graph/Pipeline.ts:127](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/Pipeline.ts#L127)
 
 Enable metrics collection and return the pipeline for chaining.
 
@@ -240,7 +240,7 @@ Enable metrics collection and return the pipeline for chaining.
 
 > **withName**(`name`): `this`
 
-Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L73)
+Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L73)
 
 Set a custom name for this executor (used in metrics).
 

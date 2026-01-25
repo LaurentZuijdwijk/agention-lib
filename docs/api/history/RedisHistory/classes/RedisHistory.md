@@ -1,6 +1,6 @@
 # Class: RedisHistory
 
-Defined in: [lib/history/RedisHistory.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/RedisHistory.ts#L8)
+Defined in: [lib/history/RedisHistory.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/RedisHistory.ts#L8)
 
 Manages conversation history in a provider-agnostic format.
 
@@ -35,7 +35,7 @@ const openAiAgent = new OpenAiAgent({ ... }, history);
 
 > **new RedisHistory**(`redisInstance`): `RedisHistory`
 
-Defined in: [lib/history/RedisHistory.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/RedisHistory.ts#L9)
+Defined in: [lib/history/RedisHistory.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/RedisHistory.ts#L9)
 
 #### Parameters
 
@@ -57,7 +57,7 @@ Defined in: [lib/history/RedisHistory.ts:9](https://github.com/LaurentZuijdwijk/
 
 > **transient**: `boolean` = `false`
 
-Defined in: [lib/history/History.ts:67](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L67)
+Defined in: [lib/history/History.ts:67](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L67)
 
 #### Inherited from
 
@@ -129,7 +129,7 @@ regular `'error'` listener is installed.
 
 > **get** **entries**(): [`HistoryEntry`](../../types/type-aliases/HistoryEntry.md)[]
 
-Defined in: [lib/history/History.ts:124](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L124)
+Defined in: [lib/history/History.ts:124](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L124)
 
 Get all entries (without internal metadata)
 
@@ -149,7 +149,7 @@ Get all entries (without internal metadata)
 
 > **get** **length**(): `number`
 
-Defined in: [lib/history/History.ts:134](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L134)
+Defined in: [lib/history/History.ts:134](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L134)
 
 Get the number of entries
 
@@ -169,7 +169,7 @@ Get the number of entries
 
 > **get** **size**(): `number`
 
-Defined in: [lib/history/History.ts:141](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L141)
+Defined in: [lib/history/History.ts:141](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L141)
 
 Get total content size in characters
 
@@ -223,7 +223,7 @@ Defined in: node\_modules/@types/node/events.d.ts:131
 
 > **addEntry**(`entry`): `void`
 
-Defined in: [lib/history/History.ts:83](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L83)
+Defined in: [lib/history/History.ts:83](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L83)
 
 Add a complete history entry
 
@@ -285,7 +285,7 @@ v0.1.26
 
 > **addMessage**(`role`, `content`): `void`
 
-Defined in: [lib/history/History.ts:110](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L110)
+Defined in: [lib/history/History.ts:110](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L110)
 
 Add a message with multiple content blocks
 
@@ -313,7 +313,7 @@ Add a message with multiple content blocks
 
 > **addSystem**(`content`): `void`
 
-Defined in: [lib/history/History.ts:117](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L117)
+Defined in: [lib/history/History.ts:117](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L117)
 
 Add a system message
 
@@ -337,7 +337,7 @@ Add a system message
 
 > **addText**(`role`, `content`): `void`
 
-Defined in: [lib/history/History.ts:100](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L100)
+Defined in: [lib/history/History.ts:100](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L100)
 
 Add a simple text message
 
@@ -365,7 +365,7 @@ Add a simple text message
 
 > **clear**(): `void`
 
-Defined in: [lib/history/History.ts:179](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L179)
+Defined in: [lib/history/History.ts:179](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L179)
 
 Clear all history entries
 
@@ -383,7 +383,7 @@ Clear all history entries
 
 > **clone**(`options?`): [`History`](../../History/classes/History.md)
 
-Defined in: [lib/history/History.ts:202](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L202)
+Defined in: [lib/history/History.ts:202](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L202)
 
 Create a copy of this history
 
@@ -540,7 +540,7 @@ v1.0.0
 
 > **getMessagesWithoutSystem**(): [`HistoryEntry`](../../types/type-aliases/HistoryEntry.md)[]
 
-Defined in: [lib/history/History.ts:172](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L172)
+Defined in: [lib/history/History.ts:172](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L172)
 
 Get entries without system messages
 
@@ -558,7 +558,7 @@ Get entries without system messages
 
 > **getSystemMessage**(): `string` \| `undefined`
 
-Defined in: [lib/history/History.ts:159](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L159)
+Defined in: [lib/history/History.ts:159](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L159)
 
 Get system message if present
 
@@ -576,7 +576,7 @@ Get system message if present
 
 > **lastEntry**(): [`HistoryEntry`](../../types/type-aliases/HistoryEntry.md) \| `undefined`
 
-Defined in: [lib/history/History.ts:150](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L150)
+Defined in: [lib/history/History.ts:150](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L150)
 
 Get the last entry
 
@@ -681,7 +681,7 @@ v0.1.26
 
 > **load**(`key`): `Promise`\<`void`\>
 
-Defined in: [lib/history/RedisHistory.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/RedisHistory.ts#L20)
+Defined in: [lib/history/RedisHistory.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/RedisHistory.ts#L20)
 
 Loads history entries from Redis using the specified key
 
@@ -1187,7 +1187,7 @@ v0.1.26
 
 > **save**(`key`): `Promise`\<`void`\>
 
-Defined in: [lib/history/RedisHistory.ts:49](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/RedisHistory.ts#L49)
+Defined in: [lib/history/RedisHistory.ts:49](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/RedisHistory.ts#L49)
 
 Saves the current history entries to Redis using the specified key
 
@@ -1248,7 +1248,7 @@ v0.3.5
 
 > **toJSON**(): `string`
 
-Defined in: [lib/history/History.ts:187](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L187)
+Defined in: [lib/history/History.ts:187](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L187)
 
 Serialize history to JSON
 
@@ -1330,7 +1330,7 @@ v18.18.0
 
 > `static` **fromJSON**(`json`, `options?`): [`History`](../../History/classes/History.md)
 
-Defined in: [lib/history/History.ts:194](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/History.ts#L194)
+Defined in: [lib/history/History.ts:194](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/History.ts#L194)
 
 Create a History instance from JSON
 

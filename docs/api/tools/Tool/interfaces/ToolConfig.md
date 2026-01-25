@@ -1,6 +1,6 @@
 # Interface: ToolConfig\<T\>
 
-Defined in: [lib/tools/Tool.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L20)
+Defined in: [lib/tools/Tool.ts:23](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L23)
 
 ## Type Parameters
 
@@ -14,7 +14,7 @@ Defined in: [lib/tools/Tool.ts:20](https://github.com/LaurentZuijdwijk/agention-
 
 > `optional` **context**: `Record`\<`string`, `any`\>
 
-Defined in: [lib/tools/Tool.ts:25](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L25)
+Defined in: [lib/tools/Tool.ts:28](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L28)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [lib/tools/Tool.ts:25](https://github.com/LaurentZuijdwijk/agention-
 
 > **description**: `string`
 
-Defined in: [lib/tools/Tool.ts:22](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L22)
+Defined in: [lib/tools/Tool.ts:25](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L25)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [lib/tools/Tool.ts:22](https://github.com/LaurentZuijdwijk/agention-
 
 > **execute**: (`input`, `context?`) => `Promise`\<`T`\>
 
-Defined in: [lib/tools/Tool.ts:24](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L24)
+Defined in: [lib/tools/Tool.ts:27](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L27)
 
 #### Parameters
 
@@ -52,7 +52,7 @@ Defined in: [lib/tools/Tool.ts:24](https://github.com/LaurentZuijdwijk/agention-
 
 > **inputSchema**: [`ToolInputSchema`](ToolInputSchema.md)
 
-Defined in: [lib/tools/Tool.ts:23](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L23)
+Defined in: [lib/tools/Tool.ts:26](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L26)
 
 ***
 
@@ -60,4 +60,4 @@ Defined in: [lib/tools/Tool.ts:23](https://github.com/LaurentZuijdwijk/agention-
 
 > **name**: `string`
 
-Defined in: [lib/tools/Tool.ts:21](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L21)
+Defined in: [lib/tools/Tool.ts:24](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L24)

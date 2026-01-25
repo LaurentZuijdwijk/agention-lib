@@ -2,7 +2,7 @@
 
 > **TokenUsage** = `object`
 
-Defined in: [lib/agents/BaseAgent.ts:33](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L33)
+Defined in: [lib/agents/BaseAgent.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L36)
 
 ## Properties
 
@@ -10,7 +10,7 @@ Defined in: [lib/agents/BaseAgent.ts:33](https://github.com/LaurentZuijdwijk/age
 
 > **input\_tokens**: `number`
 
-Defined in: [lib/agents/BaseAgent.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L34)
+Defined in: [lib/agents/BaseAgent.ts:37](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L37)
 
 ***
 
@@ -18,7 +18,7 @@ Defined in: [lib/agents/BaseAgent.ts:34](https://github.com/LaurentZuijdwijk/age
 
 > **output\_tokens**: `number`
 
-Defined in: [lib/agents/BaseAgent.ts:35](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L35)
+Defined in: [lib/agents/BaseAgent.ts:38](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L38)
 
 ***
 
@@ -26,4 +26,4 @@ Defined in: [lib/agents/BaseAgent.ts:35](https://github.com/LaurentZuijdwijk/age
 
 > **total\_tokens**: `number`
 
-Defined in: [lib/agents/BaseAgent.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/BaseAgent.ts#L36)
+Defined in: [lib/agents/BaseAgent.ts:39](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L39)

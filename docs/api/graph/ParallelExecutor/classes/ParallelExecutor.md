@@ -1,6 +1,6 @@
 # Class: ParallelExecutor
 
-Defined in: [lib/graph/ParallelExecutor.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/ParallelExecutor.ts#L34)
+Defined in: [lib/graph/ParallelExecutor.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/ParallelExecutor.ts#L34)
 
 Executes multiple agents in parallel on the same input.
 Returns an array of results from all agents.
@@ -23,7 +23,7 @@ const results = await executor.execute("Analyze this data");
 
 > **new ParallelExecutor**(`options`, ...`agents`): `ParallelExecutor`
 
-Defined in: [lib/graph/ParallelExecutor.ts:38](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/ParallelExecutor.ts#L38)
+Defined in: [lib/graph/ParallelExecutor.ts:38](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/ParallelExecutor.ts#L38)
 
 #### Parameters
 
@@ -49,7 +49,7 @@ Defined in: [lib/graph/ParallelExecutor.ts:38](https://github.com/LaurentZuijdwi
 
 > **name**: `string`
 
-Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L50)
+Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L50)
 
 Display name for this executor
 
@@ -63,7 +63,7 @@ Display name for this executor
 
 > **nodeType**: [`GraphNodeType`](../../BaseExecutor/type-aliases/GraphNodeType.md) = `"custom"`
 
-Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L53)
+Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L53)
 
 Type of this node for metrics and visualization
 
@@ -79,7 +79,7 @@ Type of this node for metrics and visualization
 
 > **get** **length**(): `number`
 
-Defined in: [lib/graph/ParallelExecutor.ts:149](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/ParallelExecutor.ts#L149)
+Defined in: [lib/graph/ParallelExecutor.ts:149](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/ParallelExecutor.ts#L149)
 
 Returns the number of agents that will execute in parallel.
 
@@ -93,7 +93,7 @@ Returns the number of agents that will execute in parallel.
 
 > **execute**(`input`): `Promise`\<`string`[]\>
 
-Defined in: [lib/graph/ParallelExecutor.ts:54](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/ParallelExecutor.ts#L54)
+Defined in: [lib/graph/ParallelExecutor.ts:54](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/ParallelExecutor.ts#L54)
 
 Executes all agents in parallel with the same input.
 
@@ -121,7 +121,7 @@ Array of results from each agent
 
 > **getMetrics**(): [`NodeExecutionMetrics`](../../GraphMetrics/interfaces/NodeExecutionMetrics.md)[] \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L92)
+Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L92)
 
 Get collected metrics (if metrics collection is enabled).
 
@@ -139,7 +139,7 @@ Get collected metrics (if metrics collection is enabled).
 
 > **getMetricsCollector**(): [`MetricsCollector`](../../GraphMetrics/classes/MetricsCollector.md) \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L99)
+Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L99)
 
 Get the metrics collector instance.
 
@@ -157,7 +157,7 @@ Get the metrics collector instance.
 
 > **withMetrics**(`collector?`): `this`
 
-Defined in: [lib/graph/BaseExecutor.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L64)
+Defined in: [lib/graph/BaseExecutor.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L64)
 
 Enable metrics collection for this executor.
 
@@ -181,7 +181,7 @@ Enable metrics collection for this executor.
 
 > **withName**(`name`): `this`
 
-Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L73)
+Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L73)
 
 Set a custom name for this executor (used in metrics).
 

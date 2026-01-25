@@ -2,7 +2,7 @@
 
 > **HistoryEntry** = `object`
 
-Defined in: [lib/history/types.ts:119](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L119)
+Defined in: [lib/history/types.ts:131](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L131)
 
 A single entry in the conversation history.
 
@@ -40,7 +40,7 @@ const entry: HistoryEntry = {
 
 > **content**: [`MessageContent`](MessageContent.md)[]
 
-Defined in: [lib/history/types.ts:121](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L121)
+Defined in: [lib/history/types.ts:133](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L133)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [lib/history/types.ts:121](https://github.com/LaurentZuijdwijk/agent
 
 > `optional` **meta**: [`ProviderMeta`](ProviderMeta.md)
 
-Defined in: [lib/history/types.ts:122](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L122)
+Defined in: [lib/history/types.ts:134](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L134)
 
 ***
 
@@ -56,4 +56,4 @@ Defined in: [lib/history/types.ts:122](https://github.com/LaurentZuijdwijk/agent
 
 > **role**: [`MessageRole`](MessageRole.md)
 
-Defined in: [lib/history/types.ts:120](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L120)
+Defined in: [lib/history/types.ts:132](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L132)

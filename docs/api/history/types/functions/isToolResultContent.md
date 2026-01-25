@@ -2,7 +2,7 @@
 
 > **isToolResultContent**(`content`): `content is ToolResultContent`
 
-Defined in: [lib/history/types.ts:139](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/types.ts#L139)
+Defined in: [lib/history/types.ts:151](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L151)
 
 ## Parameters
 

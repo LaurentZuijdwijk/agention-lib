@@ -1,6 +1,6 @@
 # Class: MaxTokensExceededError
 
-Defined in: [lib/agents/errors/AgentError.ts:42](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L42)
+Defined in: [lib/agents/errors/AgentError.ts:42](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L42)
 
 Error thrown when maximum token limit is exceeded
 
@@ -14,7 +14,7 @@ Error thrown when maximum token limit is exceeded
 
 > **new MaxTokensExceededError**(`message`, `tokenLimit`): `MaxTokensExceededError`
 
-Defined in: [lib/agents/errors/AgentError.ts:43](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L43)
+Defined in: [lib/agents/errors/AgentError.ts:43](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L43)
 
 #### Parameters
 
@@ -76,7 +76,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1069
 
 > **tokenLimit**: `number`
 
-Defined in: [lib/agents/errors/AgentError.ts:43](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L43)
+Defined in: [lib/agents/errors/AgentError.ts:43](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L43)
 
 ***
 

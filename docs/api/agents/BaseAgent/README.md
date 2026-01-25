@@ -10,6 +10,7 @@
 
 ## Type Aliases
 
+- [AgentVendor](type-aliases/AgentVendor.md)
 - [TokenUsage](type-aliases/TokenUsage.md)
 
 ## References

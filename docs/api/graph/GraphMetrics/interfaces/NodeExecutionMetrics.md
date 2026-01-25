@@ -1,6 +1,6 @@
 # Interface: NodeExecutionMetrics
 
-Defined in: [lib/graph/GraphMetrics.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L18)
+Defined in: [lib/graph/GraphMetrics.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L18)
 
 Metrics for a single node execution.
 
@@ -10,7 +10,7 @@ Metrics for a single node execution.
 
 > `optional` **children**: `NodeExecutionMetrics`[]
 
-Defined in: [lib/graph/GraphMetrics.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L50)
+Defined in: [lib/graph/GraphMetrics.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L50)
 
 Child node metrics (for composite executors)
 
@@ -20,7 +20,7 @@ Child node metrics (for composite executors)
 
 > **durationMs**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:38](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L38)
+Defined in: [lib/graph/GraphMetrics.ts:38](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L38)
 
 Duration in milliseconds
 
@@ -30,7 +30,7 @@ Duration in milliseconds
 
 > **endTime**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L36)
+Defined in: [lib/graph/GraphMetrics.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L36)
 
 End timestamp
 
@@ -40,7 +40,7 @@ End timestamp
 
 > `optional` **error**: `string`
 
-Defined in: [lib/graph/GraphMetrics.ts:44](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L44)
+Defined in: [lib/graph/GraphMetrics.ts:44](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L44)
 
 Error message if failed
 
@@ -50,7 +50,7 @@ Error message if failed
 
 > **id**: `string`
 
-Defined in: [lib/graph/GraphMetrics.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L20)
+Defined in: [lib/graph/GraphMetrics.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L20)
 
 Unique identifier for this execution
 
@@ -60,7 +60,7 @@ Unique identifier for this execution
 
 > `optional` **inputSummary**: `string`
 
-Defined in: [lib/graph/GraphMetrics.ts:46](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L46)
+Defined in: [lib/graph/GraphMetrics.ts:46](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L46)
 
 Input summary (truncated for large inputs)
 
@@ -70,7 +70,7 @@ Input summary (truncated for large inputs)
 
 > **name**: `string`
 
-Defined in: [lib/graph/GraphMetrics.ts:22](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L22)
+Defined in: [lib/graph/GraphMetrics.ts:22](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L22)
 
 Name of the node/agent
 
@@ -80,7 +80,7 @@ Name of the node/agent
 
 > `optional` **order**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:52](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L52)
+Defined in: [lib/graph/GraphMetrics.ts:52](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L52)
 
 Execution order within parent (for sequential/parallel)
 
@@ -90,7 +90,7 @@ Execution order within parent (for sequential/parallel)
 
 > `optional` **outputSummary**: `string`
 
-Defined in: [lib/graph/GraphMetrics.ts:48](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L48)
+Defined in: [lib/graph/GraphMetrics.ts:48](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L48)
 
 Output summary (truncated for large outputs)
 
@@ -100,7 +100,7 @@ Output summary (truncated for large outputs)
 
 > **startTime**: `number`
 
-Defined in: [lib/graph/GraphMetrics.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L34)
+Defined in: [lib/graph/GraphMetrics.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L34)
 
 Start timestamp
 
@@ -110,7 +110,7 @@ Start timestamp
 
 > **success**: `boolean`
 
-Defined in: [lib/graph/GraphMetrics.ts:42](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L42)
+Defined in: [lib/graph/GraphMetrics.ts:42](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L42)
 
 Whether execution succeeded
 
@@ -120,7 +120,7 @@ Whether execution succeeded
 
 > `optional` **tokenUsage**: [`MetricsTokenUsage`](MetricsTokenUsage.md)
 
-Defined in: [lib/graph/GraphMetrics.ts:40](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L40)
+Defined in: [lib/graph/GraphMetrics.ts:40](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L40)
 
 Token usage if applicable
 
@@ -128,8 +128,8 @@ Token usage if applicable
 
 ### type
 
-> **type**: `"map"` \| `"sequential"` \| `"parallel"` \| `"pipeline"` \| `"voting"` \| `"router"` \| `"agent"` \| `"custom"`
+> **type**: `"sequential"` \| `"parallel"` \| `"map"` \| `"voting"` \| `"router"` \| `"pipeline"` \| `"agent"` \| `"custom"`
 
-Defined in: [lib/graph/GraphMetrics.ts:24](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/GraphMetrics.ts#L24)
+Defined in: [lib/graph/GraphMetrics.ts:24](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L24)
 
 Type of executor (sequential, parallel, pipeline, map, voting, router, agent)

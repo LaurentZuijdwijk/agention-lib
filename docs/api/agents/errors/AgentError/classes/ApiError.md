@@ -1,6 +1,6 @@
 # Class: ApiError
 
-Defined in: [lib/agents/errors/AgentError.ts:28](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L28)
+Defined in: [lib/agents/errors/AgentError.ts:28](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L28)
 
 Error thrown when LLM API request fails
 
@@ -14,7 +14,7 @@ Error thrown when LLM API request fails
 
 > **new ApiError**(`message`, `statusCode?`, `response?`): `ApiError`
 
-Defined in: [lib/agents/errors/AgentError.ts:29](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L29)
+Defined in: [lib/agents/errors/AgentError.ts:29](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L29)
 
 #### Parameters
 
@@ -68,7 +68,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1067
 
 > `optional` **response**: `any`
 
-Defined in: [lib/agents/errors/AgentError.ts:32](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L32)
+Defined in: [lib/agents/errors/AgentError.ts:32](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L32)
 
 ***
 
@@ -88,7 +88,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1069
 
 > `optional` **statusCode**: `number`
 
-Defined in: [lib/agents/errors/AgentError.ts:31](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L31)
+Defined in: [lib/agents/errors/AgentError.ts:31](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L31)
 
 ***
 

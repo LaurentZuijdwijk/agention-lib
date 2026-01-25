@@ -2,7 +2,7 @@
 
 > `const` **anthropicTransformer**: `object`
 
-Defined in: [lib/history/transformers.ts:32](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/history/transformers.ts#L32)
+Defined in: [lib/history/transformers.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/transformers.ts#L34)
 
 ## Type Declaration
 

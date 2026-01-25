@@ -1,6 +1,6 @@
 # Class: Agent
 
-Defined in: [lib/agents/Agent.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/Agent.ts#L8)
+Defined in: [lib/agents/Agent.ts:41](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/Agent.ts#L41)
 
 ## Constructors
 
@@ -16,15 +16,15 @@ Defined in: [lib/agents/Agent.ts:8](https://github.com/LaurentZuijdwijk/agention
 
 ### create()
 
-> `static` **create**(`config`, `history?`): [`ClaudeAgent`](../../anthropic/ClaudeAgent/classes/ClaudeAgent.md) \| [`OpenAiAgent`](../../openai/OpenAiAgent/classes/OpenAiAgent.md)
+> `static` **create**(`config`, `history?`): [`ClaudeAgent`](../../anthropic/ClaudeAgent/classes/ClaudeAgent.md) \| [`OpenAiAgent`](../../openai/OpenAiAgent/classes/OpenAiAgent.md) \| [`MistralAgent`](../../mistral/MistralAgent/classes/MistralAgent.md) \| [`GeminiAgent`](../../google/GeminiAgent/classes/GeminiAgent.md)
 
-Defined in: [lib/agents/Agent.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/Agent.ts#L9)
+Defined in: [lib/agents/Agent.ts:42](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/Agent.ts#L42)
 
 #### Parameters
 
 ##### config
 
-[`BaseAgentConfig`](../../BaseAgent/interfaces/BaseAgentConfig.md)
+`AgentConfig`
 
 ##### history?
 
@@ -32,4 +32,4 @@ Defined in: [lib/agents/Agent.ts:9](https://github.com/LaurentZuijdwijk/agention
 
 #### Returns
 
-[`ClaudeAgent`](../../anthropic/ClaudeAgent/classes/ClaudeAgent.md) \| [`OpenAiAgent`](../../openai/OpenAiAgent/classes/OpenAiAgent.md)
+[`ClaudeAgent`](../../anthropic/ClaudeAgent/classes/ClaudeAgent.md) \| [`OpenAiAgent`](../../openai/OpenAiAgent/classes/OpenAiAgent.md) \| [`MistralAgent`](../../mistral/MistralAgent/classes/MistralAgent.md) \| [`GeminiAgent`](../../google/GeminiAgent/classes/GeminiAgent.md)

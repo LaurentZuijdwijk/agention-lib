@@ -1,6 +1,6 @@
 # Class: Team
 
-Defined in: [lib/team/Team.ts:23](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L23)
+Defined in: [lib/team/Team.ts:23](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L23)
 
 A team consists of a number of agents.
 
@@ -21,7 +21,7 @@ Todo:
 
 > **new Team**(`config`): `Team`
 
-Defined in: [lib/team/Team.ts:30](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L30)
+Defined in: [lib/team/Team.ts:30](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L30)
 
 #### Parameters
 
@@ -137,7 +137,7 @@ Defined in: node\_modules/@types/node/events.d.ts:131
 
 > **addAgent**(`newAgent`): `void`
 
-Defined in: [lib/team/Team.ts:82](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L82)
+Defined in: [lib/team/Team.ts:82](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L82)
 
 #### Parameters
 
@@ -303,7 +303,7 @@ v6.0.0
 
 > **execute**(`input`): `Promise`\<`any`\>
 
-Defined in: [lib/team/Team.ts:94](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L94)
+Defined in: [lib/team/Team.ts:94](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L94)
 
 Execute a task with the team by delegating to the lead agent
 
@@ -327,7 +327,7 @@ The result from the lead agent
 
 > **fromConfig**(`config`): `void`
 
-Defined in: [lib/team/Team.ts:120](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L120)
+Defined in: [lib/team/Team.ts:120](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L120)
 
 #### Parameters
 
@@ -345,7 +345,7 @@ Defined in: [lib/team/Team.ts:120](https://github.com/LaurentZuijdwijk/agention-
 
 > **getLeadAgent**(): [`BaseAgent`](../../../agents/BaseAgent/classes/BaseAgent.md)
 
-Defined in: [lib/team/Team.ts:110](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L110)
+Defined in: [lib/team/Team.ts:110](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L110)
 
 Get the lead agent
 
@@ -382,7 +382,7 @@ v1.0.0
 
 > **getTools**(): [`Tool`](../../../tools/Tool/classes/Tool.md)\<`any`\>[]
 
-Defined in: [lib/team/Team.ts:117](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/team/Team.ts#L117)
+Defined in: [lib/team/Team.ts:117](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/team/Team.ts#L117)
 
 Get all tools available to the team
 

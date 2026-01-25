@@ -1,6 +1,6 @@
 # Class: ToolResultEvent
 
-Defined in: [lib/tools/Tool.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L50)
+Defined in: [lib/tools/Tool.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L53)
 
 ## Extends
 
@@ -12,7 +12,7 @@ Defined in: [lib/tools/Tool.ts:50](https://github.com/LaurentZuijdwijk/agention-
 
 > **new ToolResultEvent**(`target`, `input`, `id`, `result`, `agentId`, `agentName`): `ToolResultEvent`
 
-Defined in: [lib/tools/Tool.ts:54](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L54)
+Defined in: [lib/tools/Tool.ts:57](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L57)
 
 #### Parameters
 
@@ -54,7 +54,7 @@ Defined in: [lib/tools/Tool.ts:54](https://github.com/LaurentZuijdwijk/agention-
 
 > **agentId**: `string`
 
-Defined in: [lib/tools/Tool.ts:59](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L59)
+Defined in: [lib/tools/Tool.ts:62](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L62)
 
 #### Inherited from
 
@@ -66,7 +66,7 @@ Defined in: [lib/tools/Tool.ts:59](https://github.com/LaurentZuijdwijk/agention-
 
 > **agentName**: `string`
 
-Defined in: [lib/tools/Tool.ts:60](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L60)
+Defined in: [lib/tools/Tool.ts:63](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L63)
 
 #### Inherited from
 
@@ -78,7 +78,7 @@ Defined in: [lib/tools/Tool.ts:60](https://github.com/LaurentZuijdwijk/agention-
 
 > **eventName**: `string` = `"ToolResult"`
 
-Defined in: [lib/tools/Tool.ts:51](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L51)
+Defined in: [lib/tools/Tool.ts:54](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L54)
 
 ***
 
@@ -86,7 +86,7 @@ Defined in: [lib/tools/Tool.ts:51](https://github.com/LaurentZuijdwijk/agention-
 
 > **id**: `string`
 
-Defined in: [lib/tools/Tool.ts:57](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L57)
+Defined in: [lib/tools/Tool.ts:60](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L60)
 
 #### Inherited from
 
@@ -98,7 +98,7 @@ Defined in: [lib/tools/Tool.ts:57](https://github.com/LaurentZuijdwijk/agention-
 
 > **input**: `Record`\<`string`, `any`\>
 
-Defined in: [lib/tools/Tool.ts:56](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L56)
+Defined in: [lib/tools/Tool.ts:59](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L59)
 
 #### Inherited from
 
@@ -110,7 +110,7 @@ Defined in: [lib/tools/Tool.ts:56](https://github.com/LaurentZuijdwijk/agention-
 
 > **result**: `any`
 
-Defined in: [lib/tools/Tool.ts:58](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L58)
+Defined in: [lib/tools/Tool.ts:61](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L61)
 
 ***
 
@@ -118,7 +118,7 @@ Defined in: [lib/tools/Tool.ts:58](https://github.com/LaurentZuijdwijk/agention-
 
 > **target**: [`Tool`](Tool.md)\<`any`\>
 
-Defined in: [lib/tools/Tool.ts:55](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L55)
+Defined in: [lib/tools/Tool.ts:58](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L58)
 
 #### Inherited from
 
@@ -130,7 +130,7 @@ Defined in: [lib/tools/Tool.ts:55](https://github.com/LaurentZuijdwijk/agention-
 
 > `static` **EXECUTE**: `string` = `"execute"`
 
-Defined in: [lib/tools/Tool.ts:29](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L29)
+Defined in: [lib/tools/Tool.ts:32](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L32)
 
 #### Inherited from
 
@@ -142,7 +142,7 @@ Defined in: [lib/tools/Tool.ts:29](https://github.com/LaurentZuijdwijk/agention-
 
 > `static` **RESULT**: `string` = `"toolResult"`
 
-Defined in: [lib/tools/Tool.ts:52](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L52)
+Defined in: [lib/tools/Tool.ts:55](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L55)
 
 ## Accessors
 
@@ -152,7 +152,7 @@ Defined in: [lib/tools/Tool.ts:52](https://github.com/LaurentZuijdwijk/agention-
 
 > **get** **isDefaultPrevented**(): `boolean`
 
-Defined in: [lib/tools/Tool.ts:45](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L45)
+Defined in: [lib/tools/Tool.ts:48](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L48)
 
 ##### Returns
 
@@ -168,7 +168,7 @@ Defined in: [lib/tools/Tool.ts:45](https://github.com/LaurentZuijdwijk/agention-
 
 > **preventDefault**(): `void`
 
-Defined in: [lib/tools/Tool.ts:41](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/tools/Tool.ts#L41)
+Defined in: [lib/tools/Tool.ts:44](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/tools/Tool.ts#L44)
 
 #### Returns
 

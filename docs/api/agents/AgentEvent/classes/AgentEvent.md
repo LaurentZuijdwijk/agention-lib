@@ -1,6 +1,6 @@
 # Class: AgentEvent
 
-Defined in: [lib/agents/AgentEvent.ts:3](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L3)
+Defined in: [lib/agents/AgentEvent.ts:3](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L3)
 
 ## Constructors
 
@@ -8,7 +8,7 @@ Defined in: [lib/agents/AgentEvent.ts:3](https://github.com/LaurentZuijdwijk/age
 
 > **new AgentEvent**(`target`): `AgentEvent`
 
-Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L16)
+Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L16)
 
 #### Parameters
 
@@ -26,7 +26,7 @@ Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/ag
 
 > **target**: [`BaseAgent`](../../BaseAgent/classes/BaseAgent.md)\<`any`\>
 
-Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L16)
+Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L16)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/ag
 
 > `static` **AFTER\_EXECUTE**: `string` = `"after_execute"`
 
-Defined in: [lib/agents/AgentEvent.ts:5](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L5)
+Defined in: [lib/agents/AgentEvent.ts:5](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L5)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [lib/agents/AgentEvent.ts:5](https://github.com/LaurentZuijdwijk/age
 
 > `static` **BEFORE\_EXECUTE**: `string` = `"before_execute"`
 
-Defined in: [lib/agents/AgentEvent.ts:4](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L4)
+Defined in: [lib/agents/AgentEvent.ts:4](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L4)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [lib/agents/AgentEvent.ts:4](https://github.com/LaurentZuijdwijk/age
 
 > `static` **DONE**: `string` = `"done"`
 
-Defined in: [lib/agents/AgentEvent.ts:6](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L6)
+Defined in: [lib/agents/AgentEvent.ts:6](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L6)
 
 ***
 
@@ -58,7 +58,7 @@ Defined in: [lib/agents/AgentEvent.ts:6](https://github.com/LaurentZuijdwijk/age
 
 > `static` **ERROR**: `string` = `"error"`
 
-Defined in: [lib/agents/AgentEvent.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L8)
+Defined in: [lib/agents/AgentEvent.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L8)
 
 ***
 
@@ -66,7 +66,7 @@ Defined in: [lib/agents/AgentEvent.ts:8](https://github.com/LaurentZuijdwijk/age
 
 > `static` **MAX\_RETRIES\_EXCEEDED**: `string` = `"max_retries_exceeded"`
 
-Defined in: [lib/agents/AgentEvent.ts:10](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L10)
+Defined in: [lib/agents/AgentEvent.ts:10](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L10)
 
 ***
 
@@ -74,7 +74,7 @@ Defined in: [lib/agents/AgentEvent.ts:10](https://github.com/LaurentZuijdwijk/ag
 
 > `static` **MAX\_TOKENS\_EXCEEDED**: `string` = `"max_tokens_exceeded"`
 
-Defined in: [lib/agents/AgentEvent.ts:11](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L11)
+Defined in: [lib/agents/AgentEvent.ts:11](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L11)
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: [lib/agents/AgentEvent.ts:11](https://github.com/LaurentZuijdwijk/ag
 
 > `static` **RETRY**: `string` = `"retry"`
 
-Defined in: [lib/agents/AgentEvent.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L9)
+Defined in: [lib/agents/AgentEvent.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L9)
 
 ***
 
@@ -90,7 +90,7 @@ Defined in: [lib/agents/AgentEvent.ts:9](https://github.com/LaurentZuijdwijk/age
 
 > `static` **TOOL\_ERROR**: `string` = `"tool_error"`
 
-Defined in: [lib/agents/AgentEvent.ts:12](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L12)
+Defined in: [lib/agents/AgentEvent.ts:12](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L12)
 
 ***
 
@@ -98,7 +98,7 @@ Defined in: [lib/agents/AgentEvent.ts:12](https://github.com/LaurentZuijdwijk/ag
 
 > `static` **TOOL\_USE**: `string` = `"toolUse"`
 
-Defined in: [lib/agents/AgentEvent.ts:7](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L7)
+Defined in: [lib/agents/AgentEvent.ts:7](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L7)
 
 ## Accessors
 
@@ -108,7 +108,7 @@ Defined in: [lib/agents/AgentEvent.ts:7](https://github.com/LaurentZuijdwijk/age
 
 > **get** **isDefaultPrevented**(): `boolean`
 
-Defined in: [lib/agents/AgentEvent.ts:22](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L22)
+Defined in: [lib/agents/AgentEvent.ts:22](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L22)
 
 ##### Returns
 
@@ -120,7 +120,7 @@ Defined in: [lib/agents/AgentEvent.ts:22](https://github.com/LaurentZuijdwijk/ag
 
 > **preventDefault**(): `void`
 
-Defined in: [lib/agents/AgentEvent.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/AgentEvent.ts#L18)
+Defined in: [lib/agents/AgentEvent.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L18)
 
 #### Returns
 

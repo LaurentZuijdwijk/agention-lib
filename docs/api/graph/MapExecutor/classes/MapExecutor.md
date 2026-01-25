@@ -1,6 +1,6 @@
 # Class: MapExecutor\<TItem, TResult\>
 
-Defined in: [lib/graph/MapExecutor.ts:25](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/MapExecutor.ts#L25)
+Defined in: [lib/graph/MapExecutor.ts:25](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/MapExecutor.ts#L25)
 
 Maps a processor over each item in an array of inputs.
 Similar to Array.map but for async GraphNode processing.
@@ -32,7 +32,7 @@ const summaries = await mapper.execute(["doc1", "doc2", "doc3"]);
 
 > **new MapExecutor**\<`TItem`, `TResult`\>(`processor`, `options`): `MapExecutor`\<`TItem`, `TResult`\>
 
-Defined in: [lib/graph/MapExecutor.ts:32](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/MapExecutor.ts#L32)
+Defined in: [lib/graph/MapExecutor.ts:32](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/MapExecutor.ts#L32)
 
 #### Parameters
 
@@ -58,7 +58,7 @@ Defined in: [lib/graph/MapExecutor.ts:32](https://github.com/LaurentZuijdwijk/ag
 
 > **name**: `string`
 
-Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L50)
+Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L50)
 
 Display name for this executor
 
@@ -72,7 +72,7 @@ Display name for this executor
 
 > **nodeType**: [`GraphNodeType`](../../BaseExecutor/type-aliases/GraphNodeType.md) = `"custom"`
 
-Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L53)
+Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L53)
 
 Type of this node for metrics and visualization
 
@@ -86,7 +86,7 @@ Type of this node for metrics and visualization
 
 > **execute**(`input`): `Promise`\<`TResult`[]\>
 
-Defined in: [lib/graph/MapExecutor.ts:49](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/MapExecutor.ts#L49)
+Defined in: [lib/graph/MapExecutor.ts:49](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/MapExecutor.ts#L49)
 
 Processes each item in the input array through the processor.
 
@@ -118,7 +118,7 @@ Error if input is not an array
 
 > **getMetrics**(): [`NodeExecutionMetrics`](../../GraphMetrics/interfaces/NodeExecutionMetrics.md)[] \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L92)
+Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L92)
 
 Get collected metrics (if metrics collection is enabled).
 
@@ -136,7 +136,7 @@ Get collected metrics (if metrics collection is enabled).
 
 > **getMetricsCollector**(): [`MetricsCollector`](../../GraphMetrics/classes/MetricsCollector.md) \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L99)
+Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L99)
 
 Get the metrics collector instance.
 
@@ -154,7 +154,7 @@ Get the metrics collector instance.
 
 > **withMetrics**(`collector?`): `this`
 
-Defined in: [lib/graph/BaseExecutor.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L64)
+Defined in: [lib/graph/BaseExecutor.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L64)
 
 Enable metrics collection for this executor.
 
@@ -178,7 +178,7 @@ Enable metrics collection for this executor.
 
 > **withName**(`name`): `this`
 
-Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/BaseExecutor.ts#L73)
+Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L73)
 
 Set a custom name for this executor (used in metrics).
 

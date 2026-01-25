@@ -1,6 +1,6 @@
 # Class: AgentGraph
 
-Defined in: [lib/graph/AgentGraph.ts:60](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L60)
+Defined in: [lib/graph/AgentGraph.ts:60](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L60)
 
 Factory class for building agent graphs and workflows.
 Provides static methods to create various execution patterns.
@@ -35,7 +35,7 @@ const pipeline = AgentGraph.pipeline(
 
 > `static` **map**\<`TItem`, `TResult`\>(`processor`, `options`): [`MapExecutor`](../../MapExecutor/classes/MapExecutor.md)\<`TItem`, `TResult`\>
 
-Defined in: [lib/graph/AgentGraph.ts:116](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L116)
+Defined in: [lib/graph/AgentGraph.ts:116](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L116)
 
 Creates a map executor that applies a processor to each item in an array.
 
@@ -75,7 +75,7 @@ MapExecutor instance
 
 > `static` **parallel**(`options`, ...`agents`): [`ParallelExecutor`](../../ParallelExecutor/classes/ParallelExecutor.md)
 
-Defined in: [lib/graph/AgentGraph.ts:87](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L87)
+Defined in: [lib/graph/AgentGraph.ts:87](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L87)
 
 Creates a parallel executor that runs agents concurrently.
 All agents receive the same input and results are collected.
@@ -106,7 +106,7 @@ ParallelExecutor instance
 
 > `static` **pipeline**\<`TInput`, `TOutput`\>(...`stages`): [`Pipeline`](../../Pipeline/classes/Pipeline.md)\<`TInput`, `TOutput`\>
 
-Defined in: [lib/graph/AgentGraph.ts:130](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L130)
+Defined in: [lib/graph/AgentGraph.ts:130](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L130)
 
 Creates a pipeline that chains multiple graph nodes together.
 Output of each stage becomes input to the next.
@@ -141,7 +141,7 @@ Pipeline instance
 
 > `static` **router**(`router`, `routes`, `options`): [`RouterExecutor`](../../RouterExecutor/classes/RouterExecutor.md)
 
-Defined in: [lib/graph/AgentGraph.ts:154](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L154)
+Defined in: [lib/graph/AgentGraph.ts:154](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L154)
 
 Creates a router executor that routes input to one of several handlers.
 A router agent analyzes the input and selects the most appropriate route.
@@ -190,7 +190,7 @@ const result = await router.execute("How do I fix this bug?");
 
 > `static` **sequential**(...`agents`): [`SequentialExecutor`](../../SequentialExecutor/classes/SequentialExecutor.md)
 
-Defined in: [lib/graph/AgentGraph.ts:68](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L68)
+Defined in: [lib/graph/AgentGraph.ts:68](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L68)
 
 Creates a sequential executor that chains agents together.
 Output of each agent becomes input to the next.
@@ -213,7 +213,7 @@ SequentialExecutor instance
 
 > `static` **sequential**(`options`, ...`agents`): [`SequentialExecutor`](../../SequentialExecutor/classes/SequentialExecutor.md)
 
-Defined in: [lib/graph/AgentGraph.ts:69](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L69)
+Defined in: [lib/graph/AgentGraph.ts:69](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L69)
 
 Creates a sequential executor that chains agents together.
 Output of each agent becomes input to the next.
@@ -242,7 +242,7 @@ SequentialExecutor instance
 
 > `static` **votingSystem**(`judge`, `options`): [`VotingSystem`](../../VotingSystem/classes/VotingSystem.md)
 
-Defined in: [lib/graph/AgentGraph.ts:102](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/graph/AgentGraph.ts#L102)
+Defined in: [lib/graph/AgentGraph.ts:102](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/AgentGraph.ts#L102)
 
 Creates a voting system with a judge agent.
 Used to select or synthesize the best answer from multiple solutions.

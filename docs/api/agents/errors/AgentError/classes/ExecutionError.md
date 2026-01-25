@@ -1,6 +1,6 @@
 # Class: ExecutionError
 
-Defined in: [lib/agents/errors/AgentError.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L18)
+Defined in: [lib/agents/errors/AgentError.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L18)
 
 Error thrown when an agent's execution fails
 
@@ -14,7 +14,7 @@ Error thrown when an agent's execution fails
 
 > **new ExecutionError**(`message`): `ExecutionError`
 
-Defined in: [lib/agents/errors/AgentError.ts:19](https://github.com/LaurentZuijdwijk/agention-lib/blob/31a59990a96d380979746c92f9352754e543efee/lib/agents/errors/AgentError.ts#L19)
+Defined in: [lib/agents/errors/AgentError.ts:19](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/errors/AgentError.ts#L19)
 
 #### Parameters
 

@@ -40,8 +40,10 @@ const calculator = new Tool({
 
 ```typescript
 const agent = new ClaudeAgent({
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'You are a helpful assistant with access to tools.',
+  id: 'calculator-assistant',
+  name: 'Calculator Assistant',
+  description: 'You are a helpful assistant with access to tools.',
+  model: 'claude-sonnet-4-5',
   tools: [calculator, weatherTool, searchTool],
 });
 
@@ -134,24 +136,26 @@ import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 
 // Create a specialized research agent with its own tools
 const researchAssistant = new OpenAiAgent({
-  name: 'PubmedResearchAssistant',
+  id: 'research-assistant',
+  name: 'PubMed Research Assistant',
   description: `You are a medical research expert with access to PubMed.
     Search for relevant papers and summarize findings.`,
-  tools: [pubmedSearchTool, pubmedAbstractTool],
   model: 'gpt-4o-mini',
+  tools: [pubmedSearchTool, pubmedAbstractTool],
 });
 
 // Main agent can delegate research tasks to the assistant
 const mainAgent = new ClaudeAgent({
+  id: 'research-lead',
   name: 'Medical Research Lead',
   description: `You are a senior medical researcher. 
     Use your research assistant to find and analyze literature.`,
+  model: 'claude-sonnet-4-5',
   agents: [researchAssistant],  // Sub-agents become available as tools
-  model: 'claude-sonnet-4-20250514',
 });
 
 // The main agent can now call researchAssistant as a tool
-const response = await mainAgent.run(
+const response = await mainAgent.execute(
   'Research the latest findings on CRISPR gene therapy for sickle cell disease'
 );
 ```

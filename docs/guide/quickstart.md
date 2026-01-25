@@ -24,7 +24,10 @@ import { ClaudeAgent } from '@agentionai/agents';
 
 const agent = new ClaudeAgent({
   model: 'claude-sonnet-4-5',
-  systemPrompt: 'You are a helpful assistant.',
+  id: "reasoner",
+  name: "Analytical Reasoner",
+  description: REASONER_DESCRIPTION,
+  tools: [],
 });
 
 async function main() {
@@ -74,7 +77,8 @@ const weatherTool = new Tool({
 
 const agent = new GeminiAgent({
   model: 'gemini-flash-lite-latest',
-  systemPrompt: 'You are a weather assistant. Use the weather tool to answer questions.',
+  name: "Weather agent",
+  description: 'You are a weather assistant. Use the weather tool to answer questions',
   tools: [weatherTool],
 });
 
@@ -96,15 +100,17 @@ Use pipelines to create multi-step workflows:
 import { OpenAiAgent, Pipeline } from '@agentionai/agents';
 
 const researcher = new OpenAiAgent({
-  name: 'researcher',
-  model: 'gpt-5-mini',
-  systemPrompt: 'Research the given topic and provide key facts.',
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'Research the given topic and provide key facts.',
+  model: 'gpt-4o',
 });
 
 const writer = new ClaudeAgent({
-  name: 'writer',
+  id: 'writer',
+  name: 'Writer',
+  description: 'Write a short blog post based on the research provided.',
   model: 'claude-sonnet-4-5',
-  systemPrompt: 'Write a short blog post based on the research provided.',
 });
 
 const pipeline = new Pipeline([researcher, writer]);

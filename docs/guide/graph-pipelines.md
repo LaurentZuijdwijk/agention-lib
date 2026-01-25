@@ -10,15 +10,17 @@ A `Pipeline` chains nodes together, passing output from one to the next:
 import { Pipeline, ClaudeAgent } from '@agentionai/agents';
 
 const researcher = new ClaudeAgent({
-  name: 'researcher',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'Research the topic and list key facts.',
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'Research the topic and list key facts.',
+  model: 'claude-sonnet-4-5',
 });
 
 const writer = new ClaudeAgent({
-  name: 'writer',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'Write a blog post from the research provided.',
+  id: 'writer',
+  name: 'Writer',
+  description: 'Write a blog post from the research provided.',
+  model: 'claude-sonnet-4-5',
 });
 
 const pipeline = new Pipeline([researcher, writer]);
@@ -67,9 +69,10 @@ Applies an agent to each item in an array:
 import { MapExecutor } from '@agentionai/agents';
 
 const summarizer = new ClaudeAgent({
-  name: 'summarizer',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'Summarize this article in 2 sentences.',
+  id: 'summarizer',
+  name: 'Summarizer',
+  description: 'Summarize this article in 2 sentences.',
+  model: 'claude-sonnet-4-5',
 });
 
 const mapper = new MapExecutor({
@@ -129,25 +132,28 @@ import { Pipeline, ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 
 // Research agent with search tools
 const researcher = new OpenAiAgent({
-  name: 'researcher',
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'Research the topic thoroughly using available tools.',
   model: 'gpt-4o',
-  systemPrompt: 'Research the topic thoroughly using available tools.',
   tools: [webSearchTool, pubmedSearchTool, arxivSearchTool],
 });
 
 // Analysis agent with data tools
 const analyst = new ClaudeAgent({
-  name: 'analyst',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'Analyze the research and extract insights.',
+  id: 'analyst',
+  name: 'Analyst',
+  description: 'Analyze the research and extract insights.',
+  model: 'claude-sonnet-4-5',
   tools: [calculatorTool, chartGeneratorTool],
 });
 
 // Writer agent with no tools - pure text generation
 const writer = new ClaudeAgent({
-  name: 'writer',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'Write a compelling report based on the analysis.',
+  id: 'writer',
+  name: 'Writer',
+  description: 'Write a compelling report based on the analysis.',
+  model: 'claude-sonnet-4-5',
 });
 
 const pipeline = new Pipeline([researcher, analyst, writer]);
@@ -167,19 +173,21 @@ Agents can also have other agents as tools (via the `agents` property), creating
 ```typescript
 // Sub-agent with specialized tools
 const dataGatherer = new OpenAiAgent({
-  name: 'data-gatherer',
-  description: 'Gathers data from multiple sources',
-  tools: [apiTool, databaseTool, scrapingTool],
+  id: 'data-gatherer',
+  name: 'Data Gatherer',
+  description: 'Gathers data from multiple sources.',
   model: 'gpt-4o-mini',
+  tools: [apiTool, databaseTool, scrapingTool],
 });
 
 // Main agent can delegate to sub-agent
 const orchestrator = new ClaudeAgent({
-  name: 'orchestrator',
-  systemPrompt: 'Coordinate data gathering and analysis.',
+  id: 'orchestrator',
+  name: 'Orchestrator',
+  description: 'Coordinate data gathering and analysis.',
+  model: 'claude-sonnet-4-5',
   agents: [dataGatherer],  // Available as a tool
   tools: [analysisTool],
-  model: 'claude-sonnet-4-20250514',
 });
 
 // Use in a pipeline

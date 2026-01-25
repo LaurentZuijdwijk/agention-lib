@@ -74,8 +74,10 @@ export MISTRAL_API_KEY=your-key-here
 import { ClaudeAgent } from '@agentionai/agents';
 
 const agent = new ClaudeAgent({
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'You are a helpful assistant.',
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'claude-sonnet-4-5',
 });
 
 const response = await agent.execute('Hello, how are you?');

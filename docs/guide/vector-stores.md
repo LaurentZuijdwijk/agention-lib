@@ -133,9 +133,10 @@ const searchTool = store.toRetrievalTool(
 );
 
 const agent = new ClaudeAgent({
-  name: 'support-agent',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'You are a helpful support agent. Use the search tool to find relevant documentation before answering questions.',
+  id: 'support-agent',
+  name: 'Support Agent',
+  description: 'You are a helpful support agent. Use the search tool to find relevant documentation before answering questions.',
+  model: 'claude-sonnet-4-5',
   tools: [searchTool],
 });
 
@@ -153,9 +154,10 @@ const addTool = store.toAddDocumentsTool(
 );
 
 const learningAgent = new ClaudeAgent({
-  name: 'learning-agent',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'You learn from conversations. When you discover useful information, save it to the knowledge base.',
+  id: 'learning-agent',
+  name: 'Learning Agent',
+  description: 'You learn from conversations. When you discover useful information, save it to the knowledge base.',
+  model: 'claude-sonnet-4-5',
   tools: [searchTool, addTool],
 });
 ```
@@ -344,21 +346,23 @@ const docsStore = await LanceDBVectorStore.create({
 
 // Retriever agent - finds relevant documents
 const retriever = new ClaudeAgent({
-  name: 'retriever',
-  model: 'claude-haiku-4-20250514',
-  systemPrompt: `You are a document retrieval specialist.
+  id: 'retriever',
+  name: 'Retriever',
+  description: `You are a document retrieval specialist.
     Search for relevant documents and return them verbatim.
     Do not answer the question - just retrieve information.`,
+  model: 'claude-haiku-4-5',
   tools: [docsStore.toRetrievalTool('Search company documentation')],
 });
 
 // Answerer agent - synthesizes response from retrieved docs
 const answerer = new ClaudeAgent({
-  name: 'answerer',
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: `You answer questions based on the provided context.
+  id: 'answerer',
+  name: 'Answerer',
+  description: `You answer questions based on the provided context.
     Only use information from the context. If the context doesn't
     contain relevant information, say so.`,
+  model: 'claude-sonnet-4-5',
 });
 
 // RAG pipeline
@@ -439,9 +443,11 @@ const flexibleTool = store.toRetrievalTool(
 
 // Agent can now use filter parameter in the tool
 const agent = new ClaudeAgent({
-  name: 'flexible-agent',
-  systemPrompt: `Use the search tool with appropriate filters.
+  id: 'flexible-agent',
+  name: 'Flexible Agent',
+  description: `Use the search tool with appropriate filters.
     For project-specific queries, add { projectId: "xxx" } to your search.`,
+  model: 'claude-sonnet-4-5',
   tools: [flexibleTool],
 });
 ```

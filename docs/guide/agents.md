@@ -17,8 +17,10 @@ Agents are the core building block of Agention. Each agent wraps an LLM and prov
 import { ClaudeAgent } from '@agentionai/agents';
 
 const agent = new ClaudeAgent({
-  model: 'claude-sonnet-4-20250514',
-  systemPrompt: 'You are a helpful assistant.',
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'claude-sonnet-4-5',
 });
 
 const response = await agent.execute('Hello!');
@@ -29,11 +31,12 @@ const response = await agent.execute('Hello!');
 ```typescript
 const agent = new ClaudeAgent({
   // Required
-  model: 'claude-sonnet-4-20250514',
+  id: 'my-agent',                // Unique identifier
+  name: 'My Agent',              // Display name for logging/metrics
+  description: 'You are...',     // Sets agent behavior (becomes system prompt)
+  model: 'claude-sonnet-4-5',
 
   // Optional
-  name: 'my-agent',              // Identifier for logging/metrics
-  systemPrompt: 'You are...',    // Sets agent behavior
   tools: [tool1, tool2],         // Available tools
   maxTokens: 4096,               // Max response tokens
 });
@@ -63,9 +66,26 @@ All agents share the same interface, making it easy to switch providers:
 import { ClaudeAgent, OpenAiAgent, MistralAgent } from '@agentionai/agents';
 
 // Same interface, different provider
-const claude = new ClaudeAgent({ model: 'claude-sonnet-4-20250514' });
-const openai = new OpenAiAgent({ model: 'gpt-4o' });
-const mistral = new MistralAgent({ model: 'mistral-large-latest' });
+const claude = new ClaudeAgent({
+  id: 'claude',
+  name: 'Claude',
+  description: 'You are a helpful assistant.',
+  model: 'claude-sonnet-4-5',
+});
+
+const openai = new OpenAiAgent({
+  id: 'openai',
+  name: 'OpenAI',
+  description: 'You are a helpful assistant.',
+  model: 'gpt-4o',
+});
+
+const mistral = new MistralAgent({
+  id: 'mistral',
+  name: 'Mistral',
+  description: 'You are a helpful assistant.',
+  model: 'mistral-large-latest',
+});
 
 // All work the same way
 const response = await claude.execute('Hello');
@@ -99,10 +119,11 @@ import { ClaudeAgent, Tool } from '@agentionai/agents';
 
 // Create a specialized reasoning agent
 const reasoner = new ClaudeAgent({
-  name: 'analytical-reasoner',
-  model: 'claude-haiku-4-5', // Fast, efficient model for analysis
-  systemPrompt: `You are an analytical reasoning specialist. Break down complex 
+  id: 'reasoner',
+  name: 'Analytical Reasoner',
+  description: `You are an analytical reasoning specialist. Break down complex 
 questions into parts, identify assumptions, and evaluate different approaches.`,
+  model: 'claude-haiku-4-5', // Fast, efficient model for analysis
   maxTokens: 2048,
 });
 
@@ -114,9 +135,10 @@ const reasoningTool = Tool.fromAgent(
 
 // Main agent uses the reasoner when needed
 const mainAgent = new ClaudeAgent({
-  name: 'coordinator',
+  id: 'coordinator',
+  name: 'Coordinator',
+  description: 'You coordinate analysis and provide clear answers.',
   model: 'claude-sonnet-4-5',
-  systemPrompt: 'You coordinate analysis and provide clear answers.',
   tools: [reasoningTool],
 });
 

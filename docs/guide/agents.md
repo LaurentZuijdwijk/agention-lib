@@ -82,6 +82,71 @@ const usage = agent.lastTokenUsage;
 console.log(`Input: ${usage?.inputTokens}, Output: ${usage?.outputTokens}`);
 ```
 
+
+
+## Why are agents important?
+
+Creating agent workflows allows us to build very advanced features and very powerful models instead of relying on vendor features and lock in. 
+
+One example is custom reasoning workflows by combining agents with specific roles. This gives you full control over the reasoning process, unlike built-in model reasoning.
+
+### Using Agents as Reasoning Tools
+
+You can wrap specialized "reasoner" agents as tools for other agents, creating sophisticated multi-stage thinking:
+
+```typescript
+import { ClaudeAgent, Tool } from '@agentionai/agents';
+
+// Create a specialized reasoning agent
+const reasoner = new ClaudeAgent({
+  name: 'analytical-reasoner',
+  model: 'claude-haiku-4-5', // Fast, efficient model for analysis
+  systemPrompt: `You are an analytical reasoning specialist. Break down complex 
+questions into parts, identify assumptions, and evaluate different approaches.`,
+  maxTokens: 2048,
+});
+
+// Wrap the reasoner as a tool
+const reasoningTool = Tool.fromAgent(
+  reasoner,
+  'Use this to analyze complex questions and break them down systematically.'
+);
+
+// Main agent uses the reasoner when needed
+const mainAgent = new ClaudeAgent({
+  name: 'coordinator',
+  model: 'claude-sonnet-4-5',
+  systemPrompt: 'You coordinate analysis and provide clear answers.',
+  tools: [reasoningTool],
+});
+
+const response = await mainAgent.execute('Explain quantum entanglement');
+// Main agent can invoke the reasoner for analytical thinking
+```
+
+### Benefits of Hand-Tailored Reasoning
+
+- **Full Control**: You decide when and how reasoning happens
+- **Transparency**: See each step of the reasoning process
+- **Cost Efficiency**: Use smaller models for specific reasoning tasks
+- **Composability**: Chain multiple specialized agents together
+- **Flexibility**: Mix different providers and models for optimal results
+
+See the [reasoning-with-sub-agent example](../../examples/reasoning-with-sub-agent.ts) for a complete implementation.
+
+### OpenAI Reasoning Models
+
+OpenAI offers models with built-in extended thinking (o1, gpt-5-nano). These use "reasoning tokens" for internal chain-of-thought before generating responses.
+
+**Key considerations:**
+
+- **4o models (recommended for most cases)**: `gpt-4o`, `gpt-4o-mini` don't have reasoning overhead and work great for tool use and agentic workflows
+- **Reasoning models**: `gpt-5-nano` use extended thinking by default, consuming additional reasoning tokens without giving users enough control over the full pipeline.
+
+- **Hand-tailored reasoning**: Best for complex workflows where you need control, transparency, and the ability to combine different specialized agents. This approach is unique in keeping cost under control.
+- **4o models**: Best for general agentic workflows, tool use, and most production scenarios
+- **Built-in reasoning (o1/gpt-5-nano)**: Best for standalone complex problems where the model needs deep analytical thinking
+
 ## Implementing GraphNode
 
 All agents implement the `GraphNode` interface, making them compatible with pipelines:

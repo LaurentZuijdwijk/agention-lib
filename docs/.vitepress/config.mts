@@ -55,7 +55,7 @@ export default defineConfig({
     ],
 
     footer: {
-      message: "Released under the MIT License.",
+      message: "Agention - AI Agents and Workflows",
     },
   },
 });

@@ -23,7 +23,7 @@ Create `index.ts`:
 import { ClaudeAgent } from '@agentionai/agents';
 
 const agent = new ClaudeAgent({
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-5',
   systemPrompt: 'You are a helpful assistant.',
 });
 
@@ -46,7 +46,7 @@ ANTHROPIC_API_KEY=your-key npx ts-node index.ts
 Tools let agents perform actions. Let's add a weather tool:
 
 ```typescript
-import { ClaudeAgent, Tool } from '@agentionai/agents';
+import { GeminiAgent, Tool } from '@agentionai/agents';
 
 // Define a weather tool
 const weatherTool = new Tool({
@@ -72,8 +72,8 @@ const weatherTool = new Tool({
   },
 });
 
-const agent = new ClaudeAgent({
-  model: 'claude-sonnet-4-20250514',
+const agent = new GeminiAgent({
+  model: 'gemini-flash-lite-latest',
   systemPrompt: 'You are a weather assistant. Use the weather tool to answer questions.',
   tools: [weatherTool],
 });
@@ -93,17 +93,17 @@ The agent will automatically use the tool when needed.
 Use pipelines to create multi-step workflows:
 
 ```typescript
-import { ClaudeAgent, Pipeline } from '@agentionai/agents';
+import { OpenAiAgent, Pipeline } from '@agentionai/agents';
 
-const researcher = new ClaudeAgent({
+const researcher = new OpenAiAgent({
   name: 'researcher',
-  model: 'claude-sonnet-4-20250514',
+  model: 'gpt-5-mini',
   systemPrompt: 'Research the given topic and provide key facts.',
 });
 
 const writer = new ClaudeAgent({
   name: 'writer',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-5',
   systemPrompt: 'Write a short blog post based on the research provided.',
 });
 

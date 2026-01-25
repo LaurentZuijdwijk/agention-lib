@@ -105,7 +105,8 @@ Per-call and per-node token counts, duration metrics, full execution visibility.
 
 ```typescript
 const metrics = new MetricsCollector();
-await pipeline.execute(input, { metrics });
+await pipeline.execute(input, { metrics[vitepress] 1 dead link(s) found.
+ });
 
 console.log(metrics.getMetrics());
 // { totalTokens: 4600, totalDuration: 3200, nodes: [...] }
@@ -204,4 +205,3 @@ npm install openai             # For OpenAI/GPT
 - [Graph Pipelines](/guide/graph-pipelines) — Multi-agent workflows
 - [Vector Stores](/guide/vector-stores) — RAG and semantic search
 - [Examples](/guide/examples) — Real-world implementations
-- [API Reference](/api/) — Full API documentation

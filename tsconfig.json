@@ -31,5 +31,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["lib/**/*", "lib/BaseAgent.ts"],
-  "exclude": ["node_modules", "dist", "examples", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "examples", "**/*.test.ts", "**/*.spec.ts"]
 }

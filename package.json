@@ -3,10 +3,14 @@
   "author": "Laurent Zuijdwijk",
   "version": "0.3.0-beta",
   "description": "Agent Library",
-  "main": "index.js",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/laurentzuijdwijk/agention-lib.git"

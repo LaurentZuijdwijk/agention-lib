@@ -31,3 +31,5 @@ examples/aiAuthor/*
 *.sw?
 .npmrc
 examples/history.json
+docs/.vitepress/cache
+docs/.vitepress/cache*

@@ -5,6 +5,24 @@ export default defineConfig({
   description:
     "A modular TypeScript library for building AI agents and workflows",
 
+  head: [
+    [
+      "script",
+      {
+        async: "",
+        src: "https://www.googletagmanager.com/gtag/js?id=G-L248LRLBS9",
+      },
+    ],
+    [
+      "script",
+      {},
+      `window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-L248LRLBS9');`,
+    ],
+  ],
+
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/getting-started" },

@@ -135,12 +135,8 @@ const REASONER_DESCRIPTION = `You are an analytical reasoning specialist. Your j
 3. Evaluate different perspectives and approaches
 4. Provide structured analytical insights
 
-- Start by decomposing complex questions
-- Analyze underlying assumptions
-- Evaluate the logic of proposed solutions
-- Return your analysis in a clear, structured format
 
-Be thorough but concise. Focus on clarity and logical rigor in a few lines.`;
+Be thorough but concise, you only have 2000 tokens. Focus on clarity and logical rigor in a few lines.`;
 
 function createReasonerAgent(
   provider: "claude" | "openai" | "mistral"
@@ -157,7 +153,10 @@ function createReasonerAgent(
     return new OpenAiAgent({
       ...config,
       apiKey: process.env.OPENAI_API_KEY as string,
-      model: "gpt-4o-mini", // Cost-effective model for analytical tasks
+      model: "gpt-4o-mini", // Fast and cost-effective, no reasoning overhead
+      // Note: For reasoning models (gpt-5-nano, o1, etc.), either:
+      // - Set disableReasoning: true to disable extended thinking
+      // - Or increase maxTokens (e.g., 8192) to accommodate reasoning tokens
     });
   }
 
@@ -207,7 +206,7 @@ function createMainAgent(
     return new OpenAiAgent({
       ...config,
       apiKey: process.env.OPENAI_API_KEY as string,
-      model: "gpt-4o", // More capable model for synthesis and coordination
+      model: "gpt-4o-mini", // More capable model for synthesis and coordination
     });
   }
 
@@ -222,7 +221,7 @@ function createMainAgent(
   return new ClaudeAgent({
     ...config,
     apiKey: process.env.ANTHROPIC_API_KEY as string,
-    model: "claude-sonnet-4-5", // Strong reasoning and synthesis capabilities
+    model: "claude-haiku-4-5",
   });
 }
 

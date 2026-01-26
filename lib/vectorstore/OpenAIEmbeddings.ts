@@ -13,7 +13,11 @@ export interface OpenAIEmbeddingsConfig {
   /** OpenAI API key (defaults to OPENAI_API_KEY env var) */
   apiKey?: string;
   /** Model to use for embeddings */
-  model?: "text-embedding-3-small" | "text-embedding-3-large" | "text-embedding-ada-002" | string;
+  model?:
+    | "text-embedding-3-small"
+    | "text-embedding-3-large"
+    | "text-embedding-ada-002"
+    | string;
   /** Number of dimensions (only for text-embedding-3-* models) */
   dimensions?: number;
   /** Base URL for API (for proxies or compatible APIs) */
@@ -105,7 +109,7 @@ export class OpenAIEmbeddings extends Embeddings {
     const response = await client.embeddings.create(params);
 
     // Sort by index to ensure order matches input
-    const sorted = response.data.sort((a, b) => a.index - b.index);
-    return sorted.map((item) => item.embedding);
+    const sorted = response.data.sort((a: any, b: any) => a.index - b.index);
+    return sorted.map((item: any) => item.embedding);
   }
 }

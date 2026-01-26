@@ -228,8 +228,10 @@ export class MistralAgent extends BaseAgent {
         textContent = message.content;
       } else if (Array.isArray(message.content)) {
         textContent = message.content
-          .filter((chunk) => typeof chunk === "string" || chunk.type === "text")
-          .map((chunk) =>
+          .filter(
+            (chunk: any) => typeof chunk === "string" || chunk.type === "text"
+          )
+          .map((chunk: any) =>
             typeof chunk === "string" ? chunk : (chunk as TextChunk).text
           )
           .join("");
@@ -444,9 +446,9 @@ export class MistralAgent extends BaseAgent {
 
   protected parseUsage(input: UsageInfo): TokenUsage {
     return {
-      input_tokens: input.promptTokens,
-      output_tokens: input.completionTokens,
-      total_tokens: input.totalTokens,
+      input_tokens: input.promptTokens ?? 0,
+      output_tokens: input.completionTokens ?? 0,
+      total_tokens: input.totalTokens ?? 0,
     };
   }
 }

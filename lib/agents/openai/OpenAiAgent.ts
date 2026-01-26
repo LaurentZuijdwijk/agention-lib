@@ -217,12 +217,12 @@ export class OpenAiAgent extends BaseAgent {
     }
 
     const toolCalls = response.output.filter(
-      (output) => output.type === "function_call"
+      (output: any) => output.type === "function_call"
     ) as unknown as ResponseFunctionToolCall[];
 
     // Find the message output (skip reasoning outputs)
     const messageOutput = response.output.find(
-      (output) => output.type === "message"
+      (output: any) => output.type === "message"
     );
 
     // Handle incomplete responses (e.g., reasoning hit token limit)

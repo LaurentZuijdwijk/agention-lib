@@ -122,7 +122,7 @@ export class ClaudeAgent extends BaseAgent {
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
       return await this.handleResponse(response);
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof APIError) {
         const apiError = new ApiError(
           `Anthropic API error: ${error.message}`,
@@ -280,7 +280,7 @@ export class ClaudeAgent extends BaseAgent {
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
           return this.handleResponse(newResponse);
-        } catch (error) {
+        } catch (error: unknown) {
           if (error instanceof APIError) {
             const apiError = new ApiError(
               `Anthropic API error during tool response: ${error.message}`,

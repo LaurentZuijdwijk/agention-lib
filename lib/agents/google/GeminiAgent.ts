@@ -349,15 +349,15 @@ export class GeminiAgent extends BaseAgent {
 
     const parts = candidate.content?.parts || [];
     const functionCalls = parts.filter(
-      (part): part is Part & { functionCall: FunctionCall } =>
+      (part: Part): part is Part & { functionCall: FunctionCall } =>
         "functionCall" in part
     );
 
     // If no function calls, return text response
     if (functionCalls.length === 0) {
-      const textParts = parts.filter((part) => "text" in part);
+      const textParts = parts.filter((part: Part) => "text" in part);
       const textContent = textParts
-        .map((part) => ("text" in part ? part.text : ""))
+        .map((part: Part) => ("text" in part ? part.text : ""))
         .join("");
 
       // Add to history in normalized format

@@ -56,8 +56,6 @@ const agent = new ClaudeAgent({
 });
 ```
 
-All agents support common parameters like `temperature`, `topP`, `topK`, and `stopSequences` for fine-tuned control over model outputs. Vendor-specific options can be passed via the `vendorConfig` property for advanced features unique to each provider. See [IMPLEMENTATION_SUMMARY.md](../../IMPLEMENTATION_SUMMARY.md) for details.
-
 ## Conversation History
 
 Agents maintain conversation history across multiple `execute()` calls:

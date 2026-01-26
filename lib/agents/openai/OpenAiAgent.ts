@@ -22,9 +22,12 @@ type AgentConfig = BaseAgentConfig & {
   apiKey: string;
   model?: OpenAIModel;
   maxTokens?: number;
+  // Backward compatibility: vendor-specific at top level (deprecated)
   disableParallelToolUse?: boolean;
   /** Disable extended thinking/reasoning for models that support it (like gpt-5-nano) */
   disableReasoning?: boolean;
+  reasoningEffort?: "low" | "medium" | "high";
+  user?: string;
 };
 
 /**
@@ -62,13 +65,33 @@ export class OpenAiAgent extends BaseAgent {
       apiKey: config.apiKey,
     });
 
+    // Merge flat config (deprecated) with nested vendorConfig
+    // Flat config takes precedence for backward compatibility
+    const vendorConfig = config.vendorConfig?.openai || {};
+    const disableParallelToolUse =
+      config.disableParallelToolUse ??
+      vendorConfig.disableParallelToolUse ??
+      false;
+    const disableReasoning =
+      config.disableReasoning ?? vendorConfig.disableReasoning ?? false;
+    const reasoningEffort =
+      config.reasoningEffort ?? vendorConfig.reasoningEffort;
+    const user = config.user ?? vendorConfig.user;
+
     this.config = {
       model: config.model || "gpt-4.1-mini",
       maxTokens: config.maxTokens || 1024,
-      disableParallelToolUse: config.disableParallelToolUse || false,
-      disableReasoning: config.disableReasoning || false,
+      disableParallelToolUse,
+      disableReasoning,
+      reasoningEffort,
+      user,
       apiKey: config.apiKey,
       temperature: config.temperature,
+      topP: config.topP,
+      seed: config.seed,
+      presencePenalty: config.presencePenalty,
+      frequencyPenalty: config.frequencyPenalty,
+      stopSequences: config.stopSequences,
     };
 
     // Add system message to history (skips if already exists with same content)
@@ -134,7 +157,11 @@ export class OpenAiAgent extends BaseAgent {
         tools: this.getToolDefinitions(),
         store: false,
         temperature: this.config.temperature,
+        top_p: this.config.topP,
+        // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
+        user: this.config.user,
         ...(this.config.disableReasoning && { reasoning: { effort: null } }),
+        reasoning: { effort: this.config.reasoningEffort },
       });
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
@@ -329,9 +356,16 @@ export class OpenAiAgent extends BaseAgent {
             tools: this.getToolDefinitions(),
             store: false,
             temperature: this.config.temperature,
+            top_p: this.config.topP,
+            // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
+            user: this.config.user,
             ...(this.config.disableReasoning && {
               reasoning: { effort: null },
             }),
+            ...(this.config.reasoningEffort &&
+              !this.config.disableReasoning && {
+                reasoning: { effort: this.config.reasoningEffort },
+              }),
           });
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);

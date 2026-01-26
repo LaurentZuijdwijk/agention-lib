@@ -82,6 +82,7 @@ describe("ClaudeAgent", () => {
           { role: "user", content: [{ type: "text", text: "test input" }] },
         ],
         tools: [],
+        temperature: 0,
       });
     });
   });

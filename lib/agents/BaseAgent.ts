@@ -6,31 +6,23 @@ import {
   MessageRole,
   MessageContent,
 } from "../history/History";
+import {
+  AgentVendor,
+  CommonAgentConfig,
+  VendorSpecificConfig,
+} from "./AgentConfig";
 
 // Re-export for convenience
 export type { HistoryEntry, MessageRole, MessageContent };
-
-/** Supported LLM vendors */
-export type AgentVendor = "openai" | "anthropic" | "mistral" | "gemini";
+export type { AgentVendor };
 
 /**
  * Agent config as used across all agents
+ * @deprecated Use CommonAgentConfig with vendorConfig instead
  */
-export interface BaseAgentConfig {
-  id: string;
-  name: string;
-  description: string;
+export interface BaseAgentConfig extends CommonAgentConfig {
   vendor: AgentVendor;
-  apiKey: string;
-  debug?: boolean;
-  maxHistoryLength?: number;
-  model?: string;
-  tools?: Tool<unknown>[];
-  agents?: BaseAgent[];
-  maxTokens?: number;
-  timeout?: number;
-  maxRetries?: number;
-  temperature?: number;
+  vendorConfig?: VendorSpecificConfig;
 }
 
 export type TokenUsage = {

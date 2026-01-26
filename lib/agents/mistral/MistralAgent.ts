@@ -27,7 +27,11 @@ type AgentConfig = BaseAgentConfig & {
   apiKey: string;
   model?: MistralModel;
   maxTokens?: number;
+  // Backward compatibility: vendor-specific at top level (deprecated)
   disableParallelToolUse?: boolean;
+  safePrompt?: boolean;
+  randomSeed?: number;
+  rateLimitDelay?: number;
 };
 
 /**
@@ -64,12 +68,30 @@ export class MistralAgent extends BaseAgent {
       apiKey: config.apiKey,
     });
 
+    // Merge flat config (deprecated) with nested vendorConfig
+    // Flat config takes precedence for backward compatibility
+    const vendorConfig = config.vendorConfig?.mistral || {};
+    const disableParallelToolUse =
+      config.disableParallelToolUse ??
+      vendorConfig.disableParallelToolUse ??
+      false;
+    const safePrompt = config.safePrompt ?? vendorConfig.safePrompt;
+    const randomSeed =
+      config.randomSeed ?? vendorConfig.randomSeed ?? config.seed;
+    const rateLimitDelay =
+      config.rateLimitDelay ?? vendorConfig.rateLimitDelay ?? 1500;
+
     this.config = {
       model: config.model || "mistral-small-latest",
       maxTokens: config.maxTokens || 1024,
-      disableParallelToolUse: config.disableParallelToolUse || false,
+      disableParallelToolUse,
+      safePrompt,
+      randomSeed,
+      rateLimitDelay,
       apiKey: config.apiKey,
       temperature: config.temperature,
+      topP: config.topP,
+      stopSequences: config.stopSequences,
     };
 
     // Add system message to history (skips if already exists with same content)
@@ -126,6 +148,11 @@ export class MistralAgent extends BaseAgent {
         >[0]["messages"],
         tools: this.getToolDefinitions(),
         temperature: this.config.temperature,
+        topP: this.config.topP,
+        maxTokens: this.config.maxTokens,
+        randomSeed: this.config.randomSeed,
+        safePrompt: this.config.safePrompt,
+        stop: this.config.stopSequences,
       });
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
@@ -287,7 +314,7 @@ export class MistralAgent extends BaseAgent {
         }
 
         // Rate limiting delay for Mistral
-        await setTimeout(1500);
+        await setTimeout(this.config.rateLimitDelay || 1500);
 
         // Continue conversation
         try {
@@ -300,6 +327,11 @@ export class MistralAgent extends BaseAgent {
             >[0]["messages"],
             tools: this.getToolDefinitions(),
             temperature: this.config.temperature,
+            topP: this.config.topP,
+            maxTokens: this.config.maxTokens,
+            randomSeed: this.config.randomSeed,
+            safePrompt: this.config.safePrompt,
+            stop: this.config.stopSequences,
           });
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);

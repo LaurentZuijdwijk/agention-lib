@@ -25,7 +25,9 @@ type AgentConfig = BaseAgentConfig & {
   apiKey: string;
   model?: ClaudeModel;
   maxTokens?: number;
+  // Backward compatibility: vendor-specific at top level (deprecated)
   disableParallelToolUse?: boolean;
+  metadata?: Record<string, string>;
 };
 
 /**
@@ -62,12 +64,25 @@ export class ClaudeAgent extends BaseAgent {
       apiKey: config.apiKey,
     });
 
+    // Merge flat config (deprecated) with nested vendorConfig
+    // Flat config takes precedence for backward compatibility
+    const vendorConfig = config.vendorConfig?.anthropic || {};
+    const disableParallelToolUse =
+      config.disableParallelToolUse ??
+      vendorConfig.disableParallelToolUse ??
+      false;
+    const metadata = config.metadata ?? vendorConfig.metadata;
+
     this.config = {
       model: config.model || "claude-3-5-haiku-latest",
       maxTokens: config.maxTokens || 1024,
-      disableParallelToolUse: config.disableParallelToolUse || false,
+      disableParallelToolUse,
+      metadata,
       apiKey: config.apiKey,
       temperature: config.temperature,
+      topP: config.topP,
+      topK: config.topK,
+      stopSequences: config.stopSequences,
     };
 
     // Add system message to history (skips if already exists with same content)
@@ -118,6 +133,11 @@ export class ClaudeAgent extends BaseAgent {
         max_tokens: this.config.maxTokens!,
         messages,
         tools: this.getToolDefinitions(),
+        temperature: this.config.temperature,
+        top_p: this.config.topP,
+        top_k: this.config.topK,
+        stop_sequences: this.config.stopSequences,
+        metadata: this.config.metadata,
       });
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
@@ -276,6 +296,11 @@ export class ClaudeAgent extends BaseAgent {
             max_tokens: this.config.maxTokens!,
             messages,
             tools: this.getToolDefinitions(),
+            temperature: this.config.temperature,
+            top_p: this.config.topP,
+            top_k: this.config.topK,
+            stop_sequences: this.config.stopSequences,
+            metadata: this.config.metadata,
           });
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);

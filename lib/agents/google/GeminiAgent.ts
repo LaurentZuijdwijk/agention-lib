@@ -28,6 +28,10 @@ type AgentConfig = BaseAgentConfig & {
   apiKey: string;
   model?: GeminiModel;
   maxTokens?: number;
+  // Vendor-specific parameters
+  candidateCount?: number;
+  responseMimeType?: string;
+  responseSchema?: Schema;
 };
 
 /**
@@ -64,11 +68,24 @@ export class GeminiAgent extends BaseAgent {
 
     this.client = new GoogleGenerativeAI(config.apiKey);
 
+    // Merge flat config with nested vendorConfig
+    const vendorConfig = config.vendorConfig?.gemini || {};
+    const candidateCount = config.candidateCount ?? vendorConfig.candidateCount;
+    const responseMimeType =
+      config.responseMimeType ?? vendorConfig.responseMimeType;
+    const responseSchema = config.responseSchema ?? vendorConfig.responseSchema;
+
     this.config = {
       model: config.model || "gemini-2.0-flash",
       maxTokens: config.maxTokens || 1024,
       apiKey: config.apiKey,
       temperature: config.temperature,
+      topP: config.topP,
+      topK: config.topK,
+      stopSequences: config.stopSequences,
+      candidateCount,
+      responseMimeType,
+      responseSchema,
     };
 
     // Initialize the model
@@ -249,6 +266,12 @@ export class GeminiAgent extends BaseAgent {
         generationConfig: {
           maxOutputTokens: this.config.maxTokens,
           temperature: this.config.temperature,
+          topP: this.config.topP,
+          topK: this.config.topK,
+          stopSequences: this.config.stopSequences,
+          candidateCount: this.config.candidateCount,
+          responseMimeType: this.config.responseMimeType,
+          responseSchema: this.config.responseSchema,
         },
       });
 
@@ -421,6 +444,12 @@ export class GeminiAgent extends BaseAgent {
           generationConfig: {
             maxOutputTokens: this.config.maxTokens,
             temperature: this.config.temperature,
+            topP: this.config.topP,
+            topK: this.config.topK,
+            stopSequences: this.config.stopSequences,
+            candidateCount: this.config.candidateCount,
+            responseMimeType: this.config.responseMimeType,
+            responseSchema: this.config.responseSchema,
           },
         });
 

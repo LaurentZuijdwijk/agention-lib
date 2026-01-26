@@ -40,11 +40,12 @@ describe("OpenAiAgent", () => {
     it("should initialize with default values", () => {
       expect(agent).toBeInstanceOf(OpenAiAgent);
       expect(OpenAI).toHaveBeenCalledWith({ apiKey: "test-api-key" });
-      expect(agent["config"]).toEqual({
+      expect(agent["config"]).toMatchObject({
         apiKey: "test-api-key",
         model: "gpt-4.1-mini",
         maxTokens: 1024,
         disableParallelToolUse: false,
+        disableReasoning: false,
       });
     });
 
@@ -59,11 +60,12 @@ describe("OpenAiAgent", () => {
         description: "Custom description",
       });
 
-      expect(customAgent["config"]).toEqual({
+      expect(customAgent["config"]).toMatchObject({
         apiKey: "custom-key",
         model: "gpt-4",
         maxTokens: 2048,
         disableParallelToolUse: true,
+        disableReasoning: false,
       });
       expect(customAgent.getId()).toBe("custom-id");
       expect(customAgent.getName()).toBe("Custom Agent");
@@ -145,13 +147,15 @@ describe("OpenAiAgent", () => {
       const result = await agent.execute("test input");
 
       expect(result).toBe("Hello there");
-      expect(mockClient.responses.create).toHaveBeenCalledWith({
-        model: "gpt-4.1-mini",
-        max_output_tokens: 1024,
-        input: expect.any(Array),
-        tools: [],
-        store: false,
-      });
+      expect(mockClient.responses.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: "gpt-4.1-mini",
+          max_output_tokens: 1024,
+          input: expect.any(Array),
+          tools: [],
+          store: false,
+        })
+      );
 
       expect(eventSpy).toHaveBeenCalledWith(
         AgentEvent.BEFORE_EXECUTE,

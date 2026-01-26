@@ -39,8 +39,24 @@ const agent = new ClaudeAgent({
   // Optional
   tools: [tool1, tool2],         // Available tools
   maxTokens: 4096,               // Max response tokens
+  
+  // Sampling parameters (all vendors)
+  temperature: 0.7,              // Control randomness (0.0-1.0)
+  topP: 0.9,                     // Nucleus sampling
+  topK: 40,                      // Top-k sampling (Claude, Gemini)
+  stopSequences: ['STOP'],       // Custom stop tokens
+  
+  // Vendor-specific options (optional)
+  vendorConfig: {
+    anthropic: {
+      disableParallelToolUse: false,
+      metadata: { userId: 'user-123' }
+    }
+  }
 });
 ```
+
+All agents support common parameters like `temperature`, `topP`, `topK`, and `stopSequences` for fine-tuned control over model outputs. Vendor-specific options can be passed via the `vendorConfig` property for advanced features unique to each provider. See [IMPLEMENTATION_SUMMARY.md](../../IMPLEMENTATION_SUMMARY.md) for details.
 
 ## Conversation History
 

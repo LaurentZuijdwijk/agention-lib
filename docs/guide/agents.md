@@ -170,7 +170,6 @@ const response = await mainAgent.execute('Explain quantum entanglement');
 - **Composability**: Chain multiple specialized agents together
 - **Flexibility**: Mix different providers and models for optimal results
 
-See the [reasoning-with-sub-agent example](../../examples/reasoning-with-sub-agent.ts) for a complete implementation.
 
 ### OpenAI Reasoning Models
 

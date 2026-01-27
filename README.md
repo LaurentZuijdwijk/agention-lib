@@ -10,6 +10,8 @@ A comprehensive TypeScript toolkit for building LLM-powered agents with RAG, and
 
 ## Quick Start
 
+### 1. Install
+
 Install only what you need with selective imports:
 
 ```bash
@@ -17,11 +19,29 @@ Install only what you need with selective imports:
 npm install @agentionai/agents @anthropic-ai/sdk
 ```
 
+### 2. Get API Key
+
+Get an API key from your chosen provider:
+
+- **Claude**: [console.anthropic.com](https://console.anthropic.com/)
+- **OpenAI**: [platform.openai.com](https://platform.openai.com/api-keys)
+- **Gemini**: [aistudio.google.com](https://aistudio.google.com/app/apikey)
+- **Mistral**: [console.mistral.ai](https://console.mistral.ai/)
+
+Set it as an environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=your-key-here
+```
+
+### 3. Create Your First Agent
+
 ```typescript
 // Import only Claude - no other agent SDKs required!
 import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,  // Or pass directly (not recommended for production)
   model: 'claude-sonnet-4-5',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
@@ -84,6 +104,7 @@ const weatherTool = new Tool({
 });
 
 const agent = new GeminiAgent({
+  apiKey: process.env.GEMINI_API_KEY,
   model: 'gemini-flash-lite-latest',
   name: 'Weather Agent',
   description: 'You are a weather assistant.',
@@ -103,6 +124,7 @@ import { OpenAiAgent } from '@agentionai/agents/openai';
 import { Pipeline } from '@agentionai/agents/core';
 
 const researcher = new OpenAiAgent({
+  apiKey: process.env.OPENAI_API_KEY,
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the given topic and provide key facts.',
@@ -111,6 +133,7 @@ const researcher = new OpenAiAgent({
 });
 
 const writer = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
   id: 'writer',
   name: 'Writer',
   description: 'Write a blog post based on the research provided.',
@@ -131,6 +154,7 @@ import { OpenAiAgent } from '@agentionai/agents/openai';
 
 // Research assistant (cheaper model for data gathering)
 const researchAssistant = new OpenAiAgent({
+  apiKey: process.env.OPENAI_API_KEY,
   id: 'research-assistant',
   name: 'Research Assistant',
   description: 'Search and summarize information on topics.',
@@ -140,6 +164,7 @@ const researchAssistant = new OpenAiAgent({
 
 // Lead researcher delegates to assistant, synthesizes findings
 const researcher = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
   id: 'researcher',
   name: 'Lead Researcher',
   description: 'Research topics thoroughly using your assistant.',

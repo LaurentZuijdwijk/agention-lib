@@ -79,6 +79,7 @@ export MISTRAL_API_KEY=your-key-here
 import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,  // Required: Your API key
   id: 'assistant',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
@@ -88,6 +89,18 @@ const agent = new ClaudeAgent({
 const response = await agent.execute('Hello, how are you?');
 console.log(response);
 ```
+
+::: tip API Key Configuration
+All agents require an API key. You can either:
+- Pass it via the `apiKey` parameter
+- Set it as an environment variable (the SDK will automatically detect it)
+
+Environment variable names:
+- Claude: `ANTHROPIC_API_KEY`
+- OpenAI: `OPENAI_API_KEY`
+- Gemini: `GEMINI_API_KEY` or `GOOGLE_API_KEY`
+- Mistral: `MISTRAL_API_KEY`
+:::
 
 ### Selective Imports
 

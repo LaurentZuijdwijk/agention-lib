@@ -15,6 +15,14 @@ npm init -y
 npm install @agentionai/agents @anthropic-ai/sdk
 ```
 
+Set your API key:
+
+```bash
+export ANTHROPIC_API_KEY=your-key-here
+```
+
+Get your API key from [console.anthropic.com](https://console.anthropic.com/)
+
 ## 2. Create a Simple Agent
 
 Create `index.ts`:
@@ -23,6 +31,7 @@ Create `index.ts`:
 import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
   model: 'claude-sonnet-4-5',
   id: "assistant",
   name: "Assistant",
@@ -76,6 +85,7 @@ const weatherTool = new Tool({
 });
 
 const agent = new GeminiAgent({
+  apiKey: process.env.GEMINI_API_KEY,
   model: 'gemini-flash-lite-latest',
   name: "Weather agent",
   description: 'You are a weather assistant. Use the weather tool to answer questions',
@@ -102,6 +112,7 @@ import { OpenAiAgent } from '@agentionai/agents/openai';
 import { Pipeline } from '@agentionai/agents/core';
 
 const researcher = new OpenAiAgent({
+  apiKey: process.env.OPENAI_API_KEY,
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the given topic and provide key facts.',
@@ -109,6 +120,7 @@ const researcher = new OpenAiAgent({
 });
 
 const writer = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
   id: 'writer',
   name: 'Writer',
   description: 'Write a short blog post based on the research provided.',

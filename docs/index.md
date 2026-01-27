@@ -45,6 +45,8 @@ From simple tool-calling agents to hierarchical RAG-powered research teams—bui
 Unified interface across Claude, OpenAI, Gemini, and Mistral. Tools, history, and token tracking built-in.
 
 ```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+
 const agent = new ClaudeAgent({
   model: 'claude-sonnet-4-5',
   tools: [searchTool, calculatorTool],
@@ -56,6 +58,8 @@ const agent = new ClaudeAgent({
 JSON Schema + handler pattern. Unique capability: wrap any agent as a tool for delegation hierarchies.
 
 ```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+
 // Use a specialized agent as a tool
 const mainAgent = new ClaudeAgent({
   agents: [researchAssistant],  // Sub-agent becomes a callable tool
@@ -68,6 +72,10 @@ const mainAgent = new ClaudeAgent({
 Provider-agnostic, persistent (Redis, file, custom), shareable across agents of different providers.
 
 ```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { RedisHistory } from '@agentionai/agents/core';
+
 const history = new RedisHistory(redis);
 await history.load('conversation:user123');
 
@@ -81,6 +89,8 @@ const gpt = new OpenAiAgent({ model: 'gpt-4o' }, history);
 Compose sequential, parallel, voting, routing, and nested graphs. Mix models and providers freely.
 
 ```typescript
+import { Pipeline, AgentGraph } from '@agentionai/agents/core';
+
 const pipeline = new Pipeline([
   AgentGraph.parallel(researcher1, researcher2),  // Parallel research
   synthesizer,                                     // Sequential synthesis
@@ -93,6 +103,9 @@ const pipeline = new Pipeline([
 LanceDB vector store, token-aware chunking, ingestion pipeline, and retrieval tools out of the box.
 
 ```typescript
+import { LanceDBVectorStore } from '@agentionai/agents/core';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+
 const store = await LanceDBVectorStore.create({ embeddings, uri: './data' });
 const searchTool = store.toRetrievalTool('Search knowledge base');
 
@@ -104,9 +117,10 @@ const agent = new ClaudeAgent({ tools: [searchTool] });
 Per-call and per-node token counts, duration metrics, full execution visibility.
 
 ```typescript
+import { MetricsCollector } from '@agentionai/agents/core';
+
 const metrics = new MetricsCollector();
-await pipeline.execute(input, { metrics[vitepress] 1 dead link(s) found.
- });
+await pipeline.execute(input, { metrics });
 
 console.log(metrics.getMetrics());
 // { totalTokens: 4600, totalDuration: 3200, nodes: [...] }
@@ -118,7 +132,9 @@ console.log(metrics.getMetrics());
 A research pipeline with sub-agent delegation, multi-provider setup, and graph composition:
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent, Tool, Pipeline, AgentGraph } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { Tool, Pipeline, AgentGraph } from '@agentionai/agents/core';
 
 // Define a search tool
 const searchTool = new Tool({

@@ -140,8 +140,8 @@ import { Tool, Pipeline, AgentGraph } from '@agentionai/agents/core';
 const searchTool = new Tool({
   name: 'web_search',
   description: 'Search the web for current information',
-  input_schema: { type: 'object', properties: { query: { type: 'string' } } },
-  handler: async ({ query }) => fetchSearchResults(query),
+  inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+  execute: async ({ query }) => fetchSearchResults(query),
 });
 
 // Research assistant (cheaper model for data gathering)

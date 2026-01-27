@@ -64,7 +64,7 @@ import { GeminiAgent, Tool } from '@agentionai/agents/gemini';
 const weatherTool = new Tool({
   name: 'get_weather',
   description: 'Get the current weather for a location',
-  input_schema: {
+  inputSchema: {
     type: 'object',
     properties: {
       location: {
@@ -74,7 +74,7 @@ const weatherTool = new Tool({
     },
     required: ['location'],
   },
-  handler: async ({ location }) => {
+  execute: async ({ location }) => {
     // In a real app, call a weather API
     return JSON.stringify({
       location,

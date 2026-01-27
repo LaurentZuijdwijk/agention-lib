@@ -10,7 +10,7 @@ import { Tool } from '@agentionai/agents/core';
 const calculator = new Tool({
   name: 'calculate',
   description: 'Perform mathematical calculations',
-  input_schema: {
+  inputSchema: {
     type: 'object',
     properties: {
       expression: {
@@ -20,7 +20,7 @@ const calculator = new Tool({
     },
     required: ['expression'],
   },
-  handler: async ({ expression }) => {
+  execute: async ({ expression }) => {
     const result = eval(expression); // Use a safe parser in production!
     return String(result);
   },
@@ -33,8 +33,8 @@ const calculator = new Tool({
 |----------|-------------|
 | `name` | Unique identifier for the tool |
 | `description` | Explains when to use this tool (shown to the LLM) |
-| `input_schema` | JSON Schema defining expected parameters |
-| `handler` | Async function that executes the tool |
+| `inputSchema` | JSON Schema defining expected parameters |
+| `execute` | Async function that executes the tool |
 
 ## Using Tools with Agents
 
@@ -59,7 +59,7 @@ Tools use JSON Schema for input validation. Common patterns:
 
 ```typescript
 // Simple string input
-input_schema: {
+inputSchema: {
   type: 'object',
   properties: {
     query: { type: 'string', description: 'Search query' },
@@ -68,7 +68,7 @@ input_schema: {
 }
 
 // Multiple parameters
-input_schema: {
+inputSchema: {
   type: 'object',
   properties: {
     city: { type: 'string', description: 'City name' },
@@ -82,7 +82,7 @@ input_schema: {
 }
 
 // Complex nested objects
-input_schema: {
+inputSchema: {
   type: 'object',
   properties: {
     filters: {
@@ -97,12 +97,12 @@ input_schema: {
 }
 ```
 
-## Handler Function
+## Execute Function
 
-The handler receives validated input and must return a string:
+The execute function receives validated input and must return a string:
 
 ```typescript
-handler: async (input) => {
+execute: async (input) => {
   // input is typed based on your schema
   const { city, units } = input;
   
@@ -119,7 +119,7 @@ handler: async (input) => {
 Return error messages as strings - the agent will see and handle them:
 
 ```typescript
-handler: async ({ url }) => {
+execute: async ({ url }) => {
   try {
     const response = await fetch(url);
     return await response.text();

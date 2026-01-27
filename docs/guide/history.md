@@ -15,7 +15,7 @@ The history system normalizes conversation data into a shared format that can be
 ### In-Memory History
 
 ```typescript
-import { History } from '@agentionai/agents';
+import { History } from '@agentionai/agents/core';
 
 const history = new History();
 
@@ -33,7 +33,9 @@ history.clear();
 ### Sharing History Between Agents
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent, History } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { History } from '@agentionai/agents/core';
 
 // Create a shared history
 const sharedHistory = new History();
@@ -97,7 +99,7 @@ const toolResult = {
 ### Helper Functions
 
 ```typescript
-import { text, toolUse, toolResult, textMessage } from '@agentionai/agents';
+import { text, toolUse, toolResult, textMessage } from '@agentionai/agents/core';
 
 // Create content blocks
 history.addEntry({
@@ -186,7 +188,7 @@ const copy = history.clone();
 For production applications, persist history to Redis:
 
 ```typescript
-import { RedisHistory } from '@agentionai/agents';
+import { RedisHistory } from '@agentionai/agents/core';
 import Redis from 'ioredis';
 
 // Create Redis client
@@ -236,7 +238,7 @@ await agent.execute('Hello!'); // Automatically saved
 The history system is easily extended to support any storage mechanism. Simply extend the `History` class:
 
 ```typescript
-import { History, HistoryEntry } from '@agentionai/agents';
+import { History, HistoryEntry } from '@agentionai/agents/core';
 
 class DatabaseHistory extends History {
   constructor(private db: DatabaseClient) {
@@ -269,7 +271,7 @@ class DatabaseHistory extends History {
 ### Example: File-Based History
 
 ```typescript
-import { History } from '@agentionai/agents';
+import { History } from '@agentionai/agents/core';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -314,7 +316,7 @@ await history.save('user123');
 ### Example: MongoDB History
 
 ```typescript
-import { History } from '@agentionai/agents';
+import { History } from '@agentionai/agents/core';
 import { MongoClient, Db } from 'mongodb';
 
 class MongoHistory extends History {

@@ -20,7 +20,7 @@ Choose the right chunker based on your document type and use case.
 Simple character-based splitting with optional overlap. Best for uniform content like logs or transcripts.
 
 ```typescript
-import { TextChunker } from '@agentionai/agents';
+import { TextChunker } from '@agentionai/agents/core';
 
 const chunker = new TextChunker({
   chunkSize: 1000,      // Characters per chunk
@@ -45,7 +45,7 @@ console.log(`Created ${chunks.length} chunks`);
 Intelligent splitting on semantic boundaries (paragraphs → sentences → words). Best for structured documents like markdown or documentation.
 
 ```typescript
-import { RecursiveChunker } from '@agentionai/agents';
+import { RecursiveChunker } from '@agentionai/agents/core';
 
 const chunker = new RecursiveChunker({
   chunkSize: 1000,
@@ -77,7 +77,7 @@ The chunker tries separators in order, falling back to smaller ones as needed:
 Token-aware splitting using the `tokenx` library. Ensures chunks fit within LLM token limits with ~96% accuracy.
 
 ```typescript
-import { TokenChunker } from '@agentionai/agents';
+import { TokenChunker } from '@agentionai/agents/core';
 
 const chunker = new TokenChunker({
   chunkSize: 500,       // Tokens per chunk (not characters)
@@ -167,9 +167,8 @@ The pipeline orchestrates the full workflow: chunk → embed → store.
 ### Basic Ingestion
 
 ```typescript
-import { IngestionPipeline, RecursiveChunker } from '@agentionai/agents';
-import { OpenAIEmbeddings } from '@agentionai/agents/vectorstore';
-import { LanceDBVectorStore } from '@agentionai/agents/vectorstore';
+import { IngestionPipeline, RecursiveChunker } from '@agentionai/agents/core';
+import { OpenAIEmbeddings, LanceDBVectorStore } from '@agentionai/agents/core';
 
 // Create pipeline components
 const chunker = new RecursiveChunker({
@@ -356,7 +355,7 @@ const chunker = new TextChunker({
 Implement your own chunker by extending the base class:
 
 ```typescript
-import { Chunker, ChunkerConfig } from '@agentionai/agents/chunking';
+import { Chunker, ChunkerConfig } from '@agentionai/agents/core';
 
 class MyChunker extends Chunker {
   readonly name = 'MyChunker';

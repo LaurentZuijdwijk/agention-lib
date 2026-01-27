@@ -58,7 +58,8 @@ ANTHROPIC_API_KEY=your-key npx ts-node index.ts
 Tools let agents perform actions. Let's add a weather tool:
 
 ```typescript
-import { GeminiAgent, Tool } from '@agentionai/agents/gemini';
+import { GeminiAgent } from '@agentionai/agents/gemini';
+import { Tool } from '@agentionai/agents/core';
 
 // Define a weather tool
 const weatherTool = new Tool({

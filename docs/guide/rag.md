@@ -47,7 +47,8 @@ Unlike frameworks that hide conversation state, Agention's history is fully acce
 **How it works:** Retrieve documents, format them, add to history, then call the agent. The agent sees context as part of the conversation.
 
 ```typescript
-import { ClaudeAgent, History, text } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { History, text } from '@agentionai/agents/core';
 
 const history = new History();
 
@@ -172,7 +173,7 @@ Use graph executors for precise control over multi-stage RAG workflows. Define e
 Chain stages: query analysis → retrieval → response generation.
 
 ```typescript
-import { Pipeline } from '@agentionai/agents';
+import { Pipeline } from '@agentionai/agents/core';
 
 const ragPipeline = new Pipeline([
   queryAnalyzer,   // Understand intent, extract topics
@@ -188,7 +189,7 @@ const answer = await ragPipeline.execute(userQuestion);
 Search multiple knowledge bases simultaneously, then synthesize.
 
 ```typescript
-import { AgentGraph, Pipeline } from '@agentionai/agents';
+import { AgentGraph, Pipeline } from '@agentionai/agents/core';
 
 const parallelRetrieval = AgentGraph.parallel(
   docsRetriever,
@@ -204,7 +205,7 @@ const pipeline = new Pipeline([parallelRetrieval, synthesizer]);
 Route queries to specialized retrievers or evaluate and retry.
 
 ```typescript
-import { RouterExecutor } from '@agentionai/agents';
+import { RouterExecutor } from '@agentionai/agents/core';
 
 const router = new RouterExecutor({
   routes: [

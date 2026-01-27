@@ -116,7 +116,8 @@ import { MistralAgent } from '@agentionai/agents/mistral';  // Requires @mistral
 Or import everything (requires all SDKs):
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
 ```
 
 ## Next Steps

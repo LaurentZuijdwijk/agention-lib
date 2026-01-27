@@ -9,7 +9,8 @@ A simple agent with tools that fetches weather data for any location.
 **Demonstrates:** Tools, API integration, multi-step tool use
 
 ```typescript
-import { MistralAgent, Tool } from '@agentionai/agents/mistral';
+import { MistralAgent } from '@agentionai/agents/mistral';
+import { Tool } from '@agentionai/agents/core';
 
 // Geocoding tool to convert city names to coordinates
 const geoCodingTool = new Tool({

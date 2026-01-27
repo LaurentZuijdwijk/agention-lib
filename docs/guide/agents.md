@@ -41,7 +41,10 @@ import { MistralAgent } from '@agentionai/agents/mistral';
 Or import everything (requires all SDKs):
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent, GeminiAgent, MistralAgent } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { GeminiAgent } from '@agentionai/agents/gemini';
+import { MistralAgent } from '@agentionai/agents/mistral';
 ```
 
 ## Basic Usage
@@ -164,7 +167,8 @@ One example is custom reasoning workflows by combining agents with specific role
 You can wrap specialized "reasoner" agents as tools for other agents, creating sophisticated multi-stage thinking:
 
 ```typescript
-import { ClaudeAgent, Tool } from '@agentionai/agents/claude';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { Tool } from '@agentionai/agents/core';
 
 // Create a specialized reasoning agent
 const reasoner = new ClaudeAgent({

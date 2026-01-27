@@ -108,7 +108,7 @@ const result = await voting.execute('Implement a caching solution');
 Routes input to different agents based on content:
 
 ```typescript
-import { RouterExecutor } from '@agentionai/agents';
+import { RouterExecutor } from '@agentionai/agents/core';
 
 const router = new RouterExecutor({
   name: 'support-router',
@@ -129,7 +129,9 @@ const result = await router.execute('I need help with my invoice');
 Each agent in a pipeline can have its own set of tools, enabling sophisticated workflows where different stages have different capabilities. This is one of the most powerful features of the graph system.
 
 ```typescript
-import { Pipeline, ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
+import { Pipeline } from '@agentionai/agents/core';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
 
 // Research agent with search tools
 const researcher = new OpenAiAgent({
@@ -220,7 +222,7 @@ const pipeline = new Pipeline([researchPhase, synthesisPhase]);
 Track execution metrics across your pipeline:
 
 ```typescript
-import { MetricsCollector } from '@agentionai/agents';
+import { MetricsCollector } from '@agentionai/agents/core';
 
 const metrics = new MetricsCollector();
 const result = await pipeline.execute('Input', { metrics });
@@ -242,7 +244,7 @@ console.log(metrics.getMetrics());
 Create custom nodes by implementing `GraphNode`:
 
 ```typescript
-import { GraphNode, ExecutionResult } from '@agentionai/agents';
+import { GraphNode, ExecutionResult } from '@agentionai/agents/core';
 
 class DataFetcher implements GraphNode<string, object> {
   name = 'data-fetcher';

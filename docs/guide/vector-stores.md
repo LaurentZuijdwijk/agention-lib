@@ -23,7 +23,8 @@ npm install @lancedb/lancedb apache-arrow
 ## Quick Start
 
 ```typescript
-import { LanceDBVectorStore, OpenAIEmbeddings, ClaudeAgent } from '@agentionai/agents';
+import { LanceDBVectorStore, OpenAIEmbeddings } from '@agentionai/agents/core';
+import { ClaudeAgent } from '@agentionai/agents/claude';
 
 // Create embeddings provider
 const embeddings = new OpenAIEmbeddings({
@@ -57,7 +58,7 @@ The `Embeddings` class provides a provider-agnostic interface for generating vec
 ### OpenAI Embeddings
 
 ```typescript
-import { OpenAIEmbeddings } from '@agentionai/agents';
+import { OpenAIEmbeddings } from '@agentionai/agents/core';
 
 const embeddings = new OpenAIEmbeddings({
   model: 'text-embedding-3-small',  // or 'text-embedding-3-large', 'text-embedding-ada-002'
@@ -88,7 +89,7 @@ const queryVector = await embeddings.embedQuery('What is hello?');
 Implement the `Embeddings` interface for other providers:
 
 ```typescript
-import { Embeddings } from '@agentionai/agents';
+import { Embeddings } from '@agentionai/agents/core';
 
 class CohereEmbeddings extends Embeddings {
   readonly name = 'cohere';
@@ -332,7 +333,7 @@ import {
   OpenAIEmbeddings,
   Pipeline,
   ClaudeAgent
-} from '@agentionai/agents';
+} from '@agentionai/agents/core';
 
 // Setup embeddings and vector store
 const embeddings = new OpenAIEmbeddings({ model: 'text-embedding-3-small' });

@@ -134,7 +134,8 @@ execute: async ({ url }) => {
 One powerful pattern is using agents as tools for other agents. This enables hierarchical workflows where a "main" agent can delegate specialized tasks to sub-agents.
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
 
 // Create a specialized research agent with its own tools
 const researchAssistant = new OpenAiAgent({

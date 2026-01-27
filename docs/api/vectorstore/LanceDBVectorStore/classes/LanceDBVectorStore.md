@@ -7,7 +7,7 @@ LanceDB implementation of the VectorStore interface.
 ## Example
 
 ```typescript
-import { LanceDBVectorStore, OpenAIEmbeddings } from "@agentionai/agents";
+import { LanceDBVectorStore, OpenAIEmbeddings } from "@agentionai/agents/core";
 
 // Create with OpenAI embeddings
 const embeddings = new OpenAIEmbeddings({

@@ -1,6 +1,7 @@
 // Core functionality without any agent implementations
 export * from "./agents/BaseAgent";
-export * from "./agents/Agent";
+// Note: agents/Agent.ts is NOT exported here as it imports all agent implementations
+// Use specific agent entry points instead (claude.ts, openai.ts, etc.)
 export * from "./agents/model-types";
 export * from "./agents/AgentConfig";
 export * from "./agents/AgentEvent";

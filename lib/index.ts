@@ -1,3 +1,12 @@
+// Main index - exports all agents (requires all peer dependencies)
+// For selective imports, use sub-paths:
+//   import { ClaudeAgent } from "@agentionai/agents/claude";
+//   import { OpenAiAgent } from "@agentionai/agents/openai";
+//   import { MistralAgent } from "@agentionai/agents/mistral";
+//   import { GeminiAgent } from "@agentionai/agents/gemini";
+// Or use core-only imports:
+//   import { BaseAgent } from "@agentionai/agents/core";
+
 // Agents
 export * from "./agents/BaseAgent";
 export * from "./agents/anthropic/ClaudeAgent";

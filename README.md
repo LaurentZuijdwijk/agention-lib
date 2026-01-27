@@ -10,23 +10,16 @@ A comprehensive TypeScript toolkit for building LLM-powered agents with RAG, and
 
 ## Quick Start
 
-```bash
-npm install @agentionai/agents
-```
-
-Install provider SDKs as needed:
+Install only what you need with selective imports:
 
 ```bash
-npm install @anthropic-ai/sdk  # For Claude
-npm install openai             # For OpenAI/GPT
-npm install @google/generative-ai  # For Gemini
-npm install @mistralai/mistralai   # For Mistral
+# Install core library + Claude SDK
+npm install @agentionai/agents @anthropic-ai/sdk
 ```
-
-### Simple Agent
 
 ```typescript
-import { ClaudeAgent } from '@agentionai/agents';
+// Import only Claude - no other agent SDKs required!
+import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
   model: 'claude-sonnet-4-5',
@@ -36,6 +29,23 @@ const agent = new ClaudeAgent({
 
 const response = await agent.execute('What can you help me with?');
 console.log(response);
+```
+
+### Selective Imports
+
+Import only the agents you need:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';    // Requires @anthropic-ai/sdk
+import { OpenAiAgent } from '@agentionai/agents/openai';    // Requires openai
+import { GeminiAgent } from '@agentionai/agents/gemini';    // Requires @google/generative-ai
+import { MistralAgent } from '@agentionai/agents/mistral';  // Requires @mistralai/mistralai
+```
+
+Or import everything (requires all SDKs):
+
+```typescript
+import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 ```
 
 
@@ -51,7 +61,7 @@ console.log(response);
 ### Agent with Tools
 
 ```typescript
-import { GeminiAgent, Tool } from '@agentionai/agents';
+import { GeminiAgent, Tool } from '@agentionai/agents/gemini';
 
 const weatherTool = new Tool({
   name: 'get_weather',
@@ -88,7 +98,9 @@ const response = await agent.execute("What's the weather in Paris?");
 Chain agents together with different providers and models:
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent, Pipeline } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { Pipeline } from '@agentionai/agents/core';
 
 const researcher = new OpenAiAgent({
   id: 'researcher',
@@ -114,7 +126,8 @@ const result = await pipeline.execute('Renewable energy trends in 2024');
 Use agents as tools for hierarchical workflows:
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent, Tool } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
 
 // Research assistant (cheaper model for data gathering)
 const researchAssistant = new OpenAiAgent({

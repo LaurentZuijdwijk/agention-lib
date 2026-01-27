@@ -11,10 +11,43 @@ Agents are the core building block of Agention. Each agent wraps an LLM and prov
 | OpenAI | `OpenAiAgent` | `gpt-4o`, `gpt-4-turbo` |
 | Mistral | `MistralAgent` | `mistral-large-latest`, `mistral-medium` |
 
+## Installation & Imports
+
+Install only the agents you need:
+
+```bash
+# Claude only
+npm install @agentionai/agents @anthropic-ai/sdk
+
+# OpenAI only  
+npm install @agentionai/agents openai
+
+# Gemini only
+npm install @agentionai/agents @google/generative-ai
+
+# Mistral only
+npm install @agentionai/agents @mistralai/mistralai
+```
+
+Import using selective imports to avoid installing unnecessary dependencies:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { GeminiAgent } from '@agentionai/agents/gemini';
+import { MistralAgent } from '@agentionai/agents/mistral';
+```
+
+Or import everything (requires all SDKs):
+
+```typescript
+import { ClaudeAgent, OpenAiAgent, GeminiAgent, MistralAgent } from '@agentionai/agents';
+```
+
 ## Basic Usage
 
 ```typescript
-import { ClaudeAgent } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
   id: 'assistant',
@@ -77,7 +110,9 @@ agent.clearHistory();
 All agents share the same interface, making it easy to switch providers:
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent, MistralAgent } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { MistralAgent } from '@agentionai/agents/mistral';
 
 // Same interface, different provider
 const claude = new ClaudeAgent({
@@ -129,7 +164,7 @@ One example is custom reasoning workflows by combining agents with specific role
 You can wrap specialized "reasoner" agents as tools for other agents, creating sophisticated multi-stage thinking:
 
 ```typescript
-import { ClaudeAgent, Tool } from '@agentionai/agents';
+import { ClaudeAgent, Tool } from '@agentionai/agents/claude';
 
 // Create a specialized reasoning agent
 const reasoner = new ClaudeAgent({

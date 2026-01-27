@@ -5,7 +5,7 @@ Tools give agents the ability to perform actions beyond text generation. When yo
 ## Defining a Tool
 
 ```typescript
-import { Tool } from '@agentionai/agents';
+import { Tool } from '@agentionai/agents/core';
 
 const calculator = new Tool({
   name: 'calculate',
@@ -39,6 +39,8 @@ const calculator = new Tool({
 ## Using Tools with Agents
 
 ```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+
 const agent = new ClaudeAgent({
   id: 'calculator-assistant',
   name: 'Calculator Assistant',

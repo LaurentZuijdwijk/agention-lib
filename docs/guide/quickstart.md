@@ -20,13 +20,13 @@ npm install @agentionai/agents @anthropic-ai/sdk
 Create `index.ts`:
 
 ```typescript
-import { ClaudeAgent } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
   model: 'claude-sonnet-4-5',
-  id: "reasoner",
-  name: "Analytical Reasoner",
-  description: REASONER_DESCRIPTION,
+  id: "assistant",
+  name: "Assistant",
+  description: "You are a helpful assistant.",
   tools: [],
 });
 
@@ -49,7 +49,7 @@ ANTHROPIC_API_KEY=your-key npx ts-node index.ts
 Tools let agents perform actions. Let's add a weather tool:
 
 ```typescript
-import { GeminiAgent, Tool } from '@agentionai/agents';
+import { GeminiAgent, Tool } from '@agentionai/agents/gemini';
 
 // Define a weather tool
 const weatherTool = new Tool({
@@ -97,7 +97,9 @@ The agent will automatically use the tool when needed.
 Use pipelines to create multi-step workflows:
 
 ```typescript
-import { OpenAiAgent, Pipeline } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { Pipeline } from '@agentionai/agents/core';
 
 const researcher = new OpenAiAgent({
   id: 'researcher',

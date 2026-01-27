@@ -9,7 +9,7 @@ A simple agent with tools that fetches weather data for any location.
 **Demonstrates:** Tools, API integration, multi-step tool use
 
 ```typescript
-import { MistralAgent, Tool } from '@agentionai/agents';
+import { MistralAgent, Tool } from '@agentionai/agents/mistral';
 
 // Geocoding tool to convert city names to coordinates
 const geoCodingTool = new Tool({
@@ -73,7 +73,9 @@ A multi-agent system for medical literature research using PubMed.
 **Demonstrates:** Agents as tools, multi-provider setup, sequential pipelines, cost tracking
 
 ```typescript
-import { ClaudeAgent, OpenAiAgent, AgentGraph } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import { AgentGraph } from '@agentionai/agents/core';
 
 // Research assistant with PubMed tools (cheaper model for data gathering)
 const researchAssistant = new OpenAiAgent({
@@ -122,7 +124,8 @@ Interactive demo showcasing all executor types in the graph system.
 **Demonstrates:** Sequential, Parallel, Map, Voting, Pipeline composition
 
 ```typescript
-import { ClaudeAgent, AgentGraph } from '@agentionai/agents';
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { AgentGraph } from '@agentionai/agents/core';
 
 // Simple transformation agents
 const uppercaseAgent = new ClaudeAgent({

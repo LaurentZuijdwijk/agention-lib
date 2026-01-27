@@ -39,19 +39,23 @@ Agention is for developers who:
 
 ## Installation
 
-```bash
-npm install @agentionai/agents
-```
-
-You'll also need to install the SDK for your chosen provider:
+Install only what you need using selective imports:
 
 ```bash
-# For Claude
-npm install @anthropic-ai/sdk
+# Install core library + Claude SDK
+npm install @agentionai/agents @anthropic-ai/sdk
 
-# For OpenAI
-npm install openai
+# Or for OpenAI
+npm install @agentionai/agents openai
+
+# Or for Gemini
+npm install @agentionai/agents @google/generative-ai
+
+# Or for Mistral
+npm install @agentionai/agents @mistralai/mistralai
 ```
+
+This approach ensures you only install the agent SDKs you actually use, reducing bundle size and installation time.
 
 ## Environment Setup
 
@@ -71,7 +75,8 @@ export MISTRAL_API_KEY=your-key-here
 ## Your First Agent
 
 ```typescript
-import { ClaudeAgent } from '@agentionai/agents';
+// Import only Claude - no other agent SDKs required!
+import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
   id: 'assistant',
@@ -82,6 +87,23 @@ const agent = new ClaudeAgent({
 
 const response = await agent.execute('Hello, how are you?');
 console.log(response);
+```
+
+### Selective Imports
+
+Import only the agents you need:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';    // Requires @anthropic-ai/sdk
+import { OpenAiAgent } from '@agentionai/agents/openai';    // Requires openai
+import { GeminiAgent } from '@agentionai/agents/gemini';    // Requires @google/generative-ai
+import { MistralAgent } from '@agentionai/agents/mistral';  // Requires @mistralai/mistralai
+```
+
+Or import everything (requires all SDKs):
+
+```typescript
+import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 ```
 
 ## Next Steps

@@ -7,7 +7,8 @@ The graph system lets you build complex workflows by combining agents and other 
 A `Pipeline` chains nodes together, passing output from one to the next:
 
 ```typescript
-import { Pipeline, ClaudeAgent } from '@agentionai/agents';
+import { Pipeline } from '@agentionai/agents/core';
+import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const researcher = new ClaudeAgent({
   id: 'researcher',
@@ -34,7 +35,7 @@ const result = await pipeline.execute('Artificial Intelligence in Healthcare');
 Chains agents in sequence. Each agent receives the previous agent's output:
 
 ```typescript
-import { SequentialExecutor } from '@agentionai/agents';
+import { SequentialExecutor } from '@agentionai/agents/core';
 
 const chain = new SequentialExecutor({
   name: 'content-chain',
@@ -50,7 +51,7 @@ const result = await chain.execute('Topic to write about');
 Runs multiple agents simultaneously on the same input:
 
 ```typescript
-import { ParallelExecutor } from '@agentionai/agents';
+import { ParallelExecutor } from '@agentionai/agents/core';
 
 const parallel = new ParallelExecutor({
   name: 'multi-perspective',
@@ -66,7 +67,7 @@ const result = await parallel.execute('Analyze this business proposal');
 Applies an agent to each item in an array:
 
 ```typescript
-import { MapExecutor } from '@agentionai/agents';
+import { MapExecutor } from '@agentionai/agents/core';
 
 const summarizer = new ClaudeAgent({
   id: 'summarizer',
@@ -90,7 +91,7 @@ const result = await mapper.execute(articles);
 Multiple agents propose solutions, then a judge selects the best:
 
 ```typescript
-import { VotingSystem } from '@agentionai/agents';
+import { VotingSystem } from '@agentionai/agents/core';
 
 const voting = new VotingSystem({
   name: 'code-review',

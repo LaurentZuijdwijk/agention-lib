@@ -41,4 +41,6 @@ export { OpenAIEmbeddings, OpenAIEmbeddingsConfig } from "./OpenAIEmbeddings";
 export {
   LanceDBVectorStore,
   LanceDBVectorStoreConfig,
+  MetadataFieldType,
+  MetadataFieldDefinition,
 } from "./LanceDBVectorStore";

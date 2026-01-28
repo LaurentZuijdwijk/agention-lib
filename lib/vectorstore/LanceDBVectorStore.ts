@@ -21,6 +21,23 @@ import {
 import { Embeddings } from "./Embeddings";
 
 /**
+ * Supported types for metadata fields.
+ */
+export type MetadataFieldType = "string" | "number" | "boolean";
+
+/**
+ * Definition for a metadata field that will be stored as a separate column.
+ */
+export interface MetadataFieldDefinition {
+  /** Name of the metadata field */
+  name: string;
+  /** Data type for the field */
+  type: MetadataFieldType;
+  /** Whether the field can be null (default: true) */
+  nullable?: boolean;
+}
+
+/**
  * Configuration for LanceDBVectorStore.
  */
 export interface LanceDBVectorStoreConfig {
@@ -36,23 +53,33 @@ export interface LanceDBVectorStoreConfig {
   dimensions?: number;
   /** Additional connection options */
   connectionOptions?: Partial<ConnectionOptions>;
+  /**
+   * Metadata field definitions for filterable columns.
+   * When specified, metadata fields are stored as separate columns enabling efficient filtering.
+   * If not specified, metadata is stored as a JSON string (legacy behavior).
+   */
+  metadataFields?: MetadataFieldDefinition[];
 }
 
 /**
  * Internal record structure stored in LanceDB.
+ * When metadataFields are defined, each field is stored as a separate property.
+ * Otherwise, metadata is stored as a JSON string in the 'metadata' field.
  */
 interface LanceDBRecord {
   id: string;
   text: string;
   vector?: number[];
+  /** Legacy: JSON string of metadata (used when metadataFields not defined) */
   metadata?: string;
+  /** Dynamic metadata fields when metadataFields are defined */
   [key: string]: unknown;
 }
 
 /**
  * LanceDB implementation of the VectorStore interface.
  *
- * @example
+ * @example Basic usage with JSON metadata (legacy)
  * ```typescript
  * import { LanceDBVectorStore, OpenAIEmbeddings } from "@agentionai/agents";
  *
@@ -80,6 +107,38 @@ interface LanceDBRecord {
  * // Create a tool for agents
  * const searchTool = store.toRetrievalTool("Search the knowledge base");
  * ```
+ *
+ * @example With filterable metadata fields
+ * ```typescript
+ * const store = await LanceDBVectorStore.create({
+ *   name: "knowledge_base",
+ *   uri: "./my-database",
+ *   tableName: "documents",
+ *   embeddings,
+ *   metadataFields: [
+ *     { name: "category", type: "string" },
+ *     { name: "source", type: "string" },
+ *     { name: "year", type: "number" },
+ *     { name: "verified", type: "boolean" },
+ *     { name: "hash", type: "string" }, // Enables efficient deduplication
+ *   ],
+ * });
+ *
+ * // Add documents with metadata
+ * await store.addDocuments([
+ *   {
+ *     id: "1",
+ *     content: "LanceDB is a vector database",
+ *     metadata: { category: "database", source: "docs", year: 2024, verified: true },
+ *   },
+ * ]);
+ *
+ * // Search with filters on metadata columns
+ * const results = await store.search("vector database", {
+ *   limit: 5,
+ *   filter: { category: "database", year: 2024 },
+ * });
+ * ```
  */
 export class LanceDBVectorStore extends VectorStore {
   readonly name: string;
@@ -89,6 +148,7 @@ export class LanceDBVectorStore extends VectorStore {
   private embeddings?: Embeddings;
   private tableName: string;
   private dimensions: number;
+  private metadataFields?: MetadataFieldDefinition[];
 
   private constructor(
     config: LanceDBVectorStoreConfig,
@@ -103,6 +163,7 @@ export class LanceDBVectorStore extends VectorStore {
     this.tableName = config.tableName;
     this.dimensions =
       config.dimensions ?? config.embeddings?.dimensions ?? 1536;
+    this.metadataFields = config.metadataFields;
   }
 
   /**
@@ -153,7 +214,8 @@ export class LanceDBVectorStore extends VectorStore {
         );
       }
 
-      const schema = new arrow.Schema([
+      // Build schema fields - use explicit type to allow different Field types
+      const schemaFields: import("apache-arrow").Field[] = [
         new arrow.Field("id", new arrow.Utf8(), false),
         new arrow.Field("text", new arrow.Utf8(), false),
         new arrow.Field(
@@ -164,9 +226,36 @@ export class LanceDBVectorStore extends VectorStore {
           ),
           false
         ),
-        new arrow.Field("metadata", new arrow.Utf8(), true),
-      ]);
+      ];
 
+      // Add metadata fields - either as separate columns or as a JSON string
+      if (config.metadataFields && config.metadataFields.length > 0) {
+        for (const field of config.metadataFields) {
+          const nullable = field.nullable !== false;
+          let arrowType: import("apache-arrow").DataType;
+
+          switch (field.type) {
+            case "string":
+              arrowType = new arrow.Utf8();
+              break;
+            case "number":
+              arrowType = new arrow.Float64();
+              break;
+            case "boolean":
+              arrowType = new arrow.Bool();
+              break;
+            default:
+              throw new Error(`Unsupported metadata field type: ${field.type}`);
+          }
+
+          schemaFields.push(new arrow.Field(field.name, arrowType, nullable));
+        }
+      } else {
+        // Legacy: store metadata as JSON string
+        schemaFields.push(new arrow.Field("metadata", new arrow.Utf8(), true));
+      }
+
+      const schema = new arrow.Schema(schemaFields);
       table = await connection.createEmptyTable(config.tableName, schema);
     }
 
@@ -207,12 +296,26 @@ export class LanceDBVectorStore extends VectorStore {
     documents: EmbeddedDocument[],
     _options?: AddDocumentsOptions
   ): Promise<string[]> {
-    const records: LanceDBRecord[] = documents.map((doc) => ({
-      id: doc.id,
-      text: doc.content,
-      vector: doc.embedding,
-      metadata: doc.metadata ? JSON.stringify(doc.metadata) : undefined,
-    }));
+    const records: LanceDBRecord[] = documents.map((doc) => {
+      const record: LanceDBRecord = {
+        id: doc.id,
+        text: doc.content,
+        vector: doc.embedding,
+      };
+
+      if (this.metadataFields && this.metadataFields.length > 0) {
+        // Store each metadata field as a separate column
+        for (const field of this.metadataFields) {
+          const value = doc.metadata?.[field.name];
+          record[field.name] = value !== undefined ? value : null;
+        }
+      } else {
+        // Legacy: store metadata as JSON string
+        record.metadata = doc.metadata ? JSON.stringify(doc.metadata) : undefined;
+      }
+
+      return record;
+    });
 
     await this.table.add(records);
     return documents.map((d) => d.id);
@@ -297,17 +400,20 @@ export class LanceDBVectorStore extends VectorStore {
       return null;
     }
 
-    const row = results[0] as unknown as LanceDBRecord;
+    const row = results[0] as Record<string, unknown>;
     return {
-      id: row.id,
-      content: row.text,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      id: row.id as string,
+      content: row.text as string,
+      metadata: this.extractMetadata(row),
     };
   }
 
   /**
    * Get existing documents by their content hashes.
    * Used for deduplication during ingestion.
+   *
+   * Note: If using metadataFields, include a "hash" field of type "string"
+   * for efficient hash lookups. Otherwise, falls back to LIKE queries on JSON metadata.
    */
   async getByHashes(
     hashes: string[],
@@ -319,20 +425,33 @@ export class LanceDBVectorStore extends VectorStore {
       return hashMap;
     }
 
-    // Query for documents with matching hashes
-    // Since hash is stored in the metadata JSON, we need to check each hash
+    // Check if hash is a defined metadata field for efficient queries
+    const hasHashField = this.metadataFields?.some(
+      (field) => field.name === "hash"
+    );
+
     for (const hash of hashes) {
-      // LanceDB doesn't support JSON path queries, so we search for the hash string
-      // in the metadata field. This works because the hash is a unique string.
-      const results = await this.table
-        .query()
-        .where(`metadata LIKE '%${hash}%'`)
-        .limit(1)
-        .toArray();
+      let results: Record<string, unknown>[];
+
+      if (hasHashField) {
+        // Efficient direct column query
+        results = await this.table
+          .query()
+          .where(`hash = '${hash}'`)
+          .limit(1)
+          .toArray();
+      } else {
+        // Legacy: search for hash string in JSON metadata
+        results = await this.table
+          .query()
+          .where(`metadata LIKE '%${hash}%'`)
+          .limit(1)
+          .toArray();
+      }
 
       if (results.length > 0) {
-        const record = results[0] as unknown as LanceDBRecord;
-        hashMap.set(hash, record.id);
+        const record = results[0] as Record<string, unknown>;
+        hashMap.set(hash, record.id as string);
       }
     }
 
@@ -420,9 +539,7 @@ export class LanceDBVectorStore extends VectorStore {
         continue;
       }
 
-      const metadata = row.metadata
-        ? JSON.parse(row.metadata as string)
-        : undefined;
+      const metadata = this.extractMetadata(row);
 
       searchResults.push({
         document: {
@@ -435,5 +552,38 @@ export class LanceDBVectorStore extends VectorStore {
     }
 
     return searchResults;
+  }
+
+  /**
+   * Extract metadata from a row based on metadataFields configuration.
+   */
+  private extractMetadata(
+    row: Record<string, unknown>
+  ): Record<string, unknown> | undefined {
+    if (this.metadataFields && this.metadataFields.length > 0) {
+      // Reconstruct metadata from separate columns
+      const metadata: Record<string, unknown> = {};
+      let hasValue = false;
+
+      for (const field of this.metadataFields) {
+        const value = row[field.name];
+        if (value !== null && value !== undefined) {
+          metadata[field.name] = value;
+          hasValue = true;
+        }
+      }
+
+      return hasValue ? metadata : undefined;
+    } else {
+      // Legacy: parse metadata from JSON string
+      return row.metadata ? JSON.parse(row.metadata as string) : undefined;
+    }
+  }
+
+  /**
+   * Get the configured metadata fields.
+   */
+  getMetadataFields(): MetadataFieldDefinition[] | undefined {
+    return this.metadataFields;
   }
 }

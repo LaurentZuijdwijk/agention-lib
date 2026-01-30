@@ -1,7 +1,7 @@
 {
   "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Agent Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,6 +29,10 @@
     "./gemini": {
       "types": "./dist/gemini.d.ts",
       "default": "./dist/gemini.js"
+    },
+    "./embeddings": {
+      "types": "./dist/embeddings/index.d.ts",
+      "default": "./dist/embeddings/index.js"
     }
   },
   "files": [
@@ -98,7 +102,8 @@
     "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5.0.3",
     "typescript-eslint": "^8.28.0",
-    "vitepress": "^1.6.4"
+    "vitepress": "^1.6.4",
+    "voyageai": "^0.1.0"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -106,7 +111,8 @@
     "@lancedb/lancedb": "^0.23.0",
     "@mistralai/mistralai": "^1.13.0",
     "apache-arrow": "^18.0.0",
-    "openai": "^6.16.0"
+    "openai": "^6.16.0",
+    "voyageai": "^0.0.3"
   },
   "peerDependenciesMeta": {
     "@lancedb/lancedb": {
@@ -125,6 +131,9 @@
       "optional": true
     },
     "openai": {
+      "optional": true
+    },
+    "voyageai": {
       "optional": true
     }
   },

@@ -1,10 +1,18 @@
 /**
  * OpenAI embeddings implementation.
  *
- * @requires openai - Uses the OpenAI SDK (already a peer dependency)
+ * @requires openai - Uses the OpenAI SDK (peer dependency, dynamically imported)
  */
 
 import { Embeddings } from "./Embeddings";
+
+/**
+ * Available OpenAI embedding models with their dimensions.
+ */
+export type OpenAIEmbeddingModel =
+  | "text-embedding-3-small" // 1536 dimensions (configurable)
+  | "text-embedding-3-large" // 3072 dimensions (configurable)
+  | "text-embedding-ada-002"; // 1536 dimensions (fixed)
 
 /**
  * Configuration for OpenAI embeddings.
@@ -13,11 +21,7 @@ export interface OpenAIEmbeddingsConfig {
   /** OpenAI API key (defaults to OPENAI_API_KEY env var) */
   apiKey?: string;
   /** Model to use for embeddings */
-  model?:
-    | "text-embedding-3-small"
-    | "text-embedding-3-large"
-    | "text-embedding-ada-002"
-    | string;
+  model?: OpenAIEmbeddingModel | string;
   /** Number of dimensions (only for text-embedding-3-* models) */
   dimensions?: number;
   /** Base URL for API (for proxies or compatible APIs) */
@@ -34,10 +38,14 @@ const MODEL_DIMENSIONS: Record<string, number> = {
 /**
  * OpenAI embeddings provider.
  *
+ * Supports all OpenAI embedding models including text-embedding-3-small,
+ * text-embedding-3-large, and text-embedding-ada-002.
+ *
  * @example
  * ```typescript
  * const embeddings = new OpenAIEmbeddings({
  *   model: 'text-embedding-3-small',
+ *   dimensions: 512, // Optional: reduce dimensions for faster search
  * });
  *
  * const vectors = await embeddings.embed(['Hello world', 'Goodbye world']);

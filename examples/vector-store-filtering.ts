@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { ClaudeAgent } from "../lib/agents/anthropic/ClaudeAgent";
 import { LanceDBVectorStore } from "../lib/vectorstore/LanceDBVectorStore";
-import { OpenAIEmbeddings } from "../lib/vectorstore/OpenAIEmbeddings";
+import { OpenAIEmbeddings } from "../lib/embeddings/OpenAIEmbeddings";
 
 /**
  * Example demonstrating multi-tenancy and filtering in vector stores.
@@ -17,7 +17,8 @@ const DOCUMENTS = [
   // Tenant: Acme Corp
   {
     id: "acme-1",
-    content: "Acme Corp uses a monthly billing cycle. Invoices are sent on the 1st of each month.",
+    content:
+      "Acme Corp uses a monthly billing cycle. Invoices are sent on the 1st of each month.",
     metadata: { tenantId: "acme", projectId: "proj-123", category: "billing" },
   },
   {
@@ -34,30 +35,54 @@ const DOCUMENTS = [
   // Tenant: TechStart Inc
   {
     id: "techstart-1",
-    content: "TechStart Inc uses annual billing. Payment is due within 15 days of invoice.",
-    metadata: { tenantId: "techstart", projectId: "proj-789", category: "billing" },
+    content:
+      "TechStart Inc uses annual billing. Payment is due within 15 days of invoice.",
+    metadata: {
+      tenantId: "techstart",
+      projectId: "proj-789",
+      category: "billing",
+    },
   },
   {
     id: "techstart-2",
-    content: "TechStart Inc offers 24/7 premium support for enterprise customers.",
-    metadata: { tenantId: "techstart", projectId: "proj-789", category: "support" },
+    content:
+      "TechStart Inc offers 24/7 premium support for enterprise customers.",
+    metadata: {
+      tenantId: "techstart",
+      projectId: "proj-789",
+      category: "support",
+    },
   },
   {
     id: "techstart-3",
     content: "TechStart Inc has a 60-day money-back guarantee.",
-    metadata: { tenantId: "techstart", projectId: "proj-789", category: "policy" },
+    metadata: {
+      tenantId: "techstart",
+      projectId: "proj-789",
+      category: "policy",
+    },
   },
 
   // Tenant: Global Services
   {
     id: "global-1",
-    content: "Global Services bills quarterly. Invoices are sent 15 days before the period ends.",
-    metadata: { tenantId: "global", projectId: "proj-101", category: "billing" },
+    content:
+      "Global Services bills quarterly. Invoices are sent 15 days before the period ends.",
+    metadata: {
+      tenantId: "global",
+      projectId: "proj-101",
+      category: "billing",
+    },
   },
   {
     id: "global-2",
-    content: "Global Services provides support in 12 languages, available 24/7.",
-    metadata: { tenantId: "global", projectId: "proj-202", category: "support" },
+    content:
+      "Global Services provides support in 12 languages, available 24/7.",
+    metadata: {
+      tenantId: "global",
+      projectId: "proj-202",
+      category: "support",
+    },
   },
 ];
 
@@ -100,7 +125,11 @@ async function vectorStoreFilteringExample() {
       filter: { category: "billing" },
     });
     for (const result of allBilling) {
-      console.log(`   - [${result.score.toFixed(3)}] ${result.document.metadata?.tenantId}: ${result.document.content}`);
+      console.log(
+        `   - [${result.score.toFixed(3)}] ${
+          result.document.metadata?.tenantId
+        }: ${result.document.content}`
+      );
     }
     console.log();
 
@@ -110,7 +139,11 @@ async function vectorStoreFilteringExample() {
       filter: { tenantId: "acme", category: "billing" },
     });
     for (const result of acmeBilling) {
-      console.log(`   - [${result.score.toFixed(3)}] ${result.document.metadata?.tenantId}: ${result.document.content}`);
+      console.log(
+        `   - [${result.score.toFixed(3)}] ${
+          result.document.metadata?.tenantId
+        }: ${result.document.content}`
+      );
     }
     console.log();
 
@@ -130,7 +163,8 @@ async function vectorStoreFilteringExample() {
     const acmeAgent = new ClaudeAgent({
       id: "acme-agent",
       name: "Acme Support Agent",
-      description: "You are a customer support agent for Acme Corp. Use the search tool to find accurate information.",
+      description:
+        "You are a customer support agent for Acme Corp. Use the search tool to find accurate information.",
       apiKey: process.env.ANTHROPIC_API_KEY as string,
       tools: [acmeSearchTool],
       model: "claude-sonnet-4-20250514",
@@ -149,7 +183,8 @@ async function vectorStoreFilteringExample() {
     const techstartAgent = new ClaudeAgent({
       id: "techstart-agent",
       name: "TechStart Support Agent",
-      description: "You are a customer support agent for TechStart Inc. Use the search tool to find accurate information.",
+      description:
+        "You are a customer support agent for TechStart Inc. Use the search tool to find accurate information.",
       apiKey: process.env.ANTHROPIC_API_KEY as string,
       tools: [techstartSearchTool],
       model: "claude-sonnet-4-20250514",
@@ -193,7 +228,9 @@ async function vectorStoreFilteringExample() {
       model: "claude-sonnet-4-20250514",
     });
 
-    console.log('   Question: "What is the support policy for project proj-789?"\n');
+    console.log(
+      '   Question: "What is the support policy for project proj-789?"\n'
+    );
     const projectResponse = await flexibleAgent.execute(
       "What is the support policy for project proj-789?"
     );
@@ -237,7 +274,9 @@ async function vectorStoreFilteringExample() {
     console.log("- Use defaultFilter to enforce tenant isolation");
     console.log("- Set allowFilterOverride: false for strict security");
     console.log("- Use defaultMetadata to auto-tag documents");
-    console.log("- Combine filters (tenant + project + category) for fine-grained control");
+    console.log(
+      "- Combine filters (tenant + project + category) for fine-grained control"
+    );
 
     process.exit(0);
   } catch (error) {

@@ -3,7 +3,8 @@
  *
  * @example
  * ```typescript
- * import { LanceDBVectorStore, OpenAIEmbeddings } from "@agentionai/agents";
+ * import { LanceDBVectorStore } from "@agentionai/agents";
+ * import { OpenAIEmbeddings } from "@agentionai/agents/embeddings";
  *
  * const embeddings = new OpenAIEmbeddings({
  *   model: "text-embedding-3-small",
@@ -34,13 +35,23 @@ export {
   AddDocumentsToolOptions,
 } from "./VectorStore";
 
-export { Embeddings, EmbeddingOptions } from "./Embeddings";
-
-export { OpenAIEmbeddings, OpenAIEmbeddingsConfig } from "./OpenAIEmbeddings";
-
 export {
   LanceDBVectorStore,
   LanceDBVectorStoreConfig,
   MetadataFieldType,
   MetadataFieldDefinition,
 } from "./LanceDBVectorStore";
+
+// Re-export embeddings for backward compatibility
+export { Embeddings, EmbeddingOptions } from "../embeddings/Embeddings";
+export {
+  OpenAIEmbeddings,
+  OpenAIEmbeddingsConfig,
+  OpenAIEmbeddingModel,
+} from "../embeddings/OpenAIEmbeddings";
+export {
+  VoyageAIEmbeddings,
+  VoyageAIEmbeddingsConfig,
+  VoyageAIEmbeddingModel,
+  VoyageAIMultimodalModel,
+} from "../embeddings/VoyageAIEmbeddings";

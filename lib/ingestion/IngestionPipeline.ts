@@ -1,6 +1,6 @@
 import { Chunk, ChunkOptions } from "../chunkers/types";
 import { Chunker } from "../chunkers/Chunker";
-import { Embeddings } from "../vectorstore/Embeddings";
+import { Embeddings } from "../embeddings/Embeddings";
 import { VectorStore, EmbeddedDocument } from "../vectorstore/VectorStore";
 import {
   IngestionOptions,

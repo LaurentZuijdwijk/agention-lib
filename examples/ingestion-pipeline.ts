@@ -15,7 +15,7 @@ import {
   TokenChunker,
   IngestionPipeline,
 } from "../lib";
-import { OpenAIEmbeddings } from "../lib/vectorstore/OpenAIEmbeddings";
+import { OpenAIEmbeddings } from "../lib/embeddings/OpenAIEmbeddings";
 import { LanceDBVectorStore } from "../lib/vectorstore/LanceDBVectorStore";
 
 async function main() {

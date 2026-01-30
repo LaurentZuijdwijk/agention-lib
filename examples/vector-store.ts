@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { ClaudeAgent } from "../lib/agents/anthropic/ClaudeAgent";
 import { LanceDBVectorStore } from "../lib/vectorstore/LanceDBVectorStore";
-import { OpenAIEmbeddings } from "../lib/vectorstore/OpenAIEmbeddings";
+import { OpenAIEmbeddings } from "../lib/embeddings/OpenAIEmbeddings";
 import { RecursiveChunker, IngestionPipeline, OpenAiAgent } from "../lib";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";

@@ -37,6 +37,9 @@ export * from "./viz";
 // Vector Store
 export * from "./vectorstore";
 
+// Embeddings (also re-exported from vectorstore for backward compatibility)
+export * from "./embeddings";
+
 // Chunkers
 export * from "./chunkers";
 

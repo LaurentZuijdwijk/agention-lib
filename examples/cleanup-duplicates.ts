@@ -10,7 +10,7 @@
  */
 import "dotenv/config";
 import { LanceDBVectorStore } from "../lib/vectorstore/LanceDBVectorStore";
-import { OpenAIEmbeddings } from "../lib/vectorstore/OpenAIEmbeddings";
+import { OpenAIEmbeddings } from "../lib/embeddings/OpenAIEmbeddings";
 
 async function cleanupDuplicates() {
   console.log("=== Vector Store Duplicate Cleanup ===\n");
@@ -95,7 +95,9 @@ async function cleanupDuplicates() {
     console.log("   Example duplicates:");
     for (let i = 0; i < Math.min(5, duplicateGroups.length); i++) {
       const [hash, ids] = duplicateGroups[i];
-      console.log(`   - Hash ${hash.substring(0, 16)}...: ${ids.length} copies`);
+      console.log(
+        `   - Hash ${hash.substring(0, 16)}...: ${ids.length} copies`
+      );
     }
     console.log();
 

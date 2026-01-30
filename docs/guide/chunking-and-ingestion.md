@@ -167,8 +167,8 @@ The pipeline orchestrates the full workflow: chunk → embed → store.
 ### Basic Ingestion
 
 ```typescript
-import { IngestionPipeline, RecursiveChunker } from '@agentionai/agents/core';
-import { OpenAIEmbeddings, LanceDBVectorStore } from '@agentionai/agents/core';
+import { IngestionPipeline, RecursiveChunker, LanceDBVectorStore } from '@agentionai/agents/core';
+import { OpenAIEmbeddings } from '@agentionai/agents/embeddings';
 
 // Create pipeline components
 const chunker = new RecursiveChunker({

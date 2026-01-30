@@ -23,7 +23,8 @@ npm install @lancedb/lancedb apache-arrow
 ## Quick Start
 
 ```typescript
-import { LanceDBVectorStore, OpenAIEmbeddings } from '@agentionai/agents/core';
+import { LanceDBVectorStore } from '@agentionai/agents/core';
+import { OpenAIEmbeddings } from '@agentionai/agents/embeddings';
 import { ClaudeAgent } from '@agentionai/agents/claude';
 
 // Create embeddings provider
@@ -53,65 +54,109 @@ const results = await store.search('What is LanceDB?', { limit: 2 });
 
 ## Embeddings
 
-The `Embeddings` class provides a provider-agnostic interface for generating vector representations of text.
+The `Embeddings` class provides a provider-agnostic interface for generating vector representations of text. Embeddings are available in a dedicated module: `@agentionai/agents/embeddings`.
+
+All embedding providers use dynamic imports, so you only need to install the SDKs you actually use.
 
 ### OpenAI Embeddings
 
 ```typescript
-import { OpenAIEmbeddings } from '@agentionai/agents/core';
+import { OpenAIEmbeddings } from '@agentionai/agents/embeddings';
 
 const embeddings = new OpenAIEmbeddings({
   model: 'text-embedding-3-small',  // or 'text-embedding-3-large', 'text-embedding-ada-002'
   dimensions: 512,                   // Optional: reduce dimensions (only for text-embedding-3-*)
-  apiKey: process.env.OPENAI_API_KEY, // Optional: defaults to env var
 });
 
 // Embed multiple texts
 const vectors = await embeddings.embed(['Hello world', 'Goodbye world']);
-
-// Embed single text
-const vector = await embeddings.embedOne('Hello world');
-
-// Embed query (some providers optimize differently for queries)
-const queryVector = await embeddings.embedQuery('What is hello?');
 ```
 
-### Available Models
+**Requirements:**
+- Install: `npm install openai`
+- Set `OPENAI_API_KEY` environment variable or pass `apiKey` in config
+
+#### Available OpenAI Models
 
 | Model | Dimensions | Notes |
 |-------|------------|-------|
-| `text-embedding-3-small` | 1536 (configurable) | Fast, cost-effective |
-| `text-embedding-3-large` | 3072 (configurable) | Higher quality |
-| `text-embedding-ada-002` | 1536 | Legacy model |
+| `text-embedding-3-small` | 1536 (configurable) | Cost-effective, fast |
+| `text-embedding-3-large` | 3072 (configurable) | Highest quality |
+| `text-embedding-ada-002` | 1536 (fixed) | Legacy model |
+
+### VoyageAI Embeddings
+
+VoyageAI provides state-of-the-art embedding models with specialized variants for different use cases.
+
+```typescript
+import { VoyageAIEmbeddings } from '@agentionai/agents/embeddings';
+
+const embeddings = new VoyageAIEmbeddings({
+  model: 'voyage-4',          // Latest general-purpose model
+  inputType: 'document',      // or "query" for search queries
+  maxRetries: 3,              // Optional: default is 2
+  timeoutInSeconds: 30,       // Optional: default is 60
+});
+
+// Embed multiple texts
+const vectors = await embeddings.embed(['Hello world', 'Goodbye world']);
+```
+
+**Requirements:**
+- Install: `npm install voyageai`
+- Set `VOYAGE_API_KEY` environment variable or pass `apiKey` in config
+
+#### Available VoyageAI Models
+
+| Model | Dimensions | Best For |
+|-------|------------|----------|
+| `voyage-4-large` | 1024 | High performance tasks |
+| `voyage-3-large` | 1024 | High performance tasks |
+| `voyage-context-3` | 1024 | Context-aware embeddings |
+| `voyage-code-3` | 1024 | Code search and understanding |
+| `voyage-4` | 1024 | General-purpose (recommended) |
+| `voyage-3.5` | 1024 | General-purpose |
+| `voyage-4-lite` | 1024 | Lightweight, fast inference |
+| `voyage-3.5-lite` | 1024 | Lightweight, fast inference |
+| `voyage-multimodal-3.5` | 1024 | Multimodal inputs |
+| `voyage-multimodal-3` | 1024 | Multimodal inputs |
+
+**Features:**
+- Automatic retries with exponential backoff
+- Configurable timeouts
+- Separate optimization for documents vs queries (`inputType`)
+- `embedQuery()` method automatically uses `inputType: "query"` for better search results
+
+### Embeddings Interface
+
+All embedding providers implement three methods:
+
+- `embed(texts: string[]): Promise<number[][]>` - Embed multiple texts (required)
+- `embedOne(text: string): Promise<number[]>` - Embed single text (default implementation provided)
+- `embedQuery(query: string): Promise<number[]>` - Embed search query (default implementation provided, some providers optimize differently)
 
 ### Custom Embeddings Provider
 
-Implement the `Embeddings` interface for other providers:
+To create a custom embedding provider, extend the `Embeddings` base class:
 
 ```typescript
-import { Embeddings } from '@agentionai/agents/core';
+import { Embeddings } from '@agentionai/agents/embeddings';
 
-class CohereEmbeddings extends Embeddings {
-  readonly name = 'cohere';
-  readonly model = 'embed-english-v3.0';
-  readonly dimensions = 1024;
+class CustomEmbeddings extends Embeddings {
+  readonly name = 'custom';
+  readonly model = 'my-model';
+  readonly dimensions = 768;
 
   async embed(texts: string[]): Promise<number[][]> {
-    const response = await cohere.embed({
-      texts,
-      model: this.model,
-      inputType: 'search_document',
-    });
-    return response.embeddings;
+    // Implement your embedding logic
+    // Return array of vectors (one per input text)
+    return texts.map(text => this.generateVector(text));
   }
 
+  // Optional: Override embedQuery for query-specific optimization
   async embedQuery(query: string): Promise<number[]> {
-    const response = await cohere.embed({
-      texts: [query],
-      model: this.model,
-      inputType: 'search_query',  // Different input type for queries
-    });
-    return response.embeddings[0];
+    // Custom query embedding logic
+    return this.embedOne(query);
   }
 }
 ```
@@ -252,25 +297,6 @@ await store.addEmbeddedDocuments([
 
 // Search with vector
 const results = await store.searchByVector([0.1, 0.2, ...], { limit: 5 });
-```
-
-## Embeddings Interface
-
-```typescript
-abstract class Embeddings {
-  abstract readonly name: string;       // Provider name
-  abstract readonly model: string;      // Model identifier
-  abstract readonly dimensions: number; // Output vector dimensions
-
-  // Embed multiple texts
-  abstract embed(texts: string[]): Promise<number[][]>;
-
-  // Embed single text (default: calls embed with single-item array)
-  async embedOne(text: string): Promise<number[]>;
-
-  // Embed query (default: calls embedOne, override for query-optimized embeddings)
-  async embedQuery(query: string): Promise<number[]>;
-}
 ```
 
 ## VectorStore Interface

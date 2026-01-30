@@ -18,7 +18,7 @@ import {
   SearchOptions,
   DeleteOptions,
 } from "./VectorStore";
-import { Embeddings } from "./Embeddings";
+import { Embeddings } from "../embeddings/Embeddings";
 
 /**
  * Supported types for metadata fields.

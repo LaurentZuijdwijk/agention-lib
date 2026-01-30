@@ -1,7 +1,7 @@
 import { IngestionPipeline } from "./IngestionPipeline";
 import { TextChunker } from "../chunkers/TextChunker";
 import { Chunk } from "../chunkers/types";
-import { Embeddings } from "../vectorstore/Embeddings";
+import { Embeddings } from "../embeddings/Embeddings";
 import {
   VectorStore,
   Document,

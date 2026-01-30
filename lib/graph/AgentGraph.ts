@@ -1,4 +1,5 @@
 import { BaseAgent } from "../agents/BaseAgent";
+import { Tool } from "../tools/Tool";
 import { GraphNode } from "./BaseExecutor";
 import { MapExecutor, MapExecutorOptions } from "./MapExecutor";
 import { ParallelExecutor, ParallelExecutorOptions } from "./ParallelExecutor";
@@ -9,6 +10,23 @@ import {
   SequentialExecutorOptions,
 } from "./SequentialExecutor";
 import { VotingSystem, VotingSystemOptions } from "./VotingSystem";
+import {
+  ContextStore,
+  createContextGetTool,
+  createContextSetTool,
+  createContextListTool,
+  createContextDeleteTool,
+} from "./context";
+import {
+  PlanStore,
+  createPlanTool,
+  createViewPlanTool,
+  createUpdateStepTool,
+  createGetNextStepTool,
+  createAddStepTool,
+  PlanExecutor,
+  PlanExecutorOptions,
+} from "./planning";
 
 // Re-export types for convenience
 export { GraphNode } from "./BaseExecutor";
@@ -39,6 +57,31 @@ export {
   setMetricsCollector,
   createMetricsCollector,
 } from "./GraphMetrics";
+
+// Context exports
+export {
+  ContextStore,
+  createContextGetTool,
+  createContextSetTool,
+  createContextListTool,
+  createContextDeleteTool,
+} from "./context";
+
+// Planning exports
+export {
+  Plan,
+  PlanStep,
+  PlanStepStatus,
+  PlanStatus,
+  PlanStore,
+  createPlanTool,
+  createViewPlanTool,
+  createUpdateStepTool,
+  createGetNextStepTool,
+  createAddStepTool,
+  PlanExecutor,
+  PlanExecutorOptions,
+} from "./planning";
 
 /**
  * Factory class for building agent graphs and workflows.
@@ -157,5 +200,104 @@ export class AgentGraph {
     options: RouterExecutorOptions = {}
   ): RouterExecutor {
     return new RouterExecutor(router, routes, options);
+  }
+
+  /**
+   * Creates a shared context store for passing data between agents.
+   *
+   * @param initial - Optional initial key-value pairs
+   * @returns ContextStore instance
+   *
+   * @example
+   * ```typescript
+   * const context = AgentGraph.createContextStore({ userId: '123' });
+   * const tools = AgentGraph.createContextTools(context);
+   * const agent = Agent.create({ ..., tools });
+   * ```
+   */
+  static createContextStore(initial?: Record<string, unknown>): ContextStore {
+    return new ContextStore(initial);
+  }
+
+  /**
+   * Creates context tools for an agent to read/write shared context.
+   * Includes: context_get, context_set, list_context_keys, context_delete
+   *
+   * @param store - The ContextStore to interact with
+   * @returns Array of context tools
+   */
+  static createContextTools(store: ContextStore): Tool<string>[] {
+    return [
+      createContextGetTool(store),
+      createContextSetTool(store),
+      createContextListTool(store),
+      createContextDeleteTool(store),
+    ];
+  }
+
+  /**
+   * Creates a plan store for managing execution plans.
+   *
+   * @returns PlanStore instance
+   *
+   * @example
+   * ```typescript
+   * const planStore = AgentGraph.createPlanStore();
+   * const tools = AgentGraph.createPlanningTools(planStore);
+   * const agent = Agent.create({ ..., tools });
+   * ```
+   */
+  static createPlanStore(): PlanStore {
+    return new PlanStore();
+  }
+
+  /**
+   * Creates planning tools for an agent to create and manage plans.
+   * Includes: create_plan, view_plan, update_step, get_next_step, add_step
+   *
+   * @param store - The PlanStore to interact with
+   * @returns Array of planning tools
+   */
+  static createPlanningTools(store: PlanStore): Tool<string>[] {
+    return [
+      createPlanTool(store),
+      createViewPlanTool(store),
+      createUpdateStepTool(store),
+      createGetNextStepTool(store),
+      createAddStepTool(store),
+    ];
+  }
+
+  /**
+   * Creates a plan executor that runs agents in a loop until all plan steps are completed.
+   * Agents can dynamically add steps during execution, and the executor will continue
+   * until no pending steps remain.
+   *
+   * @param planStore - The PlanStore to track plan progress
+   * @param agents - Agents to execute in sequence each iteration
+   * @param options - Configuration options
+   * @returns PlanExecutor instance
+   *
+   * @example
+   * ```typescript
+   * const planStore = AgentGraph.createPlanStore();
+   * const planner = new ClaudeAgent({
+   *   tools: AgentGraph.createPlanningTools(planStore),
+   *   description: 'Create a plan and work through each step.',
+   * });
+   *
+   * const executor = AgentGraph.planExecutor(planStore, [planner], {
+   *   maxIterations: 10,
+   * });
+   *
+   * const result = await executor.execute('Research quantum computing');
+   * ```
+   */
+  static planExecutor(
+    planStore: PlanStore,
+    agents: BaseAgent[],
+    options: PlanExecutorOptions = {}
+  ): PlanExecutor {
+    return new PlanExecutor(planStore, agents, options);
   }
 }

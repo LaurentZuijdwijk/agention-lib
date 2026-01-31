@@ -51,6 +51,7 @@ export default defineConfig({
           text: "RAG & Knowledge",
           items: [
             { text: "RAG Guide", link: "/guide/rag" },
+            { text: "Embeddings", link: "/guide/embeddings" },
             { text: "Vector Stores", link: "/guide/vector-stores" },
             {
               text: "Chunking & Ingestion",

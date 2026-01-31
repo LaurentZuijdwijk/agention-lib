@@ -269,35 +269,39 @@ export class AgentGraph {
   }
 
   /**
-   * Creates a plan executor that runs agents in a loop until all plan steps are completed.
-   * Agents can dynamically add steps during execution, and the executor will continue
-   * until no pending steps remain.
+   * Creates a plan executor with separation of planning and execution.
    *
    * @param planStore - The PlanStore to track plan progress
-   * @param agents - Agents to execute in sequence each iteration
+   * @param planningAgent - Agent responsible for creating the plan
+   * @param worker - Agent or GraphNode that executes individual steps
    * @param options - Configuration options
    * @returns PlanExecutor instance
    *
    * @example
    * ```typescript
    * const planStore = AgentGraph.createPlanStore();
+   * const contextStore = AgentGraph.createContextStore();
+   *
    * const planner = new ClaudeAgent({
    *   tools: AgentGraph.createPlanningTools(planStore),
-   *   description: 'Create a plan and work through each step.',
+   *   description: 'Create a detailed plan.',
    * });
    *
-   * const executor = AgentGraph.planExecutor(planStore, [planner], {
-   *   maxIterations: 10,
+   * const worker = new ClaudeAgent({
+   *   tools: AgentGraph.createContextTools(contextStore),
+   *   description: 'Execute individual steps.',
    * });
    *
+   * const executor = AgentGraph.planExecutor(planStore, planner, worker);
    * const result = await executor.execute('Research quantum computing');
    * ```
    */
   static planExecutor(
     planStore: PlanStore,
-    agents: BaseAgent[],
+    planningAgent: BaseAgent,
+    worker: GraphNode<string, string> | BaseAgent,
     options: PlanExecutorOptions = {}
   ): PlanExecutor {
-    return new PlanExecutor(planStore, agents, options);
+    return new PlanExecutor(planStore, planningAgent, worker, options);
   }
 }

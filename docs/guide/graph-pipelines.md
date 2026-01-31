@@ -98,25 +98,74 @@ const result = await router.execute('I need help with my invoice');
 
 ### PlanExecutor
 
-Runs agents in a loop until all plan steps are completed. Agents can dynamically add steps during execution:
+Orchestrates plan-based execution with separate planning and worker agents. The planning agent creates a plan, then worker agents execute each step. Supports concurrent step execution and enforces step limits.
 
 ```typescript
 const planStore = AgentGraph.createPlanStore();
+const contextStore = AgentGraph.createContextStore();
 
-const planner = new ClaudeAgent({
+// Planning agent creates the plan
+const planningAgent = new ClaudeAgent({
   id: 'planner',
-  name: 'Planner',
-  description: 'Create a plan and work through each step. Mark steps complete when done.',
-  model: 'claude-sonnet-4-5',
+  name: 'Planning Agent',
+  description: 'Create a detailed execution plan with clear steps.',
+  model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createPlanningTools(planStore),
 });
 
-const executor = AgentGraph.planExecutor(planStore, [planner], {
-  maxIterations: 10,
+// Worker agent executes individual steps
+const workerAgent = new ClaudeAgent({
+  id: 'worker',
+  name: 'Worker Agent',
+  description: 'Execute a single step and store results in context.',
+  model: 'claude-sonnet-4-20250514',
+  tools: AgentGraph.createContextTools(contextStore),
 });
 
-const result = await executor.execute('Research and summarize quantum computing');
-// Loops until all plan steps are completed
+const executor = AgentGraph.planExecutor(planStore, planningAgent, workerAgent, {
+  maxSteps: 10,           // Maximum steps to execute
+  concurrency: 1,         // Run steps sequentially (1) or in parallel (>1)
+  onPlanCreated: (goal, steps) => {
+    console.log(`Plan: ${goal} with ${steps.length} steps`);
+  },
+  onStepComplete: (step, result, num) => {
+    console.log(`Completed step ${num}: ${step.description}`);
+  },
+});
+
+const finalOutput = await executor.execute('Research and summarize quantum computing');
+// Returns clean finalOutput string for chaining
+
+// Get detailed results
+const details = executor.getLastResult();
+console.log(details.completedSteps, details.totalSteps);
+```
+
+**Key Features:**
+- **Separation of Concerns**: Planning and execution are separate phases
+- **Concurrency Support**: Execute multiple independent steps in parallel
+- **Step Limits**: `maxSteps` constrains both planning and execution
+- **Graph Chaining**: Returns `finalOutput` string for pipeline integration
+- **Detailed Results**: Use `getLastResult()` to access full execution details
+
+**Use in Pipelines:**
+```typescript
+const planner = AgentGraph.planExecutor(planStore, planningAgent, workerAgent, {
+  maxSteps: 5,
+});
+
+const summarizer = new ClaudeAgent({
+  description: 'Create a summary from the plan results.',
+  model: 'claude-sonnet-4-20250514',
+});
+
+// Chain PlanExecutor with other nodes
+const pipeline = AgentGraph.pipeline(
+  planner,
+  AgentGraph.sequential(summarizer)
+);
+
+const result = await pipeline.execute('Build a feature roadmap');
 ```
 
 ## Shared Context
@@ -190,19 +239,22 @@ Use both context and planning for sophisticated workflows:
 const contextStore = AgentGraph.createContextStore();
 const planStore = AgentGraph.createPlanStore();
 
-const agent = new ClaudeAgent({
-  id: 'researcher',
-  name: 'Research Agent',
-  description: 'Create a research plan, execute each step, store findings in context.',
+const planner = new ClaudeAgent({
+  id: 'planner',
+  description: 'Create a research plan.',
   model: 'claude-sonnet-4-20250514',
-  tools: [
-    ...AgentGraph.createContextTools(contextStore),
-    ...AgentGraph.createPlanningTools(planStore),
-  ],
+  tools: AgentGraph.createPlanningTools(planStore),
 });
 
-const executor = AgentGraph.planExecutor(planStore, [agent], {
-  maxIterations: 10,
+const researcher = new ClaudeAgent({
+  id: 'researcher',
+  description: 'Execute research steps and store findings in context.',
+  model: 'claude-sonnet-4-20250514',
+  tools: AgentGraph.createContextTools(contextStore),
+});
+
+const executor = AgentGraph.planExecutor(planStore, planner, researcher, {
+  maxSteps: 10,
   onStepComplete: (step, result) => {
     console.log(`Completed: ${step.description}`);
   },
@@ -319,7 +371,7 @@ const pipeline = AgentGraph.pipeline(dataFetcher, analyzer);
 | `AgentGraph.map(processor, options)` | Apply processor to array items |
 | `AgentGraph.votingSystem(judge, options)` | Judge selects best solution |
 | `AgentGraph.router(router, routes, options)` | Route to handlers |
-| `AgentGraph.planExecutor(store, agents, options)` | Loop until plan complete |
+| `AgentGraph.planExecutor(store, planner, worker, options)` | Orchestrate plan-based execution |
 | `AgentGraph.createContextStore(initial)` | Create shared context |
 | `AgentGraph.createContextTools(store)` | Get context tools |
 | `AgentGraph.createPlanStore()` | Create plan store |

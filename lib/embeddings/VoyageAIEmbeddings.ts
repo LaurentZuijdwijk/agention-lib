@@ -126,7 +126,7 @@ export class VoyageAIEmbeddings extends Embeddings {
     }
 
     // Dynamic import to keep voyageai optional at module load time
-    // @ts-expect-error - voyageai is a peer dependency
+    // @ts-ignore - voyageai is an optional peer dependency
     const { VoyageAIClient } = await import("voyageai");
 
     const client = new VoyageAIClient({

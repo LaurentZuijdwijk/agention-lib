@@ -298,7 +298,7 @@ const writer = new ClaudeAgent({
   model: 'claude-sonnet-4-20250514',
 });
 
-const pipeline = AgentGraph.pipeline(researcher, analyst, writer);
+const pipeline = AgentGraph.sequential(researcher, analyst, writer);
 ```
 
 **Why This Matters:**

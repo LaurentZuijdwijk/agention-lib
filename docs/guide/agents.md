@@ -94,9 +94,23 @@ const agent = new ClaudeAgent({
 
 ## Conversation History
 
-Agents maintain conversation history across multiple `execute()` calls:
+By default, agents use **transient history** that clears after each `execute()` call. This saves costs and simplifies history management.
+
+To maintain history across calls, create and pass a `History` object:
 
 ```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { History } from '@agentionai/agents/core';
+
+const history = new History();
+
+const agent = new ClaudeAgent({
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'claude-sonnet-4-5',
+}, history);
+
 await agent.execute('My name is Alice.');
 const response = await agent.execute('What is my name?');
 // Agent remembers: "Your name is Alice"
@@ -105,8 +119,10 @@ const response = await agent.execute('What is my name?');
 Clear history to start fresh:
 
 ```typescript
-agent.clearHistory();
+history.clear();
 ```
+
+See [History Management](/guide/history) for persistence, sharing, and advanced usage.
 
 ## Using Different Providers
 

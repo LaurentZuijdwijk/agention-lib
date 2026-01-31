@@ -1,6 +1,6 @@
 # Examples
 
-Real-world examples demonstrating Agention's capabilities. All examples are available in the [`examples/`](https://github.com/laurentzuijdwijk/agention-lib/tree/main/examples) directory.
+Real-world examples demonstrating Agention's capabilities. All examples are available in the `examples/` directory of the repository.
 
 ## Weather Assistant
 
@@ -63,8 +63,6 @@ const result = await weatherAgent.execute('What is the weather in Paris?');
 
 The agent automatically chains the tools: geocoding → weather lookup → formatted response.
 
-[View full example →](https://github.com/laurentzuijdwijk/agention-lib/blob/main/examples/weather.ts)
-
 ---
 
 ## Deep Research
@@ -113,8 +111,6 @@ This example shows:
 - **Cost optimization** - GPT-4o-mini handles the bulk of API calls (searching)
 - **Quality synthesis** - Claude handles planning and final synthesis
 - **Agent delegation** - Main researcher calls the assistant when needed
-
-[View full example →](https://github.com/laurentzuijdwijk/agention-lib/blob/main/examples/research-agents/)
 
 ---
 
@@ -183,20 +179,11 @@ const pipeline = AgentGraph.pipeline(
 );
 ```
 
-[View full example →](https://github.com/laurentzuijdwijk/agention-lib/blob/main/examples/graph/)
-
 ---
 
 ## Running Examples
 
 ```bash
-# Clone the repo
-git clone https://github.com/laurentzuijdwijk/agention-lib.git
-cd agention-lib
-
-# Install dependencies
-npm install
-
 # Set up environment variables
 cp examples/.env.example examples/.env
 # Edit .env with your API keys

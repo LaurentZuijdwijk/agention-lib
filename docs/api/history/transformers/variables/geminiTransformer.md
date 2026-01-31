@@ -2,8 +2,6 @@
 
 > `const` **geminiTransformer**: `object`
 
-Defined in: [lib/history/transformers.ts:430](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/transformers.ts#L430)
-
 ## Type Declaration
 
 ### fromProviderContent()

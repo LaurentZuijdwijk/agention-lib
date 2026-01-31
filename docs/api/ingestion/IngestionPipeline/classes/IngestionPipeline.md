@@ -1,7 +1,5 @@
 # Class: IngestionPipeline
 
-Defined in: [lib/ingestion/IngestionPipeline.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L36)
-
 Pipeline for ingesting documents into a vector store.
 Orchestrates the flow: chunk → batch embed → store
 
@@ -32,8 +30,6 @@ console.log(`Stored ${result.chunksStored} chunks in ${result.duration}ms`);
 
 > **new IngestionPipeline**(`chunker`, `embeddings`, `store`): `IngestionPipeline`
 
-Defined in: [lib/ingestion/IngestionPipeline.ts:41](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L41)
-
 #### Parameters
 
 ##### chunker
@@ -42,7 +38,7 @@ Defined in: [lib/ingestion/IngestionPipeline.ts:41](https://github.com/LaurentZu
 
 ##### embeddings
 
-[`Embeddings`](../../../vectorstore/Embeddings/classes/Embeddings.md)
+[`Embeddings`](../../../embeddings/Embeddings/classes/Embeddings.md)
 
 ##### store
 
@@ -58,8 +54,6 @@ Defined in: [lib/ingestion/IngestionPipeline.ts:41](https://github.com/LaurentZu
 
 > **getChunker**(): [`Chunker`](../../../chunkers/Chunker/classes/Chunker.md)
 
-Defined in: [lib/ingestion/IngestionPipeline.ts:313](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L313)
-
 Get the chunker used by this pipeline.
 
 #### Returns
@@ -70,23 +64,19 @@ Get the chunker used by this pipeline.
 
 ### getEmbeddings()
 
-> **getEmbeddings**(): [`Embeddings`](../../../vectorstore/Embeddings/classes/Embeddings.md)
-
-Defined in: [lib/ingestion/IngestionPipeline.ts:320](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L320)
+> **getEmbeddings**(): [`Embeddings`](../../../embeddings/Embeddings/classes/Embeddings.md)
 
 Get the embeddings provider used by this pipeline.
 
 #### Returns
 
-[`Embeddings`](../../../vectorstore/Embeddings/classes/Embeddings.md)
+[`Embeddings`](../../../embeddings/Embeddings/classes/Embeddings.md)
 
 ***
 
 ### getStore()
 
 > **getStore**(): [`VectorStore`](../../../vectorstore/VectorStore/classes/VectorStore.md)
-
-Defined in: [lib/ingestion/IngestionPipeline.ts:327](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L327)
 
 Get the vector store used by this pipeline.
 
@@ -99,8 +89,6 @@ Get the vector store used by this pipeline.
 ### ingest()
 
 > **ingest**(`text`, `options?`): `Promise`\<[`IngestionResult`](../../types/interfaces/IngestionResult.md)\>
-
-Defined in: [lib/ingestion/IngestionPipeline.ts:54](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L54)
 
 Ingest a single document into the vector store.
 
@@ -130,8 +118,6 @@ Result of the ingestion operation
 
 > **ingestChunks**(`chunks`, `options?`): `Promise`\<[`IngestionResult`](../../types/interfaces/IngestionResult.md)\>
 
-Defined in: [lib/ingestion/IngestionPipeline.ts:138](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L138)
-
 Ingest pre-chunked data into the vector store.
 Useful when chunking is done separately.
 
@@ -160,8 +146,6 @@ Result of the ingestion operation
 ### ingestMany()
 
 > **ingestMany**(`documents`, `options?`): `Promise`\<[`IngestionResult`](../../types/interfaces/IngestionResult.md)\>
-
-Defined in: [lib/ingestion/IngestionPipeline.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/ingestion/IngestionPipeline.ts#L99)
 
 Ingest multiple documents into the vector store.
 

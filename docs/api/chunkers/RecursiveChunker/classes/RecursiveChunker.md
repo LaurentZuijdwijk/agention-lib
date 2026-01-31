@@ -1,7 +1,5 @@
 # Class: RecursiveChunker
 
-Defined in: [lib/chunkers/RecursiveChunker.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/RecursiveChunker.ts#L20)
-
 Recursive text chunker that tries to split on semantic boundaries.
 It attempts to split by larger separators first (paragraphs), then
 falls back to smaller ones (sentences, words) to keep semantic units together.
@@ -28,8 +26,6 @@ const chunks = await chunker.chunk(document);
 
 > **new RecursiveChunker**(`config`): `RecursiveChunker`
 
-Defined in: [lib/chunkers/RecursiveChunker.ts:24](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/RecursiveChunker.ts#L24)
-
 #### Parameters
 
 ##### config
@@ -50,8 +46,6 @@ Defined in: [lib/chunkers/RecursiveChunker.ts:24](https://github.com/LaurentZuij
 
 > `readonly` **name**: `"RecursiveChunker"` = `"RecursiveChunker"`
 
-Defined in: [lib/chunkers/RecursiveChunker.ts:21](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/RecursiveChunker.ts#L21)
-
 Name identifier for this chunker type
 
 #### Overrides
@@ -63,8 +57,6 @@ Name identifier for this chunker type
 ### chunk()
 
 > **chunk**(`text`, `options?`): `Promise`\<[`Chunk`](../../types/interfaces/Chunk.md)[]\>
-
-Defined in: [lib/chunkers/Chunker.ts:39](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/Chunker.ts#L39)
 
 Split text into chunks with metadata.
 
@@ -98,8 +90,6 @@ Array of chunks with metadata
 
 > **getChunkOverlap**(): `number`
 
-Defined in: [lib/chunkers/Chunker.ts:209](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/Chunker.ts#L209)
-
 Get the chunk overlap configuration.
 
 #### Returns
@@ -116,8 +106,6 @@ Get the chunk overlap configuration.
 
 > **getChunkSize**(): `number`
 
-Defined in: [lib/chunkers/Chunker.ts:202](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/Chunker.ts#L202)
-
 Get the chunk size configuration.
 
 #### Returns
@@ -133,8 +121,6 @@ Get the chunk size configuration.
 ### getSeparators()
 
 > **getSeparators**(): `string`[]
-
-Defined in: [lib/chunkers/RecursiveChunker.ts:190](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/RecursiveChunker.ts#L190)
 
 Get the configured separators.
 

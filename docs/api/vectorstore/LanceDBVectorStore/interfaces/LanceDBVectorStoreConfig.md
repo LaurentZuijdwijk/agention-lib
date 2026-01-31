@@ -1,7 +1,5 @@
 # Interface: LanceDBVectorStoreConfig
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:26](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L26)
-
 Configuration for LanceDBVectorStore.
 
 ## Properties
@@ -9,8 +7,6 @@ Configuration for LanceDBVectorStore.
 ### connectionOptions?
 
 > `optional` **connectionOptions**: `Partial`\<`ConnectionOptions`\>
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:38](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L38)
 
 Additional connection options
 
@@ -20,27 +16,31 @@ Additional connection options
 
 > `optional` **dimensions**: `number`
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:36](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L36)
-
 Vector dimensions (required if no embeddings provider, defaults to embeddings.dimensions)
 
 ***
 
 ### embeddings?
 
-> `optional` **embeddings**: [`Embeddings`](../../Embeddings/classes/Embeddings.md)
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:34](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L34)
+> `optional` **embeddings**: [`Embeddings`](../../../embeddings/Embeddings/classes/Embeddings.md)
 
 Embeddings provider for automatic embedding generation
+
+***
+
+### metadataFields?
+
+> `optional` **metadataFields**: [`MetadataFieldDefinition`](MetadataFieldDefinition.md)[]
+
+Metadata field definitions for filterable columns.
+When specified, metadata fields are stored as separate columns enabling efficient filtering.
+If not specified, metadata is stored as a JSON string (legacy behavior).
 
 ***
 
 ### name
 
 > **name**: `string`
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:28](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L28)
 
 Name identifier for this store instance
 
@@ -50,8 +50,6 @@ Name identifier for this store instance
 
 > **tableName**: `string`
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:32](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L32)
-
 Name of the table to use
 
 ***
@@ -59,7 +57,5 @@ Name of the table to use
 ### uri
 
 > **uri**: `string`
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:30](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L30)
 
 URI for the LanceDB database (local path or cloud URI)

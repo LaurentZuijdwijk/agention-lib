@@ -1,7 +1,5 @@
 # Class: TextChunker
 
-Defined in: [lib/chunkers/TextChunker.ts:20](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/TextChunker.ts#L20)
-
 Simple text chunker that splits by character count with optional overlap.
 
 ## Example
@@ -28,8 +26,6 @@ const chunks = await chunker.chunk(longText, {
 
 > **new TextChunker**(`config`): `TextChunker`
 
-Defined in: [lib/chunkers/TextChunker.ts:23](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/TextChunker.ts#L23)
-
 #### Parameters
 
 ##### config
@@ -50,8 +46,6 @@ Defined in: [lib/chunkers/TextChunker.ts:23](https://github.com/LaurentZuijdwijk
 
 > `readonly` **name**: `"TextChunker"` = `"TextChunker"`
 
-Defined in: [lib/chunkers/TextChunker.ts:21](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/TextChunker.ts#L21)
-
 Name identifier for this chunker type
 
 #### Overrides
@@ -63,8 +57,6 @@ Name identifier for this chunker type
 ### chunk()
 
 > **chunk**(`text`, `options?`): `Promise`\<[`Chunk`](../../types/interfaces/Chunk.md)[]\>
-
-Defined in: [lib/chunkers/Chunker.ts:39](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/Chunker.ts#L39)
 
 Split text into chunks with metadata.
 
@@ -98,8 +90,6 @@ Array of chunks with metadata
 
 > **getChunkOverlap**(): `number`
 
-Defined in: [lib/chunkers/Chunker.ts:209](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/Chunker.ts#L209)
-
 Get the chunk overlap configuration.
 
 #### Returns
@@ -115,8 +105,6 @@ Get the chunk overlap configuration.
 ### getChunkSize()
 
 > **getChunkSize**(): `number`
-
-Defined in: [lib/chunkers/Chunker.ts:202](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/chunkers/Chunker.ts#L202)
 
 Get the chunk size configuration.
 

@@ -1,7 +1,5 @@
 # Class: RouterExecutor
 
-Defined in: [lib/graph/RouterExecutor.ts:69](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/RouterExecutor.ts#L69)
-
 Routes input to one of several available handlers based on an agent's decision.
 The router agent analyzes the input and selects the most appropriate route.
 
@@ -27,8 +25,6 @@ const result = await router.execute("How do I fix this TypeScript error?");
 ### Constructor
 
 > **new RouterExecutor**(`router`, `routes`, `options`): `RouterExecutor`
-
-Defined in: [lib/graph/RouterExecutor.ts:75](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/RouterExecutor.ts#L75)
 
 #### Parameters
 
@@ -58,8 +54,6 @@ Defined in: [lib/graph/RouterExecutor.ts:75](https://github.com/LaurentZuijdwijk
 
 > **name**: `string`
 
-Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L50)
-
 Display name for this executor
 
 #### Inherited from
@@ -71,8 +65,6 @@ Display name for this executor
 ### nodeType
 
 > **nodeType**: [`GraphNodeType`](../../BaseExecutor/type-aliases/GraphNodeType.md) = `"custom"`
-
-Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L53)
 
 Type of this node for metrics and visualization
 
@@ -88,8 +80,6 @@ Type of this node for metrics and visualization
 
 > **get** **length**(): `number`
 
-Defined in: [lib/graph/RouterExecutor.ts:326](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/RouterExecutor.ts#L326)
-
 Returns the number of available routes.
 
 ##### Returns
@@ -101,8 +91,6 @@ Returns the number of available routes.
 ### execute()
 
 > **execute**(`input`): `Promise`\<`string`\>
-
-Defined in: [lib/graph/RouterExecutor.ts:105](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/RouterExecutor.ts#L105)
 
 Routes the input to the appropriate handler based on the router agent's decision.
 
@@ -130,8 +118,6 @@ The output from the selected route's handler
 
 > **getMetrics**(): [`NodeExecutionMetrics`](../../GraphMetrics/interfaces/NodeExecutionMetrics.md)[] \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L92)
-
 Get collected metrics (if metrics collection is enabled).
 
 #### Returns
@@ -147,8 +133,6 @@ Get collected metrics (if metrics collection is enabled).
 ### getMetricsCollector()
 
 > **getMetricsCollector**(): [`MetricsCollector`](../../GraphMetrics/classes/MetricsCollector.md) \| `undefined`
-
-Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L99)
 
 Get the metrics collector instance.
 
@@ -166,8 +150,6 @@ Get the metrics collector instance.
 
 > **getRouteNames**(): `string`[]
 
-Defined in: [lib/graph/RouterExecutor.ts:319](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/RouterExecutor.ts#L319)
-
 Returns the available route names.
 
 #### Returns
@@ -179,8 +161,6 @@ Returns the available route names.
 ### withMetrics()
 
 > **withMetrics**(`collector?`): `this`
-
-Defined in: [lib/graph/BaseExecutor.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L64)
 
 Enable metrics collection for this executor.
 
@@ -203,8 +183,6 @@ Enable metrics collection for this executor.
 ### withName()
 
 > **withName**(`name`): `this`
-
-Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L73)
 
 Set a custom name for this executor (used in metrics).
 

@@ -1,13 +1,11 @@
 # Class: LanceDBVectorStore
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:84](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L84)
-
 LanceDB implementation of the VectorStore interface.
 
-## Example
+## Examples
 
 ```typescript
-import { LanceDBVectorStore, OpenAIEmbeddings } from "@agentionai/agents/core";
+import { LanceDBVectorStore, OpenAIEmbeddings } from "@agentionai/agents";
 
 // Create with OpenAI embeddings
 const embeddings = new OpenAIEmbeddings({
@@ -34,6 +32,37 @@ const results = await store.search("What is LanceDB?", { limit: 5 });
 const searchTool = store.toRetrievalTool("Search the knowledge base");
 ```
 
+```typescript
+const store = await LanceDBVectorStore.create({
+  name: "knowledge_base",
+  uri: "./my-database",
+  tableName: "documents",
+  embeddings,
+  metadataFields: [
+    { name: "category", type: "string" },
+    { name: "source", type: "string" },
+    { name: "year", type: "number" },
+    { name: "verified", type: "boolean" },
+    { name: "hash", type: "string" }, // Enables efficient deduplication
+  ],
+});
+
+// Add documents with metadata
+await store.addDocuments([
+  {
+    id: "1",
+    content: "LanceDB is a vector database",
+    metadata: { category: "database", source: "docs", year: 2024, verified: true },
+  },
+]);
+
+// Search with filters on metadata columns
+const results = await store.search("vector database", {
+  limit: 5,
+  filter: { category: "database", year: 2024 },
+});
+```
+
 ## Extends
 
 - [`VectorStore`](../../VectorStore/classes/VectorStore.md)
@@ -43,8 +72,6 @@ const searchTool = store.toRetrievalTool("Search the knowledge base");
 ### name
 
 > `readonly` **name**: `string`
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:85](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L85)
 
 Name identifier for this vector store instance
 
@@ -57,8 +84,6 @@ Name identifier for this vector store instance
 ### addDocuments()
 
 > **addDocuments**(`documents`, `_options?`): `Promise`\<`string`[]\>
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:180](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L180)
 
 Add documents to the vector store.
 If an embeddings provider is configured, embeddings are generated automatically.
@@ -87,8 +112,6 @@ If an embeddings provider is configured, embeddings are generated automatically.
 
 > **addEmbeddedDocuments**(`documents`, `_options?`): `Promise`\<`string`[]\>
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:206](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L206)
-
 Add documents with pre-computed embeddings.
 
 #### Parameters
@@ -115,8 +138,6 @@ Add documents with pre-computed embeddings.
 
 > **clear**(`_options?`): `Promise`\<`void`\>
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:279](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L279)
-
 Delete all documents.
 
 #### Parameters
@@ -139,8 +160,6 @@ Delete all documents.
 
 > **createIndex**(): `Promise`\<`void`\>
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:374](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L374)
-
 Create an index on the vector column for faster searches.
 Recommended for tables with more than 10,000 rows.
 
@@ -153,8 +172,6 @@ Recommended for tables with more than 10,000 rows.
 ### delete()
 
 > **delete**(`ids`, `_options?`): `Promise`\<`number`\>
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:265](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L265)
 
 Delete documents by their IDs.
 
@@ -182,10 +199,11 @@ Delete documents by their IDs.
 
 > **getByHashes**(`hashes`, `_options?`): `Promise`\<`Map`\<`string`, `string`\>\>
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:312](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L312)
-
 Get existing documents by their content hashes.
 Used for deduplication during ingestion.
+
+Note: If using metadataFields, include a "hash" field of type "string"
+for efficient hash lookups. Otherwise, falls back to LIKE queries on JSON metadata.
 
 #### Parameters
 
@@ -210,8 +228,6 @@ Used for deduplication during ingestion.
 ### getById()
 
 > **getById**(`id`, `_options?`): `Promise`\<[`Document`](../../VectorStore/interfaces/Document.md) \| `null`\>
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:286](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L286)
 
 Get a document by its ID.
 
@@ -239,8 +255,6 @@ Get a document by its ID.
 
 > **getConnection**(): `Connection`
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:345](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L345)
-
 Get the underlying LanceDB connection.
 
 #### Returns
@@ -253,8 +267,6 @@ Get the underlying LanceDB connection.
 
 > **getDimensions**(): `number`
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:366](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L366)
-
 Get the vector dimensions.
 
 #### Returns
@@ -265,23 +277,31 @@ Get the vector dimensions.
 
 ### getEmbeddings()
 
-> **getEmbeddings**(): [`Embeddings`](../../Embeddings/classes/Embeddings.md) \| `undefined`
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:359](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L359)
+> **getEmbeddings**(): [`Embeddings`](../../../embeddings/Embeddings/classes/Embeddings.md) \| `undefined`
 
 Get the configured embeddings provider.
 
 #### Returns
 
-[`Embeddings`](../../Embeddings/classes/Embeddings.md) \| `undefined`
+[`Embeddings`](../../../embeddings/Embeddings/classes/Embeddings.md) \| `undefined`
+
+***
+
+### getMetadataFields()
+
+> **getMetadataFields**(): [`MetadataFieldDefinition`](../interfaces/MetadataFieldDefinition.md)[] \| `undefined`
+
+Get the configured metadata fields.
+
+#### Returns
+
+[`MetadataFieldDefinition`](../interfaces/MetadataFieldDefinition.md)[] \| `undefined`
 
 ***
 
 ### getTable()
 
 > **getTable**(): `Table`
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:352](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L352)
 
 Get the underlying LanceDB table.
 
@@ -295,8 +315,6 @@ Get the underlying LanceDB table.
 
 > **optimize**(): `Promise`\<`void`\>
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:381](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L381)
-
 Optimize the table for better performance.
 
 #### Returns
@@ -308,8 +326,6 @@ Optimize the table for better performance.
 ### search()
 
 > **search**(`query`, `options?`): `Promise`\<[`SearchResult`](../../VectorStore/interfaces/SearchResult.md)[]\>
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:224](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L224)
 
 Search for documents similar to the query.
 
@@ -337,8 +353,6 @@ Search for documents similar to the query.
 
 > **searchByVector**(`embedding`, `options?`): `Promise`\<[`SearchResult`](../../VectorStore/interfaces/SearchResult.md)[]\>
 
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:241](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L241)
-
 Search using a pre-computed embedding vector.
 
 #### Parameters
@@ -364,8 +378,6 @@ Search using a pre-computed embedding vector.
 ### toAddDocumentsTool()
 
 > **toAddDocumentsTool**(`description`, `options`): [`Tool`](../../../tools/Tool/classes/Tool.md)\<\{ `added`: `string`[]; `count`: `number`; \}\>
-
-Defined in: [lib/vectorstore/VectorStore.ts:338](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/VectorStore.ts#L338)
 
 Create a tool that agents can use to add documents to this vector store.
 
@@ -408,8 +420,6 @@ agent.addTools([tool]);
 ### toGetChunkByIdTool()
 
 > **toGetChunkByIdTool**(`description`, `options`): [`Tool`](../../../tools/Tool/classes/Tool.md)\<[`Document`](../../VectorStore/interfaces/Document.md) \| `null`\>
-
-Defined in: [lib/vectorstore/VectorStore.ts:413](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/VectorStore.ts#L413)
 
 Create a tool that agents can use to retrieve a chunk by its ID.
 Useful for navigating chunk chains using previousChunkId/nextChunkId metadata.
@@ -454,8 +464,6 @@ agent.addTools([tool]);
 
 > **toRetrievalTool**(`description`, `options`): [`Tool`](../../../tools/Tool/classes/Tool.md)\<[`SearchResult`](../../VectorStore/interfaces/SearchResult.md)[]\>
 
-Defined in: [lib/vectorstore/VectorStore.ts:253](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/VectorStore.ts#L253)
-
 Create a retrieval tool that agents can use to search this vector store.
 
 #### Parameters
@@ -498,8 +506,6 @@ agent.addTools([tool]);
 ### create()
 
 > `static` **create**(`config`): `Promise`\<`LanceDBVectorStore`\>
-
-Defined in: [lib/vectorstore/LanceDBVectorStore.ts:118](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/vectorstore/LanceDBVectorStore.ts#L118)
 
 Create a new LanceDBVectorStore instance.
 

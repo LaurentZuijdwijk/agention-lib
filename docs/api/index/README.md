@@ -40,7 +40,7 @@ Re-exports [AgentStartPayload](../viz/types/interfaces/AgentStartPayload.md)
 
 ### AgentVendor
 
-Re-exports [AgentVendor](../agents/BaseAgent/type-aliases/AgentVendor.md)
+Re-exports [AgentVendor](../agents/AgentConfig/type-aliases/AgentVendor.md)
 
 ***
 
@@ -154,13 +154,13 @@ Re-exports [EmbeddedDocument](../vectorstore/VectorStore/interfaces/EmbeddedDocu
 
 ### EmbeddingOptions
 
-Re-exports [EmbeddingOptions](../vectorstore/Embeddings/interfaces/EmbeddingOptions.md)
+Re-exports [EmbeddingOptions](../embeddings/Embeddings/interfaces/EmbeddingOptions.md)
 
 ***
 
 ### Embeddings
 
-Re-exports [Embeddings](../vectorstore/Embeddings/classes/Embeddings.md)
+Re-exports [Embeddings](../embeddings/Embeddings/classes/Embeddings.md)
 
 ***
 
@@ -314,6 +314,18 @@ Re-exports [MessageRole](../history/types/type-aliases/MessageRole.md)
 
 ***
 
+### MetadataFieldDefinition
+
+Re-exports [MetadataFieldDefinition](../vectorstore/LanceDBVectorStore/interfaces/MetadataFieldDefinition.md)
+
+***
+
+### MetadataFieldType
+
+Re-exports [MetadataFieldType](../vectorstore/LanceDBVectorStore/type-aliases/MetadataFieldType.md)
+
+***
+
 ### MetricsCollector
 
 Re-exports [MetricsCollector](../graph/GraphMetrics/classes/MetricsCollector.md)
@@ -374,15 +386,21 @@ Re-exports [OpenAiAgent](../agents/openai/OpenAiAgent/classes/OpenAiAgent.md)
 
 ***
 
+### OpenAIEmbeddingModel
+
+Re-exports [OpenAIEmbeddingModel](../embeddings/OpenAIEmbeddings/type-aliases/OpenAIEmbeddingModel.md)
+
+***
+
 ### OpenAIEmbeddings
 
-Re-exports [OpenAIEmbeddings](../vectorstore/OpenAIEmbeddings/classes/OpenAIEmbeddings.md)
+Re-exports [OpenAIEmbeddings](../embeddings/OpenAIEmbeddings/classes/OpenAIEmbeddings.md)
 
 ***
 
 ### OpenAIEmbeddingsConfig
 
-Re-exports [OpenAIEmbeddingsConfig](../vectorstore/OpenAIEmbeddings/interfaces/OpenAIEmbeddingsConfig.md)
+Re-exports [OpenAIEmbeddingsConfig](../embeddings/OpenAIEmbeddings/interfaces/OpenAIEmbeddingsConfig.md)
 
 ***
 
@@ -755,3 +773,27 @@ Re-exports [VotingSystem](../graph/VotingSystem/classes/VotingSystem.md)
 ### VotingSystemOptions
 
 Re-exports [VotingSystemOptions](../graph/VotingSystem/interfaces/VotingSystemOptions.md)
+
+***
+
+### VoyageAIEmbeddingModel
+
+Re-exports [VoyageAIEmbeddingModel](../embeddings/VoyageAIEmbeddings/type-aliases/VoyageAIEmbeddingModel.md)
+
+***
+
+### VoyageAIEmbeddings
+
+Re-exports [VoyageAIEmbeddings](../embeddings/VoyageAIEmbeddings/classes/VoyageAIEmbeddings.md)
+
+***
+
+### VoyageAIEmbeddingsConfig
+
+Re-exports [VoyageAIEmbeddingsConfig](../embeddings/VoyageAIEmbeddings/interfaces/VoyageAIEmbeddingsConfig.md)
+
+***
+
+### VoyageAIMultimodalModel
+
+Re-exports [VoyageAIMultimodalModel](../embeddings/VoyageAIEmbeddings/type-aliases/VoyageAIMultimodalModel.md)

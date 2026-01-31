@@ -8,5 +8,6 @@
   "readme": "none",
   "githubPages": false,
   "hideBreadcrumbs": true,
-  "hidePageHeader": true
+  "hidePageHeader": true,
+  "disableSources": true
 }

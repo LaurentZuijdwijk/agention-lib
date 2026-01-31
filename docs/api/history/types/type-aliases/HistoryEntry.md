@@ -2,8 +2,6 @@
 
 > **HistoryEntry** = `object`
 
-Defined in: [lib/history/types.ts:131](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L131)
-
 A single entry in the conversation history.
 
 This is the normalized format that all providers transform to/from.
@@ -40,20 +38,14 @@ const entry: HistoryEntry = {
 
 > **content**: [`MessageContent`](MessageContent.md)[]
 
-Defined in: [lib/history/types.ts:133](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L133)
-
 ***
 
 ### meta?
 
 > `optional` **meta**: [`ProviderMeta`](ProviderMeta.md)
 
-Defined in: [lib/history/types.ts:134](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L134)
-
 ***
 
 ### role
 
 > **role**: [`MessageRole`](MessageRole.md)
-
-Defined in: [lib/history/types.ts:132](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/history/types.ts#L132)

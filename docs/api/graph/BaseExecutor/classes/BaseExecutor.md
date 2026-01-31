@@ -1,7 +1,5 @@
 # Abstract Class: BaseExecutor\<TInput, TOutput\>
 
-Defined in: [lib/graph/BaseExecutor.ts:46](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L46)
-
 Base class for executors that implement the GraphNode interface.
 Provides a foundation for building type-safe graph executors with optional metrics.
 
@@ -44,8 +42,6 @@ Provides a foundation for building type-safe graph executors with optional metri
 
 > **name**: `string`
 
-Defined in: [lib/graph/BaseExecutor.ts:50](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L50)
-
 Display name for this executor
 
 #### Implementation of
@@ -58,8 +54,6 @@ Display name for this executor
 
 > **nodeType**: [`GraphNodeType`](../type-aliases/GraphNodeType.md) = `"custom"`
 
-Defined in: [lib/graph/BaseExecutor.ts:53](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L53)
-
 Type of this node for metrics and visualization
 
 #### Implementation of
@@ -71,8 +65,6 @@ Type of this node for metrics and visualization
 ### execute()
 
 > `abstract` **execute**(`input`): `Promise`\<`TOutput`\>
-
-Defined in: [lib/graph/BaseExecutor.ts:103](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L103)
 
 #### Parameters
 
@@ -94,8 +86,6 @@ Defined in: [lib/graph/BaseExecutor.ts:103](https://github.com/LaurentZuijdwijk/
 
 > **getMetrics**(): [`NodeExecutionMetrics`](../../GraphMetrics/interfaces/NodeExecutionMetrics.md)[] \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:92](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L92)
-
 Get collected metrics (if metrics collection is enabled).
 
 #### Returns
@@ -108,8 +98,6 @@ Get collected metrics (if metrics collection is enabled).
 
 > **getMetricsCollector**(): [`MetricsCollector`](../../GraphMetrics/classes/MetricsCollector.md) \| `undefined`
 
-Defined in: [lib/graph/BaseExecutor.ts:99](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L99)
-
 Get the metrics collector instance.
 
 #### Returns
@@ -121,8 +109,6 @@ Get the metrics collector instance.
 ### withMetrics()
 
 > **withMetrics**(`collector?`): `this`
-
-Defined in: [lib/graph/BaseExecutor.ts:64](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L64)
 
 Enable metrics collection for this executor.
 
@@ -141,8 +127,6 @@ Enable metrics collection for this executor.
 ### withName()
 
 > **withName**(`name`): `this`
-
-Defined in: [lib/graph/BaseExecutor.ts:73](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/BaseExecutor.ts#L73)
 
 Set a custom name for this executor (used in metrics).
 

@@ -10,14 +10,14 @@ import { Embeddings } from "./Embeddings";
  * Available VoyageAI embedding models with their dimensions and rate limits.
  */
 export type VoyageAIEmbeddingModel =
-  | "voyage-4-large"        // High performance
-  | "voyage-3-large"        // High performance
-  | "voyage-context-3"      // Context-aware
-  | "voyage-code-3"         // Code-specific
-  | "voyage-4"              // Standard
-  | "voyage-3.5"            // Standard
-  | "voyage-4-lite"         // Lightweight
-  | "voyage-3.5-lite";      // Lightweight
+  | "voyage-4-large" // High performance
+  | "voyage-3-large" // High performance
+  | "voyage-context-3" // Context-aware
+  | "voyage-code-3" // Code-specific
+  | "voyage-4" // Standard
+  | "voyage-3.5" // Standard
+  | "voyage-4-lite" // Lightweight
+  | "voyage-3.5-lite"; // Lightweight
 
 /**
  * Available VoyageAI multimodal models.
@@ -126,6 +126,7 @@ export class VoyageAIEmbeddings extends Embeddings {
     }
 
     // Dynamic import to keep voyageai optional at module load time
+    // @ts-expect-error - voyageai is a peer dependency
     const { VoyageAIClient } = await import("voyageai");
 
     const client = new VoyageAIClient({

@@ -6,14 +6,19 @@
 
 ## Interfaces
 
-- [BaseAgentConfig](interfaces/BaseAgentConfig.md)
+- [~~BaseAgentConfig~~](interfaces/BaseAgentConfig.md)
 
 ## Type Aliases
 
-- [AgentVendor](type-aliases/AgentVendor.md)
 - [TokenUsage](type-aliases/TokenUsage.md)
 
 ## References
+
+### AgentVendor
+
+Re-exports [AgentVendor](../AgentConfig/type-aliases/AgentVendor.md)
+
+***
 
 ### HistoryEntry
 

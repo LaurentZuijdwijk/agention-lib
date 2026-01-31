@@ -1,1 +1,0 @@
-# agents/google/GeminiAgent.spec

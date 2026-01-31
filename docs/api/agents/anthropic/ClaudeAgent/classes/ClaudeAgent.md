@@ -1,7 +1,5 @@
 # Class: ClaudeAgent
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:46](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L46)
-
 Agent for Anthropic models.
 
 ## Example
@@ -27,8 +25,6 @@ const response = await agent.execute("Hello!");
 
 > **new ClaudeAgent**(`config`, `history?`): `ClaudeAgent`
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:59](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L59)
-
 #### Parameters
 
 ##### config
@@ -53,8 +49,6 @@ Defined in: [lib/agents/anthropic/ClaudeAgent.ts:59](https://github.com/LaurentZ
 
 > `optional` **lastTokenUsage**: [`TokenUsage`](../../../BaseAgent/type-aliases/TokenUsage.md)
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:51](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L51)
-
 Token usage from the last execution (for metrics tracking)
 
 ***
@@ -62,8 +56,6 @@ Token usage from the last execution (for metrics tracking)
 ### captureRejections
 
 > `static` **captureRejections**: `boolean`
-
-Defined in: node\_modules/@types/node/events.d.ts:426
 
 Sets or gets the default captureRejection value for all emitters.
 
@@ -77,8 +69,6 @@ Sets or gets the default captureRejection value for all emitters.
 
 > `readonly` `static` **captureRejectionSymbol**: *typeof* [`captureRejectionSymbol`](../../../BaseAgent/classes/BaseAgent.md#capturerejectionsymbol)
 
-Defined in: node\_modules/@types/node/events.d.ts:421
-
 #### Inherited from
 
 [`BaseAgent`](../../../BaseAgent/classes/BaseAgent.md).[`captureRejectionSymbol`](../../../BaseAgent/classes/BaseAgent.md#capturerejectionsymbol)
@@ -89,8 +79,6 @@ Defined in: node\_modules/@types/node/events.d.ts:421
 
 > `static` **defaultMaxListeners**: `number`
 
-Defined in: node\_modules/@types/node/events.d.ts:427
-
 #### Inherited from
 
 [`BaseAgent`](../../../BaseAgent/classes/BaseAgent.md).[`defaultMaxListeners`](../../../BaseAgent/classes/BaseAgent.md#defaultmaxlisteners)
@@ -100,8 +88,6 @@ Defined in: node\_modules/@types/node/events.d.ts:427
 ### errorMonitor
 
 > `readonly` `static` **errorMonitor**: *typeof* [`errorMonitor`](../../../BaseAgent/classes/BaseAgent.md#errormonitor)
-
-Defined in: node\_modules/@types/node/events.d.ts:420
 
 This symbol shall be used to install a listener for only monitoring `'error'`
 events. Listeners installed using this symbol are called before the regular
@@ -120,8 +106,6 @@ regular `'error'` listener is installed.
 ### \[captureRejectionSymbol\]()?
 
 > `optional` **\[captureRejectionSymbol\]**\<`K`\>(`error`, `event`, ...`args`): `void`
-
-Defined in: node\_modules/@types/node/events.d.ts:131
 
 #### Type Parameters
 
@@ -156,8 +140,6 @@ Defined in: node\_modules/@types/node/events.d.ts:131
 ### addListener()
 
 > **addListener**\<`K`\>(`eventName`, `listener`): `this`
-
-Defined in: node\_modules/@types/node/events.d.ts:491
 
 Alias for `emitter.on(eventName, listener)`.
 
@@ -195,8 +177,6 @@ v0.1.26
 
 > **addTools**(`tools`): `void`
 
-Defined in: [lib/agents/BaseAgent.ts:157](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L157)
-
 #### Parameters
 
 ##### tools
@@ -217,8 +197,6 @@ Defined in: [lib/agents/BaseAgent.ts:157](https://github.com/LaurentZuijdwijk/ag
 
 > **clearHistory**(): `void`
 
-Defined in: [lib/agents/BaseAgent.ts:198](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L198)
-
 #### Returns
 
 `void`
@@ -232,8 +210,6 @@ Defined in: [lib/agents/BaseAgent.ts:198](https://github.com/LaurentZuijdwijk/ag
 ### emit()
 
 > **emit**\<`K`\>(`eventName`, ...`args`): `boolean`
-
-Defined in: node\_modules/@types/node/events.d.ts:747
 
 Synchronously calls each of the listeners registered for the event named`eventName`, in the order they were registered, passing the supplied arguments
 to each.
@@ -307,8 +283,6 @@ v0.1.26
 
 > **eventNames**(): (`string` \| `symbol`)[]
 
-Defined in: node\_modules/@types/node/events.d.ts:810
-
 Returns an array listing the events for which the emitter has registered
 listeners. The values in the array are strings or `Symbol`s.
 
@@ -343,8 +317,6 @@ v6.0.0
 
 > **execute**(`input`): `Promise`\<`string`\>
 
-Defined in: [lib/agents/anthropic/ClaudeAgent.ts:85](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/anthropic/ClaudeAgent.ts#L85)
-
 #### Parameters
 
 ##### input
@@ -365,8 +337,6 @@ Defined in: [lib/agents/anthropic/ClaudeAgent.ts:85](https://github.com/LaurentZ
 
 > **getDescription**(): `string`
 
-Defined in: [lib/agents/BaseAgent.ts:178](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L178)
-
 #### Returns
 
 `string`
@@ -380,8 +350,6 @@ Defined in: [lib/agents/BaseAgent.ts:178](https://github.com/LaurentZuijdwijk/ag
 ### getHistoryEntries()
 
 > **getHistoryEntries**(): [`HistoryEntry`](../../../../history/types/type-aliases/HistoryEntry.md)[]
-
-Defined in: [lib/agents/BaseAgent.ts:190](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L190)
 
 #### Returns
 
@@ -397,8 +365,6 @@ Defined in: [lib/agents/BaseAgent.ts:190](https://github.com/LaurentZuijdwijk/ag
 
 > **getId**(): `string`
 
-Defined in: [lib/agents/BaseAgent.ts:170](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L170)
-
 #### Returns
 
 `string`
@@ -412,8 +378,6 @@ Defined in: [lib/agents/BaseAgent.ts:170](https://github.com/LaurentZuijdwijk/ag
 ### getMaxListeners()
 
 > **getMaxListeners**(): `number`
-
-Defined in: node\_modules/@types/node/events.d.ts:663
 
 Returns the current max listener value for the `EventEmitter` which is either
 set by `emitter.setMaxListeners(n)` or defaults to [EventEmitter.defaultMaxListeners](../../../BaseAgent/classes/BaseAgent.md#defaultmaxlisteners).
@@ -436,8 +400,6 @@ v1.0.0
 
 > **getModel**(): `string`
 
-Defined in: [lib/agents/BaseAgent.ts:186](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L186)
-
 #### Returns
 
 `string`
@@ -451,8 +413,6 @@ Defined in: [lib/agents/BaseAgent.ts:186](https://github.com/LaurentZuijdwijk/ag
 ### getName()
 
 > **getName**(): `string`
-
-Defined in: [lib/agents/BaseAgent.ts:174](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L174)
 
 #### Returns
 
@@ -468,8 +428,6 @@ Defined in: [lib/agents/BaseAgent.ts:174](https://github.com/LaurentZuijdwijk/ag
 
 > **getTools**(): [`Tool`](../../../../tools/Tool/classes/Tool.md)\<`unknown`\>[]
 
-Defined in: [lib/agents/BaseAgent.ts:194](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L194)
-
 #### Returns
 
 [`Tool`](../../../../tools/Tool/classes/Tool.md)\<`unknown`\>[]
@@ -482,13 +440,11 @@ Defined in: [lib/agents/BaseAgent.ts:194](https://github.com/LaurentZuijdwijk/ag
 
 ### getVendor()
 
-> **getVendor**(): [`AgentVendor`](../../../BaseAgent/type-aliases/AgentVendor.md)
-
-Defined in: [lib/agents/BaseAgent.ts:182](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/BaseAgent.ts#L182)
+> **getVendor**(): [`AgentVendor`](../../../AgentConfig/type-aliases/AgentVendor.md)
 
 #### Returns
 
-[`AgentVendor`](../../../BaseAgent/type-aliases/AgentVendor.md)
+[`AgentVendor`](../../../AgentConfig/type-aliases/AgentVendor.md)
 
 #### Inherited from
 
@@ -499,8 +455,6 @@ Defined in: [lib/agents/BaseAgent.ts:182](https://github.com/LaurentZuijdwijk/ag
 ### listenerCount()
 
 > **listenerCount**\<`K`\>(`eventName`, `listener?`): `number`
-
-Defined in: node\_modules/@types/node/events.d.ts:757
 
 Returns the number of listeners listening to the event named `eventName`.
 
@@ -545,8 +499,6 @@ v3.2.0
 
 > **listeners**\<`K`\>(`eventName`): `Function`[]
 
-Defined in: node\_modules/@types/node/events.d.ts:676
-
 Returns a copy of the array of listeners for the event named `eventName`.
 
 ```js
@@ -587,8 +539,6 @@ v0.1.26
 
 > **off**\<`K`\>(`eventName`, `listener`): `this`
 
-Defined in: node\_modules/@types/node/events.d.ts:636
-
 Alias for `emitter.removeListener()`.
 
 #### Type Parameters
@@ -624,8 +574,6 @@ v10.0.0
 ### on()
 
 > **on**\<`K`\>(`eventName`, `listener`): `this`
-
-Defined in: node\_modules/@types/node/events.d.ts:522
 
 Adds the `listener` function to the end of the listeners array for the
 event named `eventName`. No checks are made to see if the `listener` has
@@ -691,8 +639,6 @@ v0.1.101
 
 > **once**\<`K`\>(`eventName`, `listener`): `this`
 
-Defined in: node\_modules/@types/node/events.d.ts:551
-
 Adds a **one-time**`listener` function for the event named `eventName`. The
 next time `eventName` is triggered, this listener is removed and then invoked.
 
@@ -755,8 +701,6 @@ v0.3.0
 
 > **prependListener**\<`K`\>(`eventName`, `listener`): `this`
 
-Defined in: node\_modules/@types/node/events.d.ts:775
-
 Adds the `listener` function to the _beginning_ of the listeners array for the
 event named `eventName`. No checks are made to see if the `listener` has
 already been added. Multiple calls passing the same combination of `eventName` and `listener` will result in the `listener` being added, and called, multiple
@@ -808,8 +752,6 @@ v6.0.0
 
 > **prependOnceListener**\<`K`\>(`eventName`, `listener`): `this`
 
-Defined in: node\_modules/@types/node/events.d.ts:791
-
 Adds a **one-time**`listener` function for the event named `eventName` to the _beginning_ of the listeners array. The next time `eventName` is triggered, this
 listener is removed, and then invoked.
 
@@ -858,8 +800,6 @@ v6.0.0
 ### rawListeners()
 
 > **rawListeners**\<`K`\>(`eventName`): `Function`[]
-
-Defined in: node\_modules/@types/node/events.d.ts:706
 
 Returns a copy of the array of listeners for the event named `eventName`,
 including any wrappers (such as those created by `.once()`).
@@ -918,8 +858,6 @@ v9.4.0
 
 > **removeAllListeners**(`event?`): `this`
 
-Defined in: node\_modules/@types/node/events.d.ts:647
-
 Removes all listeners, or those of the specified `eventName`.
 
 It is bad practice to remove listeners added elsewhere in the code,
@@ -951,8 +889,6 @@ v0.1.26
 ### removeListener()
 
 > **removeListener**\<`K`\>(`eventName`, `listener`): `this`
-
-Defined in: node\_modules/@types/node/events.d.ts:631
 
 Removes the specified `listener` from the listener array for the event named`eventName`.
 
@@ -1065,8 +1001,6 @@ v0.1.26
 
 > **setMaxListeners**(`n`): `this`
 
-Defined in: node\_modules/@types/node/events.d.ts:657
-
 By default `EventEmitter`s will print a warning if more than `10` listeners are
 added for a particular event. This is a useful default that helps finding
 memory leaks. The `emitter.setMaxListeners()` method allows the limit to be
@@ -1097,8 +1031,6 @@ v0.3.5
 ### addAbortListener()
 
 > `static` **addAbortListener**(`signal`, `resource`): `Disposable`
-
-Defined in: node\_modules/@types/node/events.d.ts:410
 
 **`Experimental`**
 
@@ -1162,8 +1094,6 @@ v18.18.0
 
 > `static` **getEventListeners**(`emitter`, `name`): `Function`[]
 
-Defined in: node\_modules/@types/node/events.d.ts:328
-
 Returns a copy of the array of listeners for the event named `eventName`.
 
 For `EventEmitter`s this behaves exactly the same as calling `.listeners` on
@@ -1217,8 +1147,6 @@ v15.2.0, v14.17.0
 
 > `static` **getMaxListeners**(`emitter`): `number`
 
-Defined in: node\_modules/@types/node/events.d.ts:357
-
 Returns the currently set max amount of listeners.
 
 For `EventEmitter`s this behaves exactly the same as calling `.getMaxListeners` on
@@ -1269,8 +1197,6 @@ v18.17.0
 
 > `static` **listenerCount**(`emitter`, `eventName`): `number`
 
-Defined in: node\_modules/@types/node/events.d.ts:300
-
 A class method that returns the number of listeners for the given `eventName`registered on the given `emitter`.
 
 ```js
@@ -1317,8 +1243,6 @@ Since v3.2.0 - Use `listenerCount` instead.
 ### on()
 
 > `static` **on**(`emitter`, `eventName`, `options?`): `AsyncIterator`\<`any`\>
-
-Defined in: node\_modules/@types/node/events.d.ts:279
 
 ```js
 import { on, EventEmitter } from 'node:events';
@@ -1411,8 +1335,6 @@ v13.6.0, v12.16.0
 #### Call Signature
 
 > `static` **once**(`emitter`, `eventName`, `options?`): `Promise`\<`any`[]\>
-
-Defined in: node\_modules/@types/node/events.d.ts:215
 
 Creates a `Promise` that is fulfilled when the `EventEmitter` emits the given
 event or that is rejected if the `EventEmitter` emits `'error'` while waiting.
@@ -1523,8 +1445,6 @@ v11.13.0, v10.16.0
 #### Call Signature
 
 > `static` **once**(`emitter`, `eventName`, `options?`): `Promise`\<`any`[]\>
-
-Defined in: node\_modules/@types/node/events.d.ts:220
 
 Creates a `Promise` that is fulfilled when the `EventEmitter` emits the given
 event or that is rejected if the `EventEmitter` emits `'error'` while waiting.
@@ -1637,8 +1557,6 @@ v11.13.0, v10.16.0
 ### setMaxListeners()
 
 > `static` **setMaxListeners**(`n?`, ...`eventTargets?`): `void`
-
-Defined in: node\_modules/@types/node/events.d.ts:375
 
 ```js
 import {

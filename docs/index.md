@@ -12,9 +12,6 @@ hero:
     - theme: alt
       text: View Examples
       link: /guide/examples
-    - theme: alt
-      text: GitHub
-      link: https://github.com/laurentzuijdwijk/agention-lib
 
 features:
   - title: Multi-Provider, No Lock-in

@@ -1,1 +1,0 @@
-# ingestion/IngestionPipeline.spec

@@ -72,12 +72,7 @@ export default defineConfig({
       ],
     },
 
-    socialLinks: [
-      {
-        icon: "github",
-        link: "https://github.com/laurentzuijdwijk/agention-lib",
-      },
-    ],
+    socialLinks: [],
 
     footer: {
       message: "Agention - AI Agents and Workflows",

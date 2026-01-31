@@ -34,13 +34,13 @@ Re-exports [EmbeddedDocument](VectorStore/interfaces/EmbeddedDocument.md)
 
 ### EmbeddingOptions
 
-Re-exports [EmbeddingOptions](Embeddings/interfaces/EmbeddingOptions.md)
+Re-exports [EmbeddingOptions](../embeddings/Embeddings/interfaces/EmbeddingOptions.md)
 
 ***
 
 ### Embeddings
 
-Re-exports [Embeddings](Embeddings/classes/Embeddings.md)
+Re-exports [Embeddings](../embeddings/Embeddings/classes/Embeddings.md)
 
 ***
 
@@ -56,15 +56,33 @@ Re-exports [LanceDBVectorStoreConfig](LanceDBVectorStore/interfaces/LanceDBVecto
 
 ***
 
+### MetadataFieldDefinition
+
+Re-exports [MetadataFieldDefinition](LanceDBVectorStore/interfaces/MetadataFieldDefinition.md)
+
+***
+
+### MetadataFieldType
+
+Re-exports [MetadataFieldType](LanceDBVectorStore/type-aliases/MetadataFieldType.md)
+
+***
+
+### OpenAIEmbeddingModel
+
+Re-exports [OpenAIEmbeddingModel](../embeddings/OpenAIEmbeddings/type-aliases/OpenAIEmbeddingModel.md)
+
+***
+
 ### OpenAIEmbeddings
 
-Re-exports [OpenAIEmbeddings](OpenAIEmbeddings/classes/OpenAIEmbeddings.md)
+Re-exports [OpenAIEmbeddings](../embeddings/OpenAIEmbeddings/classes/OpenAIEmbeddings.md)
 
 ***
 
 ### OpenAIEmbeddingsConfig
 
-Re-exports [OpenAIEmbeddingsConfig](OpenAIEmbeddings/interfaces/OpenAIEmbeddingsConfig.md)
+Re-exports [OpenAIEmbeddingsConfig](../embeddings/OpenAIEmbeddings/interfaces/OpenAIEmbeddingsConfig.md)
 
 ***
 
@@ -89,3 +107,27 @@ Re-exports [SearchResult](VectorStore/interfaces/SearchResult.md)
 ### VectorStore
 
 Re-exports [VectorStore](VectorStore/classes/VectorStore.md)
+
+***
+
+### VoyageAIEmbeddingModel
+
+Re-exports [VoyageAIEmbeddingModel](../embeddings/VoyageAIEmbeddings/type-aliases/VoyageAIEmbeddingModel.md)
+
+***
+
+### VoyageAIEmbeddings
+
+Re-exports [VoyageAIEmbeddings](../embeddings/VoyageAIEmbeddings/classes/VoyageAIEmbeddings.md)
+
+***
+
+### VoyageAIEmbeddingsConfig
+
+Re-exports [VoyageAIEmbeddingsConfig](../embeddings/VoyageAIEmbeddings/interfaces/VoyageAIEmbeddingsConfig.md)
+
+***
+
+### VoyageAIMultimodalModel
+
+Re-exports [VoyageAIMultimodalModel](../embeddings/VoyageAIEmbeddings/type-aliases/VoyageAIMultimodalModel.md)

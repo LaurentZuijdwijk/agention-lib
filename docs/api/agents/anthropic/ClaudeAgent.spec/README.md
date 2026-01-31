@@ -1,1 +1,0 @@
-# agents/anthropic/ClaudeAgent.spec

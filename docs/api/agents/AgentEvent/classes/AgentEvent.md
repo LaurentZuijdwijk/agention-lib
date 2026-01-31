@@ -1,14 +1,10 @@
 # Class: AgentEvent
 
-Defined in: [lib/agents/AgentEvent.ts:3](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L3)
-
 ## Constructors
 
 ### Constructor
 
 > **new AgentEvent**(`target`): `AgentEvent`
-
-Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L16)
 
 #### Parameters
 
@@ -26,15 +22,11 @@ Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/ag
 
 > **target**: [`BaseAgent`](../../BaseAgent/classes/BaseAgent.md)\<`any`\>
 
-Defined in: [lib/agents/AgentEvent.ts:16](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L16)
-
 ***
 
 ### AFTER\_EXECUTE
 
 > `static` **AFTER\_EXECUTE**: `string` = `"after_execute"`
-
-Defined in: [lib/agents/AgentEvent.ts:5](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L5)
 
 ***
 
@@ -42,15 +34,11 @@ Defined in: [lib/agents/AgentEvent.ts:5](https://github.com/LaurentZuijdwijk/age
 
 > `static` **BEFORE\_EXECUTE**: `string` = `"before_execute"`
 
-Defined in: [lib/agents/AgentEvent.ts:4](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L4)
-
 ***
 
 ### DONE
 
 > `static` **DONE**: `string` = `"done"`
-
-Defined in: [lib/agents/AgentEvent.ts:6](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L6)
 
 ***
 
@@ -58,15 +46,11 @@ Defined in: [lib/agents/AgentEvent.ts:6](https://github.com/LaurentZuijdwijk/age
 
 > `static` **ERROR**: `string` = `"error"`
 
-Defined in: [lib/agents/AgentEvent.ts:8](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L8)
-
 ***
 
 ### MAX\_RETRIES\_EXCEEDED
 
 > `static` **MAX\_RETRIES\_EXCEEDED**: `string` = `"max_retries_exceeded"`
-
-Defined in: [lib/agents/AgentEvent.ts:10](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L10)
 
 ***
 
@@ -74,15 +58,11 @@ Defined in: [lib/agents/AgentEvent.ts:10](https://github.com/LaurentZuijdwijk/ag
 
 > `static` **MAX\_TOKENS\_EXCEEDED**: `string` = `"max_tokens_exceeded"`
 
-Defined in: [lib/agents/AgentEvent.ts:11](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L11)
-
 ***
 
 ### RETRY
 
 > `static` **RETRY**: `string` = `"retry"`
-
-Defined in: [lib/agents/AgentEvent.ts:9](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L9)
 
 ***
 
@@ -90,15 +70,11 @@ Defined in: [lib/agents/AgentEvent.ts:9](https://github.com/LaurentZuijdwijk/age
 
 > `static` **TOOL\_ERROR**: `string` = `"tool_error"`
 
-Defined in: [lib/agents/AgentEvent.ts:12](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L12)
-
 ***
 
 ### TOOL\_USE
 
 > `static` **TOOL\_USE**: `string` = `"toolUse"`
-
-Defined in: [lib/agents/AgentEvent.ts:7](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L7)
 
 ## Accessors
 
@@ -107,8 +83,6 @@ Defined in: [lib/agents/AgentEvent.ts:7](https://github.com/LaurentZuijdwijk/age
 #### Get Signature
 
 > **get** **isDefaultPrevented**(): `boolean`
-
-Defined in: [lib/agents/AgentEvent.ts:22](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L22)
 
 ##### Returns
 
@@ -119,8 +93,6 @@ Defined in: [lib/agents/AgentEvent.ts:22](https://github.com/LaurentZuijdwijk/ag
 ### preventDefault()
 
 > **preventDefault**(): `void`
-
-Defined in: [lib/agents/AgentEvent.ts:18](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/agents/AgentEvent.ts#L18)
 
 #### Returns
 

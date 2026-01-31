@@ -1,7 +1,5 @@
 # Class: MetricsCollector
 
-Defined in: [lib/graph/GraphMetrics.ts:98](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L98)
-
 Collector for gathering metrics during graph execution.
 
 ## Constructors
@@ -20,8 +18,6 @@ Collector for gathering metrics during graph execution.
 
 > **addTokenUsage**(`usage`): `void`
 
-Defined in: [lib/graph/GraphMetrics.ts:209](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L209)
-
 Add token usage to the current execution.
 
 #### Parameters
@@ -39,8 +35,6 @@ Add token usage to the current execution.
 ### endExecution()
 
 > **endExecution**(`id`, `success`, `output?`, `tokenUsage?`, `error?`): `void`
-
-Defined in: [lib/graph/GraphMetrics.ts:160](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L160)
 
 Complete a node execution.
 
@@ -76,8 +70,6 @@ Complete a node execution.
 
 > **getAggregateMetrics**(): [`PipelineMetrics`](../interfaces/PipelineMetrics.md)
 
-Defined in: [lib/graph/GraphMetrics.ts:231](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L231)
-
 Calculate aggregate metrics.
 
 #### Returns
@@ -89,8 +81,6 @@ Calculate aggregate metrics.
 ### getExecutions()
 
 > **getExecutions**(): [`NodeExecutionMetrics`](../interfaces/NodeExecutionMetrics.md)[]
-
-Defined in: [lib/graph/GraphMetrics.ts:224](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L224)
 
 Get all collected metrics.
 
@@ -104,8 +94,6 @@ Get all collected metrics.
 
 > **reset**(): `void`
 
-Defined in: [lib/graph/GraphMetrics.ts:312](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L312)
-
 Reset all collected metrics.
 
 #### Returns
@@ -117,8 +105,6 @@ Reset all collected metrics.
 ### startExecution()
 
 > **startExecution**(`name`, `type`, `input?`): `string`
-
-Defined in: [lib/graph/GraphMetrics.ts:123](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L123)
 
 Start tracking a node execution.
 
@@ -146,8 +132,6 @@ Start tracking a node execution.
 
 > **toJSON**(): `string`
 
-Defined in: [lib/graph/GraphMetrics.ts:354](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L354)
-
 Generate a JSON representation suitable for external visualization tools.
 
 #### Returns
@@ -159,8 +143,6 @@ Generate a JSON representation suitable for external visualization tools.
 ### toTextVisualization()
 
 > **toTextVisualization**(): `string`
-
-Defined in: [lib/graph/GraphMetrics.ts:322](https://github.com/LaurentZuijdwijk/agention-lib/blob/3c19e87ec2ca7bbf687597f337b5812b2e5c4a54/lib/graph/GraphMetrics.ts#L322)
 
 Generate a simple text-based visualization of the pipeline.
 

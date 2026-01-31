@@ -14,14 +14,14 @@ const researcher = new ClaudeAgent({
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the topic and list key facts.',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-5',
 });
 
 const writer = new ClaudeAgent({
   id: 'writer',
   name: 'Writer',
   description: 'Write a blog post from the research provided.',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-5',
 });
 
 const chain = AgentGraph.sequential(researcher, writer);
@@ -59,7 +59,7 @@ const summarizer = new ClaudeAgent({
   id: 'summarizer',
   name: 'Summarizer',
   description: 'Summarize this article in 2 sentences.',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-5',
 });
 
 const mapper = AgentGraph.map(summarizer);

@@ -4,7 +4,7 @@ The graph system lets you build complex workflows by combining agents and other 
 
 ## Pipeline Basics
 
-A `Pipeline` chains nodes together, passing output from one to the next:
+Combine agents and nodes into workflows using executors. For chaining agents, use `sequential`:
 
 ```typescript
 import { AgentGraph } from '@agentionai/agents';
@@ -14,18 +14,18 @@ const researcher = new ClaudeAgent({
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the topic and list key facts.',
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-4-20250514',
 });
 
 const writer = new ClaudeAgent({
   id: 'writer',
   name: 'Writer',
   description: 'Write a blog post from the research provided.',
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-4-20250514',
 });
 
-const pipeline = AgentGraph.pipeline(researcher, writer);
-const result = await pipeline.execute('Artificial Intelligence in Healthcare');
+const chain = AgentGraph.sequential(researcher, writer);
+const result = await chain.execute('Artificial Intelligence in Healthcare');
 ```
 
 ## Executor Types
@@ -59,7 +59,7 @@ const summarizer = new ClaudeAgent({
   id: 'summarizer',
   name: 'Summarizer',
   description: 'Summarize this article in 2 sentences.',
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-4-20250514',
 });
 
 const mapper = AgentGraph.map(summarizer);
@@ -326,9 +326,9 @@ Track execution metrics across your pipeline:
 import { createMetricsCollector } from '@agentionai/agents';
 
 const metrics = createMetricsCollector();
-const pipeline = AgentGraph.pipeline(researcher, writer).withMetrics(metrics);
+const chain = AgentGraph.sequential(researcher, writer).withMetrics(metrics);
 
-const result = await pipeline.execute('Input');
+const result = await chain.execute('Input');
 
 console.log(metrics.getAggregateMetrics());
 // {

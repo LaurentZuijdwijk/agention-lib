@@ -91,6 +91,10 @@ export class History extends EventEmitter {
       __metadata,
     });
 
+    if (this.options.maxLength && this._entries.length > this.options.maxLength) {
+      this._entries = this._entries.slice(this._entries.length - this.options.maxLength);
+    }
+
     this.emit("entry", entry);
   }
 

@@ -14,7 +14,7 @@ export interface MCPStdioConfig {
  * Configuration for connecting to an MCP server via HTTP (remote URL).
  */
 export interface MCPHttpConfig {
-  /** Full URL to the MCP endpoint (e.g. "http://localhost:3000/mcp") */
+  /** Full URL to the MCP endpoint */
   url: string;
   /** Optional HTTP headers for static auth tokens or API keys */
   headers?: Record<string, string>;

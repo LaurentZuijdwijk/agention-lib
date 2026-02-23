@@ -33,3 +33,6 @@ examples/aiAuthor/*
 examples/history.json
 docs/.vitepress/cache
 docs/.vitepress/cache*
+examples/package-lock.json
+examples/telegram-homeassistant
+examples/multiagent-example

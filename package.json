@@ -1,7 +1,7 @@
 {
   "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
-  "version": "0.5.1",
+  "version": "0.7.0",
   "description": "Agent Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -110,6 +110,7 @@
     "@google/generative-ai": "^0.24.1",
     "@lancedb/lancedb": "^0.23.0",
     "@mistralai/mistralai": "^1.13.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "apache-arrow": "^18.0.0",
     "openai": "^6.16.0",
     "voyageai": "^0.0.3"
@@ -128,6 +129,9 @@
       "optional": true
     },
     "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "@modelcontextprotocol/sdk": {
       "optional": true
     },
     "openai": {

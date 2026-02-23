@@ -17,6 +17,9 @@ export * from "./graph/AgentGraph";
 // Tools
 export * from "./tools/Tool";
 
+// MCP (Model Context Protocol)
+export * from "./mcp";
+
 // Visualization
 export * from "./viz";
 

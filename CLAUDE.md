@@ -39,6 +39,7 @@
 | `OpenAiAgent` | `lib/agents/openai/OpenAiAgent.ts` | OpenAI implementation (in progress) |
 | `MistralAgent` | `lib/agents/mistral/MistralAgent.ts` | Mistral implementation |
 | `Tool` | `lib/tools/Tool.ts` | Tool definition and execution |
+| `MCPClient` | `lib/mcp/MCPClient.ts` | MCP server client — wraps MCP tools as `Tool` instances (optional peer: `@modelcontextprotocol/sdk`) |
 | `History` | `lib/history/History.ts` | Conversation history management |
 | `Team` | `lib/team/Team.ts` | Multi-agent coordination |
 
@@ -79,6 +80,11 @@ The graph module provides workflow orchestration patterns:
 - [x] Removed debug console.log statements from agents
 - [x] Comprehensive tests for graph executors
 - [x] Graph README and working examples
+- [x] Moved `lastTokenUsage` to `BaseAgent` base class (all providers inherit it)
+- [x] Fixed `BaseAgent.debug` default from `true` to `false`
+- [x] Fixed `PlanStore.addStep()` step ID collision (now uses max existing index)
+- [x] Fixed `PlanStore.updatePlanStatus()` to treat `skipped` steps as done
+- [x] Fixed `PlanExecutor` with `stopOnFailure=true` to drain in-flight promises before throwing
 
 ---
 
@@ -87,14 +93,15 @@ The graph module provides workflow orchestration patterns:
 ### Architecture Improvements
 - [ ] Add retry mechanisms with backoff to executors
 - [ ] Add ConditionalExecutor for branching workflows
-- [ ] Add RouterExecutor to route to different agents based on input
 - [ ] Add context passing through pipeline stages
 
 ### Code Quality
-- [ ] Reduce use of 'any' types - Replace with proper TypeScript interfaces
+- [ ] Reduce use of 'any' types in `Tool.ts` - Replace `Record<string, any>` with proper interfaces
 - [ ] Add proper validation - Validate inputs for agents and tools
 - [ ] Fix test inconsistencies - Tests in BaseAgent.spec.ts and ClaudeAgent.spec.ts need alignment
 - [ ] Complete OpenAI agent implementation
+- [ ] Fix `isAgent()` check in PlanExecutor - use `instanceof BaseAgent` instead of duck-typing
+- [ ] Add system message to follow-up tool call in ClaudeAgent (line ~294)
 
 ### Features to Add
 1. **Streaming responses** - Support streaming from LLM APIs

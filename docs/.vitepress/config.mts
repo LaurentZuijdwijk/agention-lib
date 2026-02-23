@@ -43,6 +43,7 @@ export default defineConfig({
           items: [
             { text: "Agents", link: "/guide/agents" },
             { text: "Tools", link: "/guide/tools" },
+            { text: "MCP", link: "/guide/mcp" },
             { text: "History Management", link: "/guide/history" },
             { text: "Graph Pipelines", link: "/guide/graph-pipelines" },
           ],

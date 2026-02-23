@@ -117,11 +117,13 @@ export class MCPClient {
   async connect(): Promise<void> {
     if (this.connected) return;
 
-    // Dynamic imports to keep @modelcontextprotocol/sdk optional at module load time.
-    // All SDK values are cast to `any` so that ts-node (which resolves peer dep types
-    // at runtime) does not enforce the SDK's internal type constraints here.
+    // Build module paths at runtime so tsc does not attempt to resolve them at
+    // compile time. @modelcontextprotocol/sdk is an optional peer dependency and
+    // may not be installed on the build host.
+    const pkg = "@modelcontextprotocol/sdk";
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js") as any;
+    const { Client } = await import(/* @vite-ignore */ `${pkg}/client/index.js`) as any;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sdkClient: any = new Client(
@@ -134,7 +136,7 @@ export class MCPClient {
 
     if (this.transportConfig.type === "stdio") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { StdioClientTransport } = await import("@modelcontextprotocol/sdk/client/stdio.js") as any;
+      const { StdioClientTransport } = await import(/* @vite-ignore */ `${pkg}/client/stdio.js`) as any;
       transport = new StdioClientTransport({
         command: this.transportConfig.config.command,
         args: this.transportConfig.config.args ?? [],
@@ -142,7 +144,7 @@ export class MCPClient {
       });
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js") as any;
+      const { StreamableHTTPClientTransport } = await import(/* @vite-ignore */ `${pkg}/client/streamableHttp.js`) as any;
       const { url, headers, authProvider } = this.transportConfig.config;
       transport = new StreamableHTTPClientTransport(new URL(url), {
         ...(headers ? { requestInit: { headers } } : {}),

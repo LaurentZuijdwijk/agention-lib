@@ -1,6 +1,21 @@
 # MCP (Model Context Protocol)
 
-[Model Context Protocol](https://modelcontextprotocol.io) is an open standard for connecting AI agents to external tools and data sources. Any MCP-compatible server — whether local or remote — can be connected to agention-lib agents in a few lines.
+[Model Context Protocol](https://modelcontextprotocol.io) (MCP) is an open standard developed by Anthropic for connecting AI agents to external tools, data sources, and services. Think of it as a universal adapter layer: instead of writing a custom integration for every API or service, you connect to an MCP server that already exposes that service's capabilities as tools. The agent then calls those tools just like any other — with no knowledge of the underlying transport.
+
+## How It Works
+
+MCP separates concerns cleanly into three parts:
+
+- **MCP servers** — lightweight processes (local or remote) that expose a set of named tools. A server can wrap anything: a filesystem, a database, a REST API, a browser, a SaaS product.
+- **MCP clients** — connect to servers, discover their tools, and call them on behalf of an agent. `MCPClient` is agention-lib's client implementation.
+- **Tools** — once discovered, MCP tools become standard agention-lib `Tool` instances. The agent doesn't know or care whether a tool comes from MCP or custom code.
+
+This means the entire [ecosystem of existing MCP servers](https://mcpservers.org) — filesystem, git, Slack, GitHub, databases, web search, and more — is immediately available to any agention-lib agent, without writing any integration code.
+
+```
+Agent  ──→  MCPClient  ──→  MCP Server  ──→  External Service
+              (Tool[])        (stdio / HTTP)
+```
 
 ## Installation
 

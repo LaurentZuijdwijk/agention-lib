@@ -34,11 +34,13 @@ async function cleanupDuplicates() {
       tableName: "agention_docs",
       embeddings,
     });
+    // Note: No metadataFields needed — this connects to a pre-existing table
     console.log("   Connected\n");
 
     // Step 2: Get all documents
     console.log("2. Fetching all documents...");
     const table = store.getTable();
+    if (!table) throw new Error("Table not found — has data been ingested?");
     const allDocs = await table.query().toArray();
     console.log(`   Found ${allDocs.length} total documents\n`);
 
@@ -49,19 +51,15 @@ async function cleanupDuplicates() {
     for (const doc of allDocs) {
       const docRecord = doc as unknown as {
         id: string;
-        metadata?: string;
+        chunk_metadata?: { hash?: string };
       };
 
-      if (docRecord.metadata) {
-        const metadata = JSON.parse(docRecord.metadata);
-        const hash = metadata.hash;
-
-        if (hash) {
-          if (!hashGroups.has(hash)) {
-            hashGroups.set(hash, []);
-          }
-          hashGroups.get(hash)!.push(docRecord.id);
+      const hash = docRecord.chunk_metadata?.hash;
+      if (hash) {
+        if (!hashGroups.has(hash)) {
+          hashGroups.set(hash, []);
         }
+        hashGroups.get(hash)!.push(docRecord.id);
       }
     }
 

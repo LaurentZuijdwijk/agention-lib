@@ -90,9 +90,9 @@ describe("RecursiveChunker", () => {
       });
 
       for (let i = 0; i < chunks.length; i++) {
-        expect(chunks[i].metadata.chunkIndex).toBe(i);
-        expect(chunks[i].metadata.totalChunks).toBe(chunks.length);
-        expect(chunks[i].metadata.sourceId).toBe("test");
+        expect(chunks[i].metadata.index).toBe(i);
+        expect(chunks[i].metadata.total).toBe(chunks.length);
+        expect(chunks[i].metadata.source_id).toBe("test");
         expect(chunks[i].metadata.author).toBe("test");
         expect(chunks[i].metadata.hash).toBeDefined();
       }
@@ -106,17 +106,17 @@ describe("RecursiveChunker", () => {
       expect(chunks.length).toBeGreaterThanOrEqual(2);
 
       // First chunk has no previous
-      expect(chunks[0].metadata.previousChunkId).toBeNull();
-      expect(chunks[0].metadata.nextChunkId).toBe(chunks[1].id);
+      expect(chunks[0].metadata.prev_id).toBeNull();
+      expect(chunks[0].metadata.next_id).toBe(chunks[1].id);
 
       // Last chunk has no next
       const last = chunks[chunks.length - 1];
-      expect(last.metadata.nextChunkId).toBeNull();
+      expect(last.metadata.next_id).toBeNull();
 
       // Middle chunks are linked both ways
       if (chunks.length > 2) {
-        expect(chunks[1].metadata.previousChunkId).toBe(chunks[0].id);
-        expect(chunks[1].metadata.nextChunkId).toBe(chunks[2].id);
+        expect(chunks[1].metadata.prev_id).toBe(chunks[0].id);
+        expect(chunks[1].metadata.next_id).toBe(chunks[2].id);
       }
     });
 
@@ -127,7 +127,7 @@ describe("RecursiveChunker", () => {
       const chunks = await chunker.chunk(text);
 
       // At least one chunk should have a detected section title
-      const titledChunks = chunks.filter((c) => c.metadata.sectionTitle);
+      const titledChunks = chunks.filter((c) => c.metadata.section);
       expect(titledChunks.length).toBeGreaterThan(0);
     });
 
@@ -175,7 +175,7 @@ This chunker provides a flexible way to split documents for vector storage.`;
       for (const chunk of chunks) {
         expect(chunk.id).toBeDefined();
         expect(chunk.content.length).toBeGreaterThan(0);
-        expect(chunk.metadata.sourceId).toBe("readme");
+        expect(chunk.metadata.source_id).toBe("readme");
         expect(chunk.metadata.hash).toHaveLength(64); // SHA-256 hex
       }
     });
@@ -214,8 +214,8 @@ This chunker provides a flexible way to split documents for vector storage.`;
 
       // Verify indices are updated after filtering
       for (let i = 0; i < chunks.length; i++) {
-        expect(chunks[i].metadata.chunkIndex).toBe(i);
-        expect(chunks[i].metadata.totalChunks).toBe(chunks.length);
+        expect(chunks[i].metadata.index).toBe(i);
+        expect(chunks[i].metadata.total).toBe(chunks.length);
       }
     });
   });

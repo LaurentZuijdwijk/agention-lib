@@ -12,39 +12,45 @@ export interface Chunk {
 
 /**
  * Metadata associated with each chunk.
+ *
+ * When stored in LanceDB via `LanceDBVectorStore`, these fields are
+ * automatically packed into a `chunk_metadata` struct column — they do
+ * not need to be declared in `metadataFields`.
  */
 export interface ChunkMetadata {
   // Position & linking
   /** Zero-based index of this chunk in the sequence */
-  chunkIndex: number;
+  index: number;
   /** Total number of chunks in the sequence */
-  totalChunks: number;
+  total: number;
   /** ID of the previous chunk, or null if first */
-  previousChunkId: string | null;
+  prev_id: string | null;
   /** ID of the next chunk, or null if last */
-  nextChunkId: string | null;
+  next_id: string | null;
 
   // Source tracking
   /** Character offset where this chunk starts in the source text */
-  startOffset: number;
+  start: number;
   /** Character offset where this chunk ends in the source text */
-  endOffset: number;
+  end: number;
   /** Optional identifier for the source document */
-  sourceId?: string;
+  source_id?: string;
   /** Optional path to the source file */
-  sourcePath?: string;
+  source_path?: string;
 
   // Content info
   /** Number of characters in the chunk content */
-  charCount: number;
+  char_count: number;
   /** Estimated number of tokens (when available) */
-  tokenCount?: number;
+  token_count?: number;
   /** SHA-256 hash of the content for deduplication */
   hash: string;
 
   // Structural (when detectable)
   /** Section title if detected (e.g., markdown headers) */
-  sectionTitle?: string;
+  section?: string;
+  /** Page number in the source document (e.g., PDF page) */
+  page?: number;
 
   // User passthrough - allows additional custom metadata
   [key: string]: unknown;

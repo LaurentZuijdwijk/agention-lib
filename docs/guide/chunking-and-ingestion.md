@@ -87,7 +87,7 @@ const chunker = new TokenChunker({
 const chunks = await chunker.chunk(text);
 
 // Each chunk includes token count in metadata
-console.log(chunks[0].metadata.tokenCount);  // e.g., 487
+console.log(chunks[0].metadata.token_count);  // e.g., 487
 ```
 
 **Use when:**
@@ -102,29 +102,34 @@ Each chunk includes rich metadata for tracking and linking:
 ```typescript
 interface ChunkMetadata {
   // Position & linking
-  chunkIndex: number;              // Position in sequence
-  totalChunks: number;             // Total chunk count
-  previousChunkId: string | null;  // Link to previous chunk
-  nextChunkId: string | null;      // Link to next chunk
+  index: number;              // Position in sequence
+  total: number;              // Total chunk count
+  prev_id: string | null;     // Link to previous chunk
+  next_id: string | null;     // Link to next chunk
 
   // Source tracking
-  startOffset: number;             // Character position in original text
-  endOffset: number;               // Character position in original text
-  sourceId?: string;               // Document identifier
-  sourcePath?: string;             // File path
+  start: number;              // Character position in original text
+  end: number;                // Character position in original text
+  source_id?: string;         // Document identifier
+  source_path?: string;       // File path
 
   // Content info
-  charCount: number;               // Number of characters
-  tokenCount?: number;             // Estimated tokens (TokenChunker only)
-  hash: string;                    // SHA-256 hash for deduplication
+  char_count: number;         // Number of characters
+  token_count?: number;       // Estimated tokens (TokenChunker only)
+  hash: string;               // SHA-256 hash for deduplication
 
   // Structure
-  sectionTitle?: string;           // Detected section heading
+  section?: string;           // Detected section heading
+  page?: number;              // Page number (e.g., PDF page)
 
   // Custom metadata
-  [key: string]: unknown;          // User-provided values
+  [key: string]: unknown;     // User-provided values
 }
 ```
+
+When stored in LanceDB, these fields are automatically packed into a `chunk_metadata` struct column. User-defined metadata (like `author`, `category`) is stored as separate top-level columns declared via `metadataFields`.
+
+> **Note:** Use `snake_case` for metadata field names (e.g. `tenant_id`, not `tenantId`). LanceDB uses DataFusion for SQL filtering, which normalizes unquoted identifiers to lowercase. Mixed-case column names will fail to match during filtering.
 
 ## Chunk Processing
 
@@ -185,6 +190,11 @@ const store = await LanceDBVectorStore.create({
   uri: './data/documents',
   tableName: 'chunks',
   embeddings,
+  // Use snake_case for field names — LanceDB normalizes SQL identifiers to lowercase
+  metadataFields: [
+    { name: 'source', type: 'string' },
+    { name: 'category', type: 'string' },
+  ],
 });
 
 // Create pipeline

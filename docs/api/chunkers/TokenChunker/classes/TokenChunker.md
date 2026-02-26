@@ -15,7 +15,7 @@ const chunker = new TokenChunker({
 });
 
 const chunks = await chunker.chunk(longDocument);
-// Each chunk.metadata.tokenCount contains estimated tokens
+// Each chunk.metadata.token_count contains estimated tokens
 ```
 
 ## Extends

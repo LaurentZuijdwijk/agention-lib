@@ -313,7 +313,7 @@ agent.addTools([tool]);
 > **toGetChunkByIdTool**(`description`, `options`): [`Tool`](../../../tools/Tool/classes/Tool.md)\<[`Document`](../interfaces/Document.md) \| `null`\>
 
 Create a tool that agents can use to retrieve a chunk by its ID.
-Useful for navigating chunk chains using previousChunkId/nextChunkId metadata.
+Useful for navigating chunk chains using prev_id/next_id metadata.
 
 #### Parameters
 
@@ -340,7 +340,7 @@ A Tool instance that can be added to an agent
 ```typescript
 const store = new LanceDBVectorStore({ ... });
 const tool = store.toGetChunkByIdTool(
-  "Retrieve a specific chunk by ID. Use previousChunkId or nextChunkId from search results to get surrounding context."
+  "Retrieve a specific chunk by ID. Use prev_id or next_id from search results to get surrounding context."
 );
 agent.addTools([tool]);
 ```

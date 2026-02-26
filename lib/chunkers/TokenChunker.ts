@@ -11,7 +11,6 @@ let tokenxModule: typeof import("tokenx") | null = null;
  */
 export async function loadTokenx(): Promise<typeof import("tokenx")> {
   if (!tokenxModule) {
-    // Use dynamic import for ESM module
     tokenxModule = await import("tokenx");
   }
   return tokenxModule;
@@ -40,7 +39,7 @@ export function resetTokenxCache(): void {
  * });
  *
  * const chunks = await chunker.chunk(longDocument);
- * // Each chunk.metadata.tokenCount contains estimated tokens
+ * // Each chunk.metadata.token_count contains estimated tokens
  * ```
  */
 export class TokenChunker extends Chunker {
@@ -159,7 +158,7 @@ export class TokenChunker extends Chunker {
 
     // Add token count to each chunk's metadata
     for (const chunk of chunks) {
-      chunk.metadata.tokenCount = estimateTokenCount(chunk.content);
+      chunk.metadata.token_count = estimateTokenCount(chunk.content);
     }
 
     return chunks;

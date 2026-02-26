@@ -395,7 +395,7 @@ export abstract class VectorStore {
 
   /**
    * Create a tool that agents can use to retrieve a chunk by its ID.
-   * Useful for navigating chunk chains using previousChunkId/nextChunkId metadata.
+   * Useful for navigating chunk chains using prev_id/next_id metadata.
    *
    * @param description - Description of what the tool does (e.g., "Get a specific chunk by ID to read adjacent context")
    * @param options - Configuration options for the tool
@@ -405,7 +405,7 @@ export abstract class VectorStore {
    * ```typescript
    * const store = new LanceDBVectorStore({ ... });
    * const tool = store.toGetChunkByIdTool(
-   *   "Retrieve a specific chunk by ID. Use previousChunkId or nextChunkId from search results to get surrounding context."
+   *   "Retrieve a specific chunk by ID. Use prev_id or next_id from search results to get surrounding context."
    * );
    * agent.addTools([tool]);
    * ```
@@ -426,7 +426,7 @@ export abstract class VectorStore {
         id: {
           type: "string",
           description:
-            "The chunk ID to retrieve (e.g., from previousChunkId or nextChunkId metadata)",
+            "The chunk ID to retrieve (e.g., from prev_id or next_id metadata)",
         },
       },
       required: ["id"],

@@ -118,7 +118,7 @@ describe("IngestionPipeline", () => {
       expect(doc.content).toBeDefined();
       expect(doc.embedding).toEqual([0.1, 0.2, 0.3]);
       expect(doc.metadata).toBeDefined();
-      expect(doc.metadata?.sourceId).toBe("doc-1");
+      expect(doc.metadata?.source_id).toBe("doc-1");
     });
 
     it("should report progress during ingestion", async () => {
@@ -185,8 +185,8 @@ describe("IngestionPipeline", () => {
       const stored = store.getStoredDocuments();
       expect(stored[0].metadata?.author).toBe("test");
       expect(stored[0].metadata?.version).toBe(1);
-      expect(stored[0].metadata?.sourceId).toBe("doc-1");
-      expect(stored[0].metadata?.sourcePath).toBe("/test/doc.txt");
+      expect(stored[0].metadata?.source_id).toBe("doc-1");
+      expect(stored[0].metadata?.source_path).toBe("/test/doc.txt");
     });
   });
 
@@ -205,7 +205,7 @@ describe("IngestionPipeline", () => {
       expect(result.chunksStored).toBe(result.chunksProcessed);
 
       const stored = store.getStoredDocuments();
-      const sourceIds = stored.map((d) => d.metadata?.sourceId);
+      const sourceIds = stored.map((d) => d.metadata?.source_id);
       expect(sourceIds).toContain("doc-1");
       expect(sourceIds).toContain("doc-2");
       expect(sourceIds).toContain("doc-3");
@@ -239,13 +239,13 @@ describe("IngestionPipeline", () => {
           id: "chunk-1",
           content: "First chunk content",
           metadata: {
-            chunkIndex: 0,
-            totalChunks: 2,
-            previousChunkId: null,
-            nextChunkId: "chunk-2",
-            startOffset: 0,
-            endOffset: 19,
-            charCount: 19,
+            index: 0,
+            total: 2,
+            prev_id: null,
+            next_id: "chunk-2",
+            start: 0,
+            end: 19,
+            char_count: 19,
             hash: "abc123",
           },
         },
@@ -253,13 +253,13 @@ describe("IngestionPipeline", () => {
           id: "chunk-2",
           content: "Second chunk content",
           metadata: {
-            chunkIndex: 1,
-            totalChunks: 2,
-            previousChunkId: "chunk-1",
-            nextChunkId: null,
-            startOffset: 20,
-            endOffset: 40,
-            charCount: 20,
+            index: 1,
+            total: 2,
+            prev_id: "chunk-1",
+            next_id: null,
+            start: 20,
+            end: 40,
+            char_count: 20,
             hash: "def456",
           },
         },

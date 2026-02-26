@@ -32,9 +32,15 @@ Embeddings provider for automatic embedding generation
 
 > `optional` **metadataFields**: [`MetadataFieldDefinition`](MetadataFieldDefinition.md)[]
 
-Metadata field definitions for filterable columns.
-When specified, metadata fields are stored as separate columns enabling efficient filtering.
-If not specified, metadata is stored as a JSON string (legacy behavior).
+User-defined metadata field definitions for filterable columns.
+When specified, these fields are stored as typed Arrow columns enabling efficient filtering.
+Chunk metadata fields (index, hash, prev_id, etc.) are handled automatically
+via a `chunk_metadata` struct column and do not need to be listed here.
+If not specified, the store connects to a pre-existing table.
+
+> **Important:** Use `snake_case` for field names (e.g. `tenant_id`, not `tenantId`).
+> LanceDB uses DataFusion for SQL filtering, which normalizes unquoted identifiers
+> to lowercase. Mixed-case names will fail to match during filtering.
 
 ***
 

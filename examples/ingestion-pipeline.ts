@@ -73,7 +73,7 @@ Choose the right chunker based on your use case and document types.`;
   });
 
   console.log(`Created ${textChunks.length} chunks`);
-  console.log(`First chunk (${textChunks[0].metadata.charCount} chars):`);
+  console.log(`First chunk (${textChunks[0].metadata.char_count} chars):`);
   console.log(textChunks[0].content.substring(0, 100) + "...\n");
 
   // Example 2: RecursiveChunker
@@ -95,9 +95,7 @@ Choose the right chunker based on your use case and document types.`;
   for (let i = 0; i < Math.min(3, recursiveChunks.length); i++) {
     const chunk = recursiveChunks[i];
     console.log(
-      `  Chunk ${i}: ${chunk.metadata.charCount} chars, section: ${
-        (chunk.metadata.sectionTitle ?? "N/A", chunk.content)
-      }`
+      `  Chunk ${i}: ${chunk.metadata.char_count} chars, section: ${chunk.metadata.section ?? "N/A"}`
     );
   }
   console.log();
@@ -119,7 +117,7 @@ Choose the right chunker based on your use case and document types.`;
   for (let i = 0; i < Math.min(3, tokenChunks.length); i++) {
     const chunk = tokenChunks[i];
     console.log(
-      `  Chunk ${i}: ~${chunk.metadata.tokenCount} tokens, ${chunk.metadata.charCount} chars`
+      `  Chunk ${i}: ~${chunk.metadata.token_count} tokens, ${chunk.metadata.char_count} chars`
     );
   }
   console.log();
@@ -158,7 +156,8 @@ Choose the right chunker based on your use case and document types.`;
   console.log("5. Chunk linking (previous/next)");
   console.log("-".repeat(40));
 
-  const linkedChunks = await textChunker.chunk(
+  const linkingChunker = new TextChunker({ chunkSize: 15 });
+  const linkedChunks = await linkingChunker.chunk(
     "First part. Second part. Third part. Fourth part.",
     {
       sourceId: "linked-doc",
@@ -167,8 +166,8 @@ Choose the right chunker based on your use case and document types.`;
 
   for (const chunk of linkedChunks) {
     console.log(`  ${chunk.id}:`);
-    console.log(`    prev: ${chunk.metadata.previousChunkId ?? "null"}`);
-    console.log(`    next: ${chunk.metadata.nextChunkId ?? "null"}`);
+    console.log(`    prev: ${chunk.metadata.prev_id ?? "null"}`);
+    console.log(`    next: ${chunk.metadata.next_id ?? "null"}`);
   }
   console.log();
 
@@ -191,6 +190,9 @@ Choose the right chunker based on your use case and document types.`;
         uri: "./data/ingestion-demo",
         tableName: "documents",
         embeddings,
+        metadataFields: [
+          { name: "author", type: "string" as const, nullable: true },
+        ],
       });
 
       const pipeline = new IngestionPipeline(
@@ -199,7 +201,7 @@ Choose the right chunker based on your use case and document types.`;
         store
       );
 
-      // Ingest the sample document
+      // Ingest the sample document — table is created here on first insert
       const result = await pipeline.ingest(sampleDoc, {
         sourceId: "sample-doc",
         sourcePath: "/docs/sample.md",
@@ -218,6 +220,25 @@ Choose the right chunker based on your use case and document types.`;
       console.log(`  Chunks stored: ${result.chunksStored}`);
       console.log(`  Duration: ${result.duration}ms`);
       console.log(`  Errors: ${result.errors.length}`);
+      for (const e of result.errors) {
+        console.error("  Error:", e.error);
+      }
+
+      // Schema is now available after first insert
+      const tableSchema = await store.getTable()!.schema();
+      console.log(
+        "Table schema fields:",
+        tableSchema.fields.map((f) => `${f.name}:${f.type}`).join(", ")
+      );
+
+      // Inspect a raw stored row
+      const rawRows = await store.getTable()!.query().limit(1).toArray();
+      console.log(
+        "Raw row sample:",
+        JSON.stringify(rawRows[0], (_, v) =>
+          v instanceof Float32Array ? "<vector>" : v
+        )
+      );
 
       // Test search
       console.log("\nTesting search...");
@@ -231,7 +252,17 @@ Choose the right chunker based on your use case and document types.`;
         console.log(
           `    Content: ${result.document.content.substring(0, 80)}...`
         );
+        // User metadata (author) is a top-level column; chunk metadata is in chunk_metadata struct
+        console.log(`    author: ${result.document.metadata?.author}`);
       }
+
+      // Search with metadata filter on user-defined columns
+      console.log("\nTesting search with metadata filter...");
+      const filtered = await store.search("chunking", {
+        limit: 3,
+        filter: { author: "demo" },
+      });
+      console.log(`Found ${filtered.length} results filtered by author='demo'`);
     } catch (error) {
       console.error("Pipeline error:", error);
     }
@@ -254,6 +285,9 @@ Choose the right chunker based on your use case and document types.`;
         uri: "./data/batch-demo",
         tableName: "documents",
         embeddings,
+        metadataFields: [
+          { name: "category", type: "string" as const, nullable: true },
+        ],
       });
 
       const pipeline = new IngestionPipeline(
@@ -288,6 +322,26 @@ Choose the right chunker based on your use case and document types.`;
       console.log("\nBatch ingestion complete:");
       console.log(`  Total chunks: ${result.chunksStored}`);
       console.log(`  Duration: ${result.duration}ms`);
+
+      const batchTableSchema = await store.getTable()!.schema();
+      console.log(
+        "Table schema fields:",
+        batchTableSchema.fields.map((f) => `${f.name}:${f.type}`).join(", ")
+      );
+
+      // The 'category' user metadata is a top-level column — filterable directly
+      console.log("\nTesting search with category filter...");
+      const mlResults = await store.search("neural networks", {
+        limit: 3,
+        filter: { category: "dl" },
+      });
+      console.log(
+        `Found ${mlResults.length} results filtered by category='dl'`
+      );
+      for (const r of mlResults) {
+        console.log(`  - category: ${r.document.metadata?.category}`);
+        console.log(`    ${r.document.content.substring(0, 60)}...`);
+      }
     } catch (error) {
       console.error("Batch ingestion error:", error);
     }

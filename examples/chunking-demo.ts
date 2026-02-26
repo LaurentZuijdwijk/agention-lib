@@ -140,7 +140,7 @@ async function main() {
     const chunk = textChunks[i];
     console.log(`Chunk ${i + 1}:`);
     console.log(`  ID: ${chunk.id}`);
-    console.log(`  Size: ${chunk.metadata.charCount} characters`);
+    console.log(`  Size: ${chunk.metadata.char_count} characters`);
     console.log(`  Preview: ${chunk.content.substring(0, 80)}...`);
     console.log();
   }
@@ -172,9 +172,9 @@ async function main() {
     const chunk = recursiveChunks[i];
     console.log(`Chunk ${i + 1}:`);
     console.log(`  ID: ${chunk.id}`);
-    console.log(`  Section: ${chunk.metadata.sectionTitle || "Unknown"}`);
-    console.log(`  Size: ${chunk.metadata.charCount} characters`);
-    console.log(`  Level: ${chunk.metadata.nLevel || 0}`);
+    console.log(`  Section: ${chunk.metadata.section || "Unknown"}`);
+    console.log(`  Size: ${chunk.metadata.char_count} characters`);
+    console.log(`  Level: ${chunk.metadata.n_level || 0}`);
     console.log();
   }
 
@@ -195,7 +195,7 @@ async function main() {
 
     console.log(`Created ${tokenChunks.length} chunks:\n`);
     console.log("Token distribution:");
-    const tokenCounts = tokenChunks.map((c) => c.metadata.tokenCount || 0);
+    const tokenCounts = tokenChunks.map((c) => c.metadata.token_count || 0);
     const avgTokens = Math.round(
       tokenCounts.reduce((a, b) => a + b, 0) / tokenCounts.length
     );
@@ -249,7 +249,7 @@ async function main() {
     const chunk = processedChunks[i];
     console.log(`Chunk ${i + 1}:`);
     console.log(`  Sentences: ${chunk.metadata.sentenceCount}`);
-    console.log(`  Size: ${chunk.metadata.charCount} characters`);
+    console.log(`  Size: ${chunk.metadata.char_count} characters`);
     console.log(`  Processed: ${chunk.metadata.processedAt}`);
     console.log();
   }
@@ -268,11 +268,11 @@ async function main() {
   console.log(`Chain of ${navChunks.length} chunks:\n`);
   for (let i = 0; i < navChunks.length; i++) {
     const chunk = navChunks[i];
-    const prevLabel = chunk.metadata.previousChunkId
-      ? chunk.metadata.previousChunkId.substring(0, 8)
+    const prevLabel = chunk.metadata.prev_id
+      ? chunk.metadata.prev_id.substring(0, 8)
       : "START";
-    const nextLabel = chunk.metadata.nextChunkId
-      ? chunk.metadata.nextChunkId.substring(0, 8)
+    const nextLabel = chunk.metadata.next_id
+      ? chunk.metadata.next_id.substring(0, 8)
       : "END";
 
     console.log(`[${prevLabel}] → Chunk ${i + 1} → [${nextLabel}]`);
@@ -294,7 +294,7 @@ async function main() {
   const tc = new TextChunker({ chunkSize: 150, chunkOverlap: 0 });
   const tcChunks = await tc.chunk(testText);
   const tcAvg = Math.round(
-    tcChunks.reduce((a, c) => a + c.metadata.charCount, 0) / tcChunks.length
+    tcChunks.reduce((a, c) => a + c.metadata.char_count, 0) / tcChunks.length
   );
   console.log(
     `TextChunker (150)     | ${String(tcChunks.length).padEnd(6)}| ${String(
@@ -306,7 +306,7 @@ async function main() {
   const rc = new RecursiveChunker({ chunkSize: 150, chunkOverlap: 0 });
   const rcChunks = await rc.chunk(testText);
   const rcAvg = Math.round(
-    rcChunks.reduce((a, c) => a + c.metadata.charCount, 0) / rcChunks.length
+    rcChunks.reduce((a, c) => a + c.metadata.char_count, 0) / rcChunks.length
   );
   console.log(
     `RecursiveChunker (150)| ${String(rcChunks.length).padEnd(6)}| ${String(
@@ -319,7 +319,7 @@ async function main() {
     const tk = new TokenChunker({ chunkSize: 40, chunkOverlap: 0 });
     const tkChunks = await tk.chunk(testText);
     const tkAvg = Math.round(
-      tkChunks.reduce((a, c) => a + (c.metadata.tokenCount || 0), 0) /
+      tkChunks.reduce((a, c) => a + (c.metadata.token_count || 0), 0) /
         tkChunks.length
     );
     console.log(

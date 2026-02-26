@@ -74,6 +74,10 @@ async function vectorStoreExample() {
       uri: "./examples/data/vectors",
       tableName: "agention_docs",
       embeddings,
+      metadataFields: [
+        { name: "source", type: "string" as const },
+        { name: "type", type: "string" as const },
+      ],
     });
     console.log("   Store created successfully\n");
 
@@ -150,7 +154,7 @@ async function vectorStoreExample() {
       { defaultLimit: 3 }
     );
     const getChunkTool = store.toGetChunkByIdTool(
-      "Retrieve a specific chunk by ID. Use this to get more context by reading previous or next chunks. Check the metadata.previousChunkId and metadata.nextChunkId fields from search results."
+      "Retrieve a specific chunk by ID. Use this to get more context by reading previous or next chunks. Check the metadata.prev_id and metadata.next_id fields from search results."
     );
     console.log(`   Search tool: ${searchTool.name}`);
     console.log(`   Get chunk tool: ${getChunkTool.name}\n`);

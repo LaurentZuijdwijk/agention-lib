@@ -67,17 +67,17 @@ export abstract class Chunker {
       const id = this.generateId(content, i, options?.sourceId);
 
       const metadata: ChunkMetadata = {
-        chunkIndex: i,
-        totalChunks: splits.length,
-        previousChunkId: null, // Will be linked after
-        nextChunkId: null, // Will be linked after
-        startOffset,
-        endOffset,
-        sourceId: options?.sourceId,
-        sourcePath: options?.sourcePath,
-        charCount: content.length,
+        index: i,
+        total: splits.length,
+        prev_id: null, // Will be linked after
+        next_id: null, // Will be linked after
+        start: startOffset,
+        end: endOffset,
+        source_id: options?.sourceId,
+        source_path: options?.sourcePath,
+        char_count: content.length,
         hash: this.computeHash(content),
-        sectionTitle: currentSection,
+        section: currentSection,
         ...options?.metadata,
       };
 
@@ -88,9 +88,9 @@ export abstract class Chunker {
     // Link chunks together
     this.linkChunks(chunks);
 
-    // Update totalChunks now that we know the final count
+    // Update total now that we know the final count
     for (const chunk of chunks) {
-      chunk.metadata.totalChunks = chunks.length;
+      chunk.metadata.total = chunks.length;
     }
 
     // Apply processor if provided
@@ -132,15 +132,15 @@ export abstract class Chunker {
   }
 
   /**
-   * Link chunks with previousChunkId and nextChunkId.
+   * Link chunks with prev_id and next_id.
    */
   protected linkChunks(chunks: Chunk[]): void {
     for (let i = 0; i < chunks.length; i++) {
       if (i > 0) {
-        chunks[i].metadata.previousChunkId = chunks[i - 1].id;
+        chunks[i].metadata.prev_id = chunks[i - 1].id;
       }
       if (i < chunks.length - 1) {
-        chunks[i].metadata.nextChunkId = chunks[i + 1].id;
+        chunks[i].metadata.next_id = chunks[i + 1].id;
       }
     }
   }
@@ -164,11 +164,10 @@ export abstract class Chunker {
 
     // Re-link after filtering and update indices
     for (let i = 0; i < processed.length; i++) {
-      processed[i].metadata.chunkIndex = i;
-      processed[i].metadata.totalChunks = processed.length;
-      processed[i].metadata.previousChunkId =
-        i > 0 ? processed[i - 1].id : null;
-      processed[i].metadata.nextChunkId =
+      processed[i].metadata.index = i;
+      processed[i].metadata.total = processed.length;
+      processed[i].metadata.prev_id = i > 0 ? processed[i - 1].id : null;
+      processed[i].metadata.next_id =
         i < processed.length - 1 ? processed[i + 1].id : null;
     }
 

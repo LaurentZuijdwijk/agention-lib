@@ -51,6 +51,10 @@ async function main() {
     uri: "./data/voyage-example",
     tableName: "documents",
     embeddings,
+    metadataFields: [
+      { name: "category", type: "string" as const },
+      { name: "source", type: "string" as const },
+    ],
   });
 
   // Add documents (embeddings generated automatically)

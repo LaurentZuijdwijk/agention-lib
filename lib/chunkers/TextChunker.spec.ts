@@ -53,8 +53,8 @@ describe("TextChunker", () => {
 
       expect(chunks).toHaveLength(1);
       expect(chunks[0].content).toBe(text);
-      expect(chunks[0].metadata.chunkIndex).toBe(0);
-      expect(chunks[0].metadata.totalChunks).toBe(1);
+      expect(chunks[0].metadata.index).toBe(0);
+      expect(chunks[0].metadata.total).toBe(1);
     });
 
     it("should split text into multiple chunks", async () => {
@@ -98,20 +98,20 @@ describe("TextChunker", () => {
       expect(chunks).toHaveLength(2);
 
       // First chunk
-      expect(chunks[0].metadata.chunkIndex).toBe(0);
-      expect(chunks[0].metadata.totalChunks).toBe(2);
-      expect(chunks[0].metadata.previousChunkId).toBeNull();
-      expect(chunks[0].metadata.nextChunkId).toBe(chunks[1].id);
-      expect(chunks[0].metadata.sourceId).toBe("test-doc");
-      expect(chunks[0].metadata.sourcePath).toBe("/test/doc.txt");
+      expect(chunks[0].metadata.index).toBe(0);
+      expect(chunks[0].metadata.total).toBe(2);
+      expect(chunks[0].metadata.prev_id).toBeNull();
+      expect(chunks[0].metadata.next_id).toBe(chunks[1].id);
+      expect(chunks[0].metadata.source_id).toBe("test-doc");
+      expect(chunks[0].metadata.source_path).toBe("/test/doc.txt");
       expect(chunks[0].metadata.custom).toBe("value");
-      expect(chunks[0].metadata.charCount).toBe(10);
+      expect(chunks[0].metadata.char_count).toBe(10);
       expect(chunks[0].metadata.hash).toBeDefined();
 
       // Second chunk
-      expect(chunks[1].metadata.chunkIndex).toBe(1);
-      expect(chunks[1].metadata.previousChunkId).toBe(chunks[0].id);
-      expect(chunks[1].metadata.nextChunkId).toBeNull();
+      expect(chunks[1].metadata.index).toBe(1);
+      expect(chunks[1].metadata.prev_id).toBe(chunks[0].id);
+      expect(chunks[1].metadata.next_id).toBeNull();
     });
 
     it("should generate unique IDs", async () => {
@@ -138,7 +138,7 @@ describe("TextChunker", () => {
       const text = "# Introduction\n\nThis is the introduction section.";
       const chunks = await chunker.chunk(text);
 
-      expect(chunks[0].metadata.sectionTitle).toBe("Introduction");
+      expect(chunks[0].metadata.section).toBe("Introduction");
     });
 
     it("should apply custom chunkProcessor", async () => {
@@ -175,10 +175,10 @@ describe("TextChunker", () => {
       expect(chunks[1].content).toBe("ABCDEFGHIJ");
 
       // Verify re-linking after filter
-      expect(chunks[0].metadata.chunkIndex).toBe(0);
-      expect(chunks[0].metadata.totalChunks).toBe(2);
-      expect(chunks[0].metadata.nextChunkId).toBe(chunks[1].id);
-      expect(chunks[1].metadata.previousChunkId).toBe(chunks[0].id);
+      expect(chunks[0].metadata.index).toBe(0);
+      expect(chunks[0].metadata.total).toBe(2);
+      expect(chunks[0].metadata.next_id).toBe(chunks[1].id);
+      expect(chunks[1].metadata.prev_id).toBe(chunks[0].id);
     });
 
     it("should use custom idGenerator", async () => {

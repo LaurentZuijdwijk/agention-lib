@@ -83,8 +83,8 @@ describe("TokenChunker", () => {
       const chunker = new TokenChunker({ chunkSize: 100 });
       const chunks = await chunker.chunk("Hello, world!");
 
-      expect(chunks[0].metadata.tokenCount).toBeDefined();
-      expect(typeof chunks[0].metadata.tokenCount).toBe("number");
+      expect(chunks[0].metadata.token_count).toBeDefined();
+      expect(typeof chunks[0].metadata.token_count).toBe("number");
     });
 
     it("should handle overlap", async () => {
@@ -110,12 +110,12 @@ describe("TokenChunker", () => {
       });
 
       for (let i = 0; i < chunks.length; i++) {
-        expect(chunks[i].metadata.chunkIndex).toBe(i);
-        expect(chunks[i].metadata.totalChunks).toBe(chunks.length);
-        expect(chunks[i].metadata.sourceId).toBe("test-doc");
-        expect(chunks[i].metadata.sourcePath).toBe("/test.txt");
+        expect(chunks[i].metadata.index).toBe(i);
+        expect(chunks[i].metadata.total).toBe(chunks.length);
+        expect(chunks[i].metadata.source_id).toBe("test-doc");
+        expect(chunks[i].metadata.source_path).toBe("/test.txt");
         expect(chunks[i].metadata.custom).toBe("value");
-        expect(chunks[i].metadata.tokenCount).toBeDefined();
+        expect(chunks[i].metadata.token_count).toBeDefined();
         expect(chunks[i].metadata.hash).toBeDefined();
       }
     });
@@ -127,12 +127,12 @@ describe("TokenChunker", () => {
       const chunks = await chunker.chunk(text);
 
       if (chunks.length >= 2) {
-        expect(chunks[0].metadata.previousChunkId).toBeNull();
-        expect(chunks[0].metadata.nextChunkId).toBe(chunks[1].id);
+        expect(chunks[0].metadata.prev_id).toBeNull();
+        expect(chunks[0].metadata.next_id).toBe(chunks[1].id);
 
         const last = chunks[chunks.length - 1];
-        expect(last.metadata.nextChunkId).toBeNull();
-        expect(last.metadata.previousChunkId).toBe(
+        expect(last.metadata.next_id).toBeNull();
+        expect(last.metadata.prev_id).toBe(
           chunks[chunks.length - 2].id
         );
       }

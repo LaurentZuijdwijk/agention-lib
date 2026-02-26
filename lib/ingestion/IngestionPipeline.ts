@@ -286,13 +286,13 @@ export class IngestionPipeline {
     }
 
     // Extract all hashes from chunks
-    const hashes = chunks.map((chunk) => chunk.metadata.hash);
+    const hashes = chunks.map((chunk) => chunk.metadata.hash as string);
 
     // Check which hashes already exist in the store
     const existingHashes = await this.store.getByHashes(hashes);
 
     // Filter out chunks whose hashes exist
-    return chunks.filter((chunk) => !existingHashes.has(chunk.metadata.hash));
+    return chunks.filter((chunk) => !existingHashes.has(chunk.metadata.hash as string));
   }
 
   /**

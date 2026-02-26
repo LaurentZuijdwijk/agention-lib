@@ -172,6 +172,81 @@ This pattern allows you to:
 
 The main agent sees sub-agents as tools and decides when to invoke them based on the task at hand.
 
+## Events
+
+Tools extend `EventEmitter` and fire events before and after execution. This lets you observe, log, or intercept tool calls without modifying the tool's logic.
+
+```typescript
+import { Tool, ToolEvent, ToolResultEvent } from '@agentionai/agents/core';
+
+const myTool = new Tool({ ... });
+
+myTool.on(ToolEvent.EXECUTE, (event: ToolEvent) => {
+  console.log(`Tool "${event.target.name}" called by agent "${event.agentName}"`);
+  console.log('Input:', event.input);
+});
+
+myTool.on(ToolResultEvent.RESULT, (event: ToolResultEvent) => {
+  console.log(`Tool "${event.target.name}" returned:`, event.result);
+});
+```
+
+### Tool Event Reference
+
+| Event constant | Event name | Emitted when | Payload |
+|---|---|---|---|
+| `ToolEvent.EXECUTE` | `"execute"` | The tool is about to run | `ToolEvent` |
+| `ToolResultEvent.RESULT` | `"toolResult"` | The tool has completed successfully | `ToolResultEvent` |
+
+### ToolEvent Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `target` | `Tool` | The tool instance that was called |
+| `input` | `Record<string, any>` | The input passed to the tool |
+| `id` | `string` | Unique ID for this tool call |
+| `agentId` | `string` | ID of the agent that invoked the tool |
+| `agentName` | `string` | Name of the agent that invoked the tool |
+
+`ToolResultEvent` extends `ToolEvent` and adds:
+
+| Property | Type | Description |
+|---|---|---|
+| `result` | `any` | The value returned by the tool's `execute` function |
+
+### Preventing Execution
+
+Call `event.preventDefault()` on a `ToolEvent` to abort the tool call. The agent will receive an error message and should not retry with the same input:
+
+```typescript
+myTool.on(ToolEvent.EXECUTE, (event: ToolEvent) => {
+  if (event.input.url.startsWith('file://')) {
+    event.preventDefault(); // Block local file access
+  }
+});
+```
+
+Similarly, calling `preventDefault()` on a `ToolResultEvent` will suppress the result from being returned to the agent.
+
+### Logging Tool Usage Across All Tools
+
+Attach listeners to shared tool instances to centralise observability:
+
+```typescript
+const tools = [searchTool, calculatorTool, weatherTool];
+
+for (const tool of tools) {
+  tool.on(ToolEvent.EXECUTE, ({ target, agentName, input }) => {
+    logger.info({ tool: target.name, agent: agentName, input });
+  });
+  tool.on(ToolResultEvent.RESULT, ({ target, result }) => {
+    logger.info({ tool: target.name, result });
+  });
+}
+
+const agent = new ClaudeAgent({ ..., tools });
+```
+
 ## Best Practices
 
 1. **Write clear descriptions** - The LLM uses these to decide when to use tools

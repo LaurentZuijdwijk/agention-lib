@@ -14,6 +14,9 @@ export { OpenAiAgent } from "./agents/openai/OpenAiAgent";
 export { MistralAgent } from "./agents/mistral/MistralAgent";
 export { GeminiAgent } from "./agents/google/GeminiAgent";
 export * from "./agents/model-types";
+export * from "./agents/AgentConfig";
+export * from "./agents/AgentEvent";
+export * from "./agents/errors/AgentError";
 
 // History
 export * from "./history/History";

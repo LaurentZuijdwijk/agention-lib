@@ -1,7 +1,7 @@
 {
   "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Agent Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,6 +33,26 @@
     "./embeddings": {
       "types": "./dist/embeddings/index.d.ts",
       "default": "./dist/embeddings/index.js"
+    },
+    "./vectorstore": {
+      "types": "./dist/vectorstore/index.d.ts",
+      "default": "./dist/vectorstore/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "default": "./dist/mcp/index.js"
+    },
+    "./viz": {
+      "types": "./dist/viz/index.d.ts",
+      "default": "./dist/viz/index.js"
+    },
+    "./chunkers": {
+      "types": "./dist/chunkers/index.d.ts",
+      "default": "./dist/chunkers/index.js"
+    },
+    "./ingestion": {
+      "types": "./dist/ingestion/index.d.ts",
+      "default": "./dist/ingestion/index.js"
     }
   },
   "files": [

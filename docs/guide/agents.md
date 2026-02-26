@@ -237,6 +237,72 @@ OpenAI offers models with built-in extended thinking (o1, gpt-5-nano). These use
 - **4o models**: Best for general agentic workflows, tool use, and most production scenarios
 - **Built-in reasoning (o1/gpt-5-nano)**: Best for standalone complex problems where the model needs deep analytical thinking
 
+## Events
+
+All agents extend `EventEmitter` and emit lifecycle events you can listen to. Import the event constants from `AgentEvent`:
+
+```typescript
+import { ClaudeAgent, AgentEvent } from '@agentionai/agents/claude';
+
+const agent = new ClaudeAgent({ ... });
+
+agent.on(AgentEvent.BEFORE_EXECUTE, (input) => {
+  console.log('About to execute with input:', input);
+});
+
+agent.on(AgentEvent.DONE, (response, tokenUsage) => {
+  console.log('Finished. Tokens used:', tokenUsage);
+});
+
+agent.on(AgentEvent.ERROR, (error) => {
+  console.error('Agent error:', error.message);
+});
+```
+
+### Agent Event Reference
+
+| Event constant | Event name | Emitted when | Payload |
+|---|---|---|---|
+| `AgentEvent.BEFORE_EXECUTE` | `"before_execute"` | `execute()` is called | `input` |
+| `AgentEvent.AFTER_EXECUTE` | `"after_execute"` | The LLM returns a response (may fire multiple times during tool loops) | `response` |
+| `AgentEvent.DONE` | `"done"` | Execution fully completes (after all tool calls) | `response, tokenUsage` |
+| `AgentEvent.TOOL_USE` | `"toolUse"` | The LLM requests one or more tool calls | `toolCalls` (provider-specific) |
+| `AgentEvent.TOOL_ERROR` | `"tool_error"` | A tool throws an error during execution | `error` |
+| `AgentEvent.ERROR` | `"error"` | Any error during execution | `error` |
+| `AgentEvent.MAX_TOKENS_EXCEEDED` | `"max_tokens_exceeded"` | Response was cut off by token limit | `error` |
+
+### Preventing Default Behaviour
+
+The `BEFORE_EXECUTE` event payload includes a `preventDefault()` method (via `AgentEvent`) that you can call to cancel the execution:
+
+```typescript
+agent.on(AgentEvent.BEFORE_EXECUTE, (event) => {
+  if (shouldBlock(event)) {
+    event.preventDefault(); // Throws instead of calling the LLM
+  }
+});
+```
+
+### Monitoring All Agents in a Pipeline
+
+Because agents are event emitters, you can attach listeners to individual agents inside a pipeline to observe what's happening at each stage:
+
+```typescript
+const researcher = new ClaudeAgent({ id: 'researcher', ... });
+const writer = new ClaudeAgent({ id: 'writer', ... });
+
+researcher.on(AgentEvent.DONE, (_, usage) => {
+  console.log(`Researcher used ${usage?.total_tokens} tokens`);
+});
+
+writer.on(AgentEvent.TOOL_USE, (toolCalls) => {
+  console.log('Writer is calling tools:', toolCalls);
+});
+
+const pipeline = AgentGraph.sequential(researcher, writer);
+await pipeline.execute('Write a report on quantum computing');
+```
+
 ## Implementing GraphNode
 
 All agents implement the `GraphNode` interface, making them compatible with pipelines:

@@ -23,6 +23,9 @@ export * from "./mcp";
 // Visualization
 export * from "./viz";
 
+// Embeddings
+export * from "./embeddings";
+
 // Vector Store
 export * from "./vectorstore";
 

@@ -26,6 +26,13 @@ export interface CommonAgentConfig {
   /** Maximum number of messages to retain in conversation history */
   maxHistoryLength?: number;
 
+  /**
+   * Maximum estimated tokens to retain in conversation history.
+   * When exceeded, oldest non-system entries are dropped.
+   * Takes precedence over maxHistoryLength for context-window-aware trimming.
+   */
+  maxHistoryTokens?: number;
+
   /** Model identifier (e.g., "claude-3-5-sonnet-20241022", "gpt-4") */
   model?: string;
 

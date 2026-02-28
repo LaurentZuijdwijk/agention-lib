@@ -94,6 +94,31 @@ await agent.execute('What is my name?'); // Remembers Alice
 
 See [History Management](/guide/history) for Redis and custom storage backends.
 
+### My agent's responses get worse in long conversations. How do I fix it?
+
+This is the "lost in the middle" effect: models pay less attention to information buried deep in a large context. Two built-in strategies address it:
+
+**Tool result masking** — large tool results (search results, file reads) are replaced with a lightweight reference marker after the first turn or two. The agent sees `[MASKED - ref: tu_001]` instead of the full content, keeping the context lean. It can retrieve any masked result on demand via the `retrieve_tool_result` tool.
+
+**Rolling summarization** — old conversation turns are compressed into a concise summary by a fast, cheap model. The summary replaces the turns in the context window, preserving the gist without the bulk.
+
+**Sub-agent delegation** — wrap expensive bulk work (research, crawling, large retrievals) in a sub-agent via `Tool.fromAgent()`. The sub-agent does all the heavy lifting in its own isolated history; the main agent receives only the final synthesized result.
+
+```typescript
+import { compressionPlugin, toolResultMaskingPlugin } from '@agentionai/agents/history/plugins';
+
+const maskingPlugin = toolResultMaskingPlugin({ keepRecentResults: 2 });
+const history = new History()
+  .use(maskingPlugin)
+  .use(compressionPlugin(summaryAgent, { autoReduceWhen: { maxTokens: 8000 } }));
+
+const agent = new ClaudeAgent({
+  tools: [searchTool, maskingPlugin.retrieveTool],
+}, history);
+```
+
+See [Context Management](/guide/context-management) for a full guide.
+
 ### How do I track token usage?
 
 After `execute()`, read `agent.lastTokenUsage`:

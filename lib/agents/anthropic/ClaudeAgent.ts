@@ -124,7 +124,7 @@ export class ClaudeAgent extends BaseAgent {
     this.addTextToHistory("user", input);
 
     try {
-      const messages = anthropicTransformer.toProvider(this.history.entries);
+      const messages = anthropicTransformer.toProvider(this.history.getEntries());
       const systemMessage = this.history.getSystemMessage();
 
       const response = await this.client.messages.create({
@@ -288,7 +288,7 @@ export class ClaudeAgent extends BaseAgent {
         // Continue conversation with tool results
         try {
           const messages = anthropicTransformer.toProvider(
-            this.history.entries
+            this.history.getEntries()
           );
 
           const newResponse = await this.client.messages.create({
@@ -359,6 +359,13 @@ export class ClaudeAgent extends BaseAgent {
     // Track tool call count for viz reporting
     this.currentToolCallCount += toolUseBlocks.length;
 
+    const agentSource = {
+      agentId: this.getId(),
+      agentName: this.getName(),
+      model: this.config.model!,
+      vendor: "anthropic" as const,
+    };
+
     const results = await Promise.all(
       toolUseBlocks.map(async (block) => {
         const tool = this.tools.get(block.name);
@@ -375,8 +382,22 @@ export class ClaudeAgent extends BaseAgent {
             console.error(error);
           }
 
+          if (vizConfig.isEnabled()) {
+            const vizEventId = vizReporter.toolStart(
+              block.name,
+              block.id,
+              block.input,
+              agentSource
+            );
+            vizReporter.toolError(vizEventId, block.name, block.id, errorMessage);
+          }
+
           return toolResult(block.id, errorMessage, true);
         }
+
+        const vizEventId = vizConfig.isEnabled()
+          ? vizReporter.toolStart(block.name, block.id, block.input, agentSource)
+          : undefined;
 
         try {
           const result = await tool.execute(
@@ -387,6 +408,10 @@ export class ClaudeAgent extends BaseAgent {
             this.config.model,
             "anthropic"
           );
+
+          if (vizEventId) {
+            vizReporter.toolComplete(vizEventId, block.name, block.id, true, result);
+          }
 
           return toolResult(block.id, JSON.stringify(result));
         } catch (error) {
@@ -404,6 +429,10 @@ export class ClaudeAgent extends BaseAgent {
             block.input
           );
           this.emit(AgentEvent.TOOL_ERROR, toolError);
+
+          if (vizEventId) {
+            vizReporter.toolError(vizEventId, block.name, block.id, errorMessage);
+          }
 
           return toolResult(block.id, errorMessage, true);
         }

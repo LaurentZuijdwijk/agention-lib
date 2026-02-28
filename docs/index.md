@@ -65,22 +65,25 @@ const mainAgent = new ClaudeAgent({
 ```
 [Learn more →](/guide/tools)
 
-### History
-Provider-agnostic, persistent (Redis, file, custom), shareable across agents of different providers.
+### History & Context Management
+Provider-agnostic, persistent (Redis, file, custom), shareable across agents of different providers. Built-in plugins keep the context window lean automatically: tool result masking removes stale large results at read time; rolling summarization compresses old turns via a cheap LLM.
 
 ```typescript
 import { ClaudeAgent } from '@agentionai/agents/claude';
-import { OpenAiAgent } from '@agentionai/agents/openai';
 import { RedisHistory } from '@agentionai/agents/core';
+import { compressionPlugin, toolResultMaskingPlugin } from '@agentionai/agents/history/plugins';
 
-const history = new RedisHistory(redis);
-await history.load('conversation:user123');
+const maskingPlugin = toolResultMaskingPlugin({ keepRecentResults: 2 });
+const history = new RedisHistory(redis)
+  .use(maskingPlugin)
+  .use(compressionPlugin(summaryAgent, { autoReduceWhen: { maxTokens: 8000 } }));
 
-// Both agents share the same conversation
-const claude = new ClaudeAgent({ model: 'claude-sonnet-4-5' }, history);
-const gpt = new OpenAiAgent({ model: 'gpt-4o' }, history);
+// Context stays lean automatically — no manual trimming needed
+const agent = new ClaudeAgent({
+  tools: [searchTool, maskingPlugin.retrieveTool],
+}, history);
 ```
-[Learn more →](/guide/history)
+[History Management →](/guide/history) · [Context Management →](/guide/context-management)
 
 ### Graph Pipelines
 Compose sequential, parallel, voting, routing, and nested graphs. Mix models and providers freely.
@@ -215,6 +218,7 @@ npm install openai             # For OpenAI/GPT
 - [Agents](/guide/agents) — Agent configuration and providers
 - [Tools](/guide/tools) — Adding capabilities and agent delegation
 - [History](/guide/history) — Conversation persistence and sharing
+- [Context Management](/guide/context-management) — Token budgets, masking, and compression
 - [Graph Pipelines](/guide/graph-pipelines) — Multi-agent workflows
 - [Vector Stores](/guide/vector-stores) — RAG and semantic search
 - [Examples](/guide/examples) — Real-world implementations

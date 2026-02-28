@@ -38,7 +38,9 @@ async function main() {
   await mcp.connect();
 
   const tools = mcp.getTools();
-  console.log(`Discovered ${tools.length} tools: ${tools.map((t) => t.name).join(", ")}\n`);
+  console.log(
+    `Discovered ${tools.length} tools: ${tools.map((t) => t.name).join(", ")}\n`
+  );
 
   const agent = new ClaudeAgent({
     id: "airbnb-agent",
@@ -47,13 +49,14 @@ async function main() {
       "You are a helpful travel assistant. Use the available tools to search Airbnb listings and provide detailed recommendations based on the user's needs.",
     apiKey,
     model: "claude-sonnet-4-6",
+    maxTokens: 10000,
     tools,
   });
 
   const result = await agent.execute(
-    "Find me a nice place to stay in Amsterdam for 2 adults " +
-    "checking in on 2026-03-15 and checking out on 2026-03-20. " +
-    "Give me the top 3 options with prices and a brief description of each."
+    "Find me a nice place to stay Near Weymouth for 2 adults " +
+      "checking in on 2026-03-15 and checking out on 2026-03-20. " +
+      "Give me the top 3 options with prices and a brief description of each."
   );
 
   console.log("Agent response:\n");

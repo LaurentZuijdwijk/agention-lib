@@ -45,6 +45,7 @@ export default defineConfig({
             { text: "Tools", link: "/guide/tools" },
             { text: "MCP", link: "/guide/mcp" },
             { text: "History Management", link: "/guide/history" },
+            { text: "Context Management", link: "/guide/context-management" },
             { text: "Graph Pipelines", link: "/guide/graph-pipelines" },
           ],
         },

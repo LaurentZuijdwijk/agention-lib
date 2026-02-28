@@ -148,7 +148,7 @@ export class OpenAiAgent extends BaseAgent {
     this.addTextToHistory("user", input);
 
     try {
-      const inputMessages = openAiTransformer.toProvider(this.history.entries);
+      const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
 
       const response = await this.client.responses.create({
         model: this.config.model!,
@@ -346,7 +346,7 @@ export class OpenAiAgent extends BaseAgent {
         // Continue conversation
         try {
           const inputMessages = openAiTransformer.toProvider(
-            this.history.entries
+            this.history.getEntries()
           );
 
           const newResponse = await this.client.responses.create({

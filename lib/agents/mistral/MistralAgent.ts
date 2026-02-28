@@ -140,7 +140,7 @@ export class MistralAgent extends BaseAgent {
     this.addTextToHistory("user", input);
 
     try {
-      const messages = mistralTransformer.toProvider(this.history.entries);
+      const messages = mistralTransformer.toProvider(this.history.getEntries());
       const response = await this.client.chat.complete({
         model: this.config.model!,
         messages: messages as Parameters<
@@ -318,7 +318,7 @@ export class MistralAgent extends BaseAgent {
 
         // Continue conversation
         try {
-          const messages = mistralTransformer.toProvider(this.history.entries);
+          const messages = mistralTransformer.toProvider(this.history.getEntries());
 
           const newResponse = await this.client.chat.complete({
             model: this.config.model!,

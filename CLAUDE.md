@@ -90,6 +90,16 @@ The graph module provides workflow orchestration patterns:
 
 ## TODO
 
+### Context Engineering Improvements
+These are derived from context engineering research (lost-in-the-middle, U-shaped attention, attention scarcity). Priority order reflects impact.
+
+- [x] **Token-aware history trimming** — `History` now accepts `maxTokens` option; each entry stores `estimatedTokens` (ceil(contentLength/4)); trimming preserves the system message. `AgentConfig.maxHistoryTokens` wires this through to the agent's history. Also fixed: `maxHistoryLength` was stored on `BaseAgent` but never passed to `History` — now both fields are correctly applied at construction time.
+- [ ] **Context summarization** — When history must be trimmed, the current FIFO drop discards the oldest entries first — exactly the ones the model attends to most. Implement a `summarize()` strategy that compresses old turns into a single summary entry before dropping them.
+- [ ] **Fix system message missing from follow-up tool calls** — `ClaudeAgent.ts:294` omits the system message on recursive calls after tool results. Without it, model behaviour can drift across a multi-turn tool chain ("context clash"). Add `system: this.history.getSystemMessage()` to the follow-up API call.
+- [ ] **Progressive tool disclosure** — All tool definitions are sent on every API call including follow-up tool-result calls (`ClaudeAgent.ts:298`). With MCP or large tool sets this wastes significant tokens per hop. Send only tools relevant to the current step, or omit tools entirely on follow-up calls when no further tool use is expected.
+- [ ] **Long-term / external memory** — History is in-memory only; nothing persists across restarts. Wire the existing `VectorStore` into History retrieval so agents can fetch relevant past context rather than carrying everything in the window.
+- [ ] **Context quality / degradation detection** — No mechanism exists to detect adversarial tool results, contradictory information, or excessively noisy responses (context poisoning/distraction). Add at minimum a configurable max-token guard per tool result, especially relevant for MCP integrations where external servers return arbitrary content.
+
 ### Architecture Improvements
 - [ ] Add retry mechanisms with backoff to executors
 - [ ] Add ConditionalExecutor for branching workflows
@@ -101,7 +111,6 @@ The graph module provides workflow orchestration patterns:
 - [ ] Fix test inconsistencies - Tests in BaseAgent.spec.ts and ClaudeAgent.spec.ts need alignment
 - [ ] Complete OpenAI agent implementation
 - [ ] Fix `isAgent()` check in PlanExecutor - use `instanceof BaseAgent` instead of duck-typing
-- [ ] Add system message to follow-up tool call in ClaudeAgent (line ~294)
 
 ### Features to Add
 1. **Streaming responses** - Support streaming from LLM APIs

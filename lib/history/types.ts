@@ -193,3 +193,20 @@ export function toolResult(
 export function textMessage(role: MessageRole, value: string): HistoryEntry {
   return { role, content: [text(value)] };
 }
+
+// =============================================================================
+// Plugin System
+// =============================================================================
+
+/**
+ * Options controlling how history.reduce() compacts stored entries.
+ * All fields are optional — supply whichever constraints apply.
+ */
+export type ReduceOptions = {
+  /** Compress/drop entries until total estimated tokens fall below this value. */
+  maxTokens?: number;
+  /** Compress/drop entries until the entry count falls below this value. */
+  maxEntries?: number;
+  /** Compress/drop entries whose timestamp predates this date. */
+  olderThan?: Date;
+};

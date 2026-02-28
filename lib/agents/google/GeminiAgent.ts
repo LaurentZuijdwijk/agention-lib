@@ -255,7 +255,7 @@ export class GeminiAgent extends BaseAgent {
     this.addTextToHistory("user", input);
 
     try {
-      const contents = geminiTransformer.toProvider(this.history.entries);
+      const contents = geminiTransformer.toProvider(this.history.getEntries());
       const systemMessage = this.history.getSystemMessage();
       const tools = this.getToolDefinitionsForGemini();
 
@@ -433,7 +433,7 @@ export class GeminiAgent extends BaseAgent {
 
       // Continue conversation
       try {
-        const newContents = geminiTransformer.toProvider(this.history.entries);
+        const newContents = geminiTransformer.toProvider(this.history.getEntries());
         const systemMessage = this.history.getSystemMessage();
         const tools = this.getToolDefinitionsForGemini();
 

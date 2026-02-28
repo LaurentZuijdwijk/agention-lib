@@ -46,6 +46,7 @@ export abstract class BaseAgent<
   protected description: string;
   protected tools: Map<string, Tool<unknown>>;
   protected maxHistoryLength: number;
+  protected history: History;
 
   /** The vendor/provider for this agent (anthropic, openai, mistral, gemini) */
   protected vendor: AgentVendor;
@@ -64,7 +65,7 @@ export abstract class BaseAgent<
    */
   constructor(
     config: BaseAgentConfig,
-    protected history = new History([], { transient: true })
+    history?: History
   ) {
     super();
 
@@ -74,6 +75,13 @@ export abstract class BaseAgent<
     this.description = config.description;
     this.vendor = config.vendor;
     this.model = config.model || "unknown";
+    this.maxHistoryLength = config.maxHistoryLength || 100;
+
+    this.history = history ?? new History([], {
+      transient: true,
+      maxLength: config.maxHistoryLength,
+      maxTokens: config.maxHistoryTokens,
+    });
 
     if (config.agents) {
       const agentTools = config.agents.map((agent) => {
@@ -88,8 +96,6 @@ export abstract class BaseAgent<
     }
 
     this.tools = new Map((config.tools || []).map((tool) => [tool.name, tool]));
-
-    this.maxHistoryLength = config.maxHistoryLength || 100;
   }
 
   abstract execute(input: TInput): Promise<TOutput>;
@@ -180,7 +186,7 @@ export abstract class BaseAgent<
   }
 
   getHistoryEntries(): HistoryEntry[] {
-    return this.history.entries;
+    return this.history.getEntries();
   }
 
   getTools(): Tool<unknown>[] {

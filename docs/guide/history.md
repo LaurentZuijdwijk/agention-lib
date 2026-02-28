@@ -8,14 +8,14 @@ The history system normalizes conversation data into a shared format that can be
 - Transformed to any LLM provider's native format (Anthropic, OpenAI, Mistral, Gemini)
 - Shared between agents using different providers
 - Persisted to various storage backends (memory, Redis, custom)
-- Extended with your own storage mechanisms
+- Extended with plugins for context management and token budgeting
 
 ## Basic Usage
 
 ### In-Memory History
 
 ```typescript
-import { History } from '@agentionai/agents/core';
+import { History } from '@agentionai/agents/history';
 
 const history = new History();
 
@@ -23,8 +23,8 @@ const history = new History();
 history.addText('user', 'Hello!');
 history.addText('assistant', 'Hi there!');
 
-// Get all entries
-const entries = history.entries;
+// Get all entries (with any transform plugins applied)
+const entries = history.getEntries();
 
 // Clear history
 history.clear();
@@ -35,14 +35,14 @@ history.clear();
 ```typescript
 import { ClaudeAgent } from '@agentionai/agents/claude';
 import { OpenAiAgent } from '@agentionai/agents/openai';
-import { History } from '@agentionai/agents/core';
+import { History } from '@agentionai/agents/history';
 
 // Create a shared history
 const sharedHistory = new History();
 
 // Both agents use the same conversation history
 const claudeAgent = new ClaudeAgent(
-  { model: 'claude-sonnet-4-20250514' },
+  { model: 'claude-sonnet-4-6' },
   sharedHistory
 );
 
@@ -68,9 +68,9 @@ type HistoryEntry = {
   meta?: ProviderMeta;  // Optional provider-specific metadata
 };
 
-type MessageContent = 
-  | TextContent 
-  | ToolUseContent 
+type MessageContent =
+  | TextContent
+  | ToolUseContent
   | ToolResultContent;
 ```
 
@@ -99,7 +99,7 @@ const toolResult = {
 ### Helper Functions
 
 ```typescript
-import { text, toolUse, toolResult, textMessage } from '@agentionai/agents/core';
+import { text, toolUse, toolResult, textMessage } from '@agentionai/agents/history';
 
 // Create content blocks
 history.addEntry({
@@ -151,11 +151,21 @@ history.addEntry({
 ### Retrieving Messages
 
 ```typescript
-// Get all entries
-const entries = history.entries;
+// Get entries as agents see them — transform plugins applied
+const entries = history.getEntries();
+
+// Get raw stored entries — no plugins applied, used for serialization
+const raw = history.entries;
+
+// Get the full content of a tool result by its tool_use_id
+// Always reads raw storage regardless of masking plugins
+const result = history.getToolResult('call_123');
 
 // Get number of entries
 const count = history.length;
+
+// Get total estimated token count
+const tokens = history.totalEstimatedTokens;
 
 // Get total content size in characters
 const size = history.size;
@@ -166,7 +176,7 @@ const last = history.lastEntry();
 // Get system message
 const systemMsg = history.getSystemMessage();
 
-// Get all messages without system messages
+// Get all messages without system messages (transform plugins applied)
 const messages = history.getMessagesWithoutSystem();
 ```
 
@@ -188,7 +198,7 @@ const copy = history.clone();
 For production applications, persist history to Redis:
 
 ```typescript
-import { RedisHistory } from '@agentionai/agents/core';
+import { RedisHistory } from '@agentionai/agents/history';
 import Redis from 'ioredis';
 
 // Create Redis client
@@ -205,7 +215,7 @@ await history.load('conversation:user123');
 
 // Use with agent
 const agent = new ClaudeAgent(
-  { model: 'claude-sonnet-4-20250514' },
+  { model: 'claude-sonnet-4-6' },
   history
 );
 
@@ -229,7 +239,7 @@ history.on('entry', async () => {
   await history.save(conversationKey);
 });
 
-const agent = new ClaudeAgent({ model: 'claude-sonnet-4-20250514' }, history);
+const agent = new ClaudeAgent({ model: 'claude-sonnet-4-6' }, history);
 await agent.execute('Hello!'); // Automatically saved
 ```
 
@@ -238,7 +248,7 @@ await agent.execute('Hello!'); // Automatically saved
 The history system is easily extended to support any storage mechanism. Simply extend the `History` class:
 
 ```typescript
-import { History, HistoryEntry } from '@agentionai/agents/core';
+import { History } from '@agentionai/agents/history';
 
 class DatabaseHistory extends History {
   constructor(private db: DatabaseClient) {
@@ -250,7 +260,7 @@ class DatabaseHistory extends History {
       'SELECT data FROM conversations WHERE id = ?',
       [conversationId]
     );
-    
+
     if (rows.length > 0) {
       const entries = JSON.parse(rows[0].data);
       this._entries = entries;
@@ -259,7 +269,7 @@ class DatabaseHistory extends History {
 
   async save(conversationId: string): Promise<void> {
     const serialized = this.toJSON();
-    
+
     await this.db.query(
       'INSERT INTO conversations (id, data) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET data = ?',
       [conversationId, serialized, serialized]
@@ -271,7 +281,7 @@ class DatabaseHistory extends History {
 ### Example: File-Based History
 
 ```typescript
-import { History } from '@agentionai/agents/core';
+import { History } from '@agentionai/agents/history';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -282,7 +292,7 @@ class FileHistory extends History {
 
   async load(conversationId: string): Promise<void> {
     const filePath = path.join(this.baseDir, `${conversationId}.json`);
-    
+
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const entries = JSON.parse(data);
@@ -297,9 +307,7 @@ class FileHistory extends History {
 
   async save(conversationId: string): Promise<void> {
     const filePath = path.join(this.baseDir, `${conversationId}.json`);
-    const serialized = this.toJSON();
-    
-    await fs.writeFile(filePath, serialized, 'utf-8');
+    await fs.writeFile(filePath, this.toJSON(), 'utf-8');
   }
 }
 
@@ -307,53 +315,10 @@ class FileHistory extends History {
 const history = new FileHistory('./conversations');
 await history.load('user123');
 
-const agent = new ClaudeAgent({ model: 'claude-sonnet-4-20250514' }, history);
+const agent = new ClaudeAgent({ model: 'claude-sonnet-4-6' }, history);
 await agent.execute('Hello!');
 
 await history.save('user123');
-```
-
-### Example: MongoDB History
-
-```typescript
-import { History } from '@agentionai/agents/core';
-import { MongoClient, Db } from 'mongodb';
-
-class MongoHistory extends History {
-  constructor(private db: Db, private collection: string = 'conversations') {
-    super([], { transient: false });
-  }
-
-  async load(conversationId: string): Promise<void> {
-    const doc = await this.db
-      .collection(this.collection)
-      .findOne({ _id: conversationId });
-    
-    if (doc && doc.entries) {
-      this._entries = doc.entries;
-    }
-  }
-
-  async save(conversationId: string): Promise<void> {
-    await this.db.collection(this.collection).updateOne(
-      { _id: conversationId },
-      { 
-        $set: { 
-          entries: this._entries,
-          updatedAt: new Date()
-        }
-      },
-      { upsert: true }
-    );
-  }
-}
-
-// Usage
-const client = await MongoClient.connect('mongodb://localhost:27017');
-const db = client.db('myapp');
-
-const history = new MongoHistory(db);
-await history.load('conversation123');
 ```
 
 ## Events
@@ -368,58 +333,284 @@ history.on('entry', (entry: HistoryEntry) => {
 history.on('clear', () => {
   console.log('History cleared');
 });
+
+// Fired when a plugin's afterAdd hook throws
+history.on('pluginError', (error: Error, plugin: HistoryPlugin, hook: string) => {
+  console.error(`Plugin error in ${hook}:`, error.message);
+});
 ```
+
+## Plugin System
+
+Plugins extend history with additional behaviour without requiring subclasses. Any `History` or `RedisHistory` instance can accept plugins, so storage backends and context strategies compose freely.
+
+```typescript
+import { HistoryPlugin } from '@agentionai/agents/history';
+
+type HistoryPlugin = {
+  onRegistered?: (history: History) => void;
+  afterAdd?:     (history: History) => void | Promise<void>;
+  reduce?:       (entries: ReducibleEntry[], options: ReduceOptions) => Promise<ReducibleEntry[]>;
+  transform?:    (entries: ReducibleEntry[]) => ReducibleEntry[];
+};
+```
+
+| Hook | When it runs | Sync/async | Typical use |
+|---|---|---|---|
+| `onRegistered` | Once, immediately on `history.use(plugin)` | sync | Capture history reference |
+| `afterAdd` | After every `addEntry()`, fire-and-forget | async | Trigger deferred work |
+| `reduce` | When `history.reduce(options)` is called | async | Compress old entries via LLM |
+| `transform` | Every time `history.getEntries()` is called | sync | Read-time rewrite (e.g. masking) |
+
+### Registering Plugins
+
+```typescript
+import { compressionPlugin, toolResultMaskingPlugin } from '@agentionai/agents/history/plugins';
+
+const maskingPlugin = toolResultMaskingPlugin({ keepRecentResults: 2 });
+
+const history = new History([], { maxTokens: 20000 })
+  .use(maskingPlugin)              // register first
+  .use(compressionPlugin(agent));  // register second — plugins run in order
+```
+
+Plugins are applied in registration order for both `transform` and `reduce`. `use()` is chainable and calls `onRegistered` immediately.
+
+### Error Handling
+
+Errors thrown by `afterAdd` hooks are fire-and-forget and will not crash the caller. Configure an error handler:
+
+```typescript
+// Option A: callback in constructor options
+const history = new History([], {
+  onPluginError: (error, plugin, hook) => {
+    logger.error({ error, hook }, 'History plugin error');
+  }
+});
+
+// Option B: event listener (default when no callback is set)
+history.on('pluginError', (error, plugin, hook) => {
+  console.error(`[${hook}]`, error.message);
+});
+```
+
+---
+
+## Built-in Plugins
+
+### Tool Result Masking
+
+Large tool results — web search dumps, file reads — rapidly consume context tokens, but the agent only really needs them when they are fresh. `toolResultMaskingPlugin` keeps the most recent N results verbatim and replaces older ones with a lightweight reference marker at read time. The full content is always stored; nothing is lost.
+
+```typescript
+import { toolResultMaskingPlugin } from '@agentionai/agents/history/plugins';
+
+const maskingPlugin = toolResultMaskingPlugin({
+  keepRecentResults: 2,        // keep last 2 verbatim, mask everything older
+  exclude: ['calculator'],     // these tools are never masked
+  minTokensToMask: 50,         // don't bother masking tiny results
+});
+
+const history = new History().use(maskingPlugin);
+
+// Wire the retrieve tool so the agent can fetch masked results on demand
+const agent = new ClaudeAgent({
+  tools: [maskingPlugin.retrieveTool, ...otherTools],
+}, history);
+```
+
+When the agent needs an old result it calls `retrieve_tool_result(tool_call_id)` and gets the full content back from history storage.
+
+#### Options
+
+| Option | Default | Description |
+|---|---|---|
+| `keepRecentResults` | `2` | Number of most-recent maskable results kept verbatim |
+| `exclude` | — | Tool names never masked. Mutually exclusive with `include`. |
+| `include` | — | Only mask these tool names. Mutually exclusive with `exclude`. |
+| `minTokensToMask` | — | Skip masking if the result is smaller than this (estimated tokens) |
+
+`exclude` and `include` are mutually exclusive — providing both throws at construction. Excluded or too-small results do not consume a `keepRecentResults` slot.
+
+#### How masking works
+
+The plugin's `transform` hook runs every time `history.getEntries()` is called. It is:
+- **Lossless** — stored entries are never mutated
+- **Free** — no LLM, no async, just a string replacement
+- **Transparent** — `history.getToolResult(id)` and `maskingPlugin.retrieveTool` always return the original content
+
+```
+[turn 1] tool_use: web_search(query="...")
+[turn 1] tool_result: [MASKED - ref: tu_001]   ← old, replaced in view
+[turn 2] tool_use: web_search(query="...")
+[turn 2] tool_result: "...full 8000 tokens..."  ← recent, kept verbatim
+```
+
+---
+
+### Rolling Conversation Summary
+
+`compressionPlugin` compresses old conversation turns into a concise summary entry using an LLM. The summary is a rolling one: if a previous summary exists, it is included as prior context and merged into the new summary, so at most one summary entry exists at any time.
+
+```typescript
+import { compressionPlugin } from '@agentionai/agents/history/plugins';
+
+// A dedicated, cheap summarization agent
+const summaryAgent = new ClaudeAgent({
+  id: 'summarizer',
+  name: 'Summarizer',
+  description: 'Summarizes conversation history',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  model: 'claude-haiku-4-5-20251001',
+});
+
+const history = new History().use(compressionPlugin(summaryAgent));
+
+// Compress all entries that push the history over 4000 tokens
+await history.reduce({ maxTokens: 4000 });
+```
+
+`reduce()` is a no-op if no `reduce`-capable plugin is registered, so it is safe to call unconditionally at the end of each agent turn.
+
+#### Auto-reduce
+
+Pass `autoReduceWhen` to trigger compression automatically after every `addEntry()` call — no manual `history.reduce()` required:
+
+```typescript
+const history = new History([], { maxTokens: 20000 })
+  .use(compressionPlugin(summaryAgent, {
+    autoReduceWhen: { maxTokens: 6000 },
+  }));
+
+// Compression fires automatically whenever history exceeds 6 000 tokens
+await agent.execute('Tell me about the history of the internet.');
+await agent.execute('And artificial intelligence?');
+// ...
+```
+
+The `afterAdd` hook checks the threshold synchronously; the `reduce()` call itself is async and fire-and-forget. The re-entrancy guard in `History` ensures that adding the summary entry during compression does not trigger another reduction.
+
+#### Reduce options
+
+```typescript
+type ReduceOptions = {
+  maxTokens?: number;   // compress until total tokens fall below this
+  maxEntries?: number;  // compress until entry count falls below this
+  olderThan?: Date;     // compress entries before this timestamp
+};
+```
+
+All three fields work for both `autoReduceWhen` and manual `history.reduce()` calls. The system prompt is always preserved. The summary entry uses `role: "user"` (no provider has a dedicated summary role) and is always prefixed `[Earlier conversation summary: ...]` so it can be identified reliably.
+
+---
+
+### Composing Both Plugins
+
+```typescript
+import { compressionPlugin, toolResultMaskingPlugin } from '@agentionai/agents/history/plugins';
+
+const maskingPlugin = toolResultMaskingPlugin({
+  keepRecentResults: 1,
+  exclude: ['calculator'],
+});
+
+const history = new History([], { maxTokens: 20000 })
+  .use(maskingPlugin)
+  .use(compressionPlugin(summaryAgent, {
+    autoReduceWhen: { maxTokens: 6000 }, // compress automatically when over budget
+  }));
+
+history.on('pluginError', (error, _plugin, hook) => {
+  console.error(`[${hook}]`, error.message);
+});
+
+const agent = new ClaudeAgent({
+  tools: [maskingPlugin.retrieveTool, searchTool, calculatorTool],
+}, history);
+
+// ... run your conversation — compression fires automatically ...
+
+console.log(`${history.length} entries, ~${history.totalEstimatedTokens} tokens`);
+```
+
+### Writing a Custom Plugin
+
+Plugins are plain objects. Here is a minimal logging plugin:
+
+```typescript
+const loggingPlugin: HistoryPlugin = {
+  afterAdd(history) {
+    console.log(
+      `[history] ${history.length} entries, ~${history.totalEstimatedTokens} tokens`
+    );
+  },
+};
+
+history.use(loggingPlugin);
+```
+
+And a custom reduce strategy:
+
+```typescript
+import type { HistoryPlugin, ReducibleEntry, ReduceOptions } from '@agentionai/agents/history';
+
+const dropOldestPlugin: HistoryPlugin = {
+  async reduce(entries: ReducibleEntry[], options: ReduceOptions) {
+    if (!options.maxEntries) return entries;
+    const nonSystem = entries.filter(e => e.role !== 'system');
+    const system = entries.filter(e => e.role === 'system');
+    return [...system, ...nonSystem.slice(-options.maxEntries)];
+  },
+};
+
+history.use(dropOldestPlugin);
+await history.reduce({ maxEntries: 20 });
+```
+
+---
 
 ## Advanced Usage
 
 ### Transient History
 
-Create temporary history that won't be persisted:
+Create temporary history that is cleared before each agent execution:
 
 ```typescript
 const tempHistory = new History([], { transient: true });
 ```
 
-### History with Max Length
+### Bounded History
 
-Implement a sliding window history:
+Use constructor options instead of subclassing for simple sliding-window behaviour:
 
 ```typescript
-class BoundedHistory extends History {
-  constructor(private maxEntries: number) {
-    super();
-  }
+// Keep at most 100 entries; drop oldest when exceeded
+const history = new History([], { maxLength: 100 });
 
-  override addEntry(entry: HistoryEntry): void {
-    super.addEntry(entry);
-    
-    // Keep only the last N entries
-    if (this._entries.length > this.maxEntries) {
-      this._entries = this._entries.slice(-this.maxEntries);
-    }
-  }
-}
+// Keep entries within a token budget; drop oldest when exceeded
+const history = new History([], { maxTokens: 8000 });
 
-const history = new BoundedHistory(100); // Keep last 100 entries
+// Both constraints at once
+const history = new History([], { maxLength: 100, maxTokens: 8000 });
 ```
 
 ### Filtering History
 
 ```typescript
 // Get only user messages
-const userMessages = history.entries.filter(e => e.role === 'user');
+const userMessages = history.getEntries().filter(e => e.role === 'user');
 
 // Get entries with tool use
-const toolUsage = history.entries.filter(e =>
+const toolUsage = history.getEntries().filter(e =>
   e.content.some(c => c.type === 'tool_use')
 );
 
 // Get text content only
-const textOnly = history.entries.map(e => ({
+const textOnly = history.getEntries().map(e => ({
   role: e.role,
   text: e.content
     .filter(c => c.type === 'text')
-    .map(c => c.text)
+    .map(c => (c as { text: string }).text)
     .join('\n')
 }));
 ```
@@ -442,9 +633,11 @@ These transformers ensure seamless compatibility across all supported LLM provid
 2. **Use persistent storage** (Redis, database) for production applications
 3. **Implement auto-save** using event listeners to ensure no data loss
 4. **Use transient history** for temporary conversations or testing
-5. **Extend the History class** for custom storage needs rather than reimplementing
-6. **Monitor history size** and implement cleanup strategies for long-running conversations
-7. **Use serialization** for backups and exports
+5. **Extend the History class** for custom storage needs; use plugins for context strategies
+6. **Register a `pluginError` handler** to surface async plugin failures in production
+7. **Add `maskingPlugin.retrieveTool`** to your agent whenever you use `toolResultMaskingPlugin`
+8. **Use `autoReduceWhen`** on `compressionPlugin` so compression fires automatically; fall back to manual `history.reduce()` for one-off or session-end compression
+9. **Use `history.getEntries()`** (not `.entries`) when reading history for display or debugging, so transform plugins are applied consistently
 
 ## Summary
 
@@ -452,8 +645,10 @@ The Agention history system provides:
 - Provider-agnostic conversation storage
 - Easy sharing between different LLM providers
 - Built-in Redis support for persistence
-- Simple extension mechanism for custom storage
+- Simple extension mechanism for custom storage backends
+- Plugin system for read-time transforms and async compression
+- Built-in tool result masking (lossless, zero-cost) and rolling LLM summarization
 - Event-driven architecture for reactive updates
 - Serialization and cloning capabilities
 
-This design ensures your conversation data is portable, maintainable, and ready for production use.
+This design ensures your conversation data is portable, maintainable, and token-efficient for production use.

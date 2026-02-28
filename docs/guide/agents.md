@@ -122,7 +122,22 @@ Clear history to start fresh:
 history.clear();
 ```
 
-See [History Management](/guide/history) for persistence, sharing, and advanced usage.
+::: tip Context management for long-running agents
+In production, conversations grow and tool results accumulate. Use the history plugin system to keep the context window lean automatically — no manual trimming needed:
+
+```typescript
+import { compressionPlugin, toolResultMaskingPlugin } from '@agentionai/agents/history/plugins';
+
+const maskingPlugin = toolResultMaskingPlugin({ keepRecentResults: 2 });
+const history = new History()
+  .use(maskingPlugin)
+  .use(compressionPlugin(summaryAgent, { autoReduceWhen: { maxTokens: 8000 } }));
+```
+
+See [Context Management](/guide/context-management) for a full walkthrough.
+:::
+
+See [History Management](/guide/history) for persistence, sharing, and advanced plugin options.
 
 ## Using Different Providers
 

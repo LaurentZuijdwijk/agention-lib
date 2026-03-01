@@ -5,6 +5,7 @@ import {
   HistoryEntry,
   MessageRole,
   MessageContent,
+  ImageMimeType,
 } from "../history/History";
 import {
   AgentVendor,
@@ -13,7 +14,7 @@ import {
 } from "./AgentConfig";
 
 // Re-export for convenience
-export type { HistoryEntry, MessageRole, MessageContent };
+export type { HistoryEntry, MessageRole, MessageContent, ImageMimeType };
 export type { AgentVendor };
 
 /**

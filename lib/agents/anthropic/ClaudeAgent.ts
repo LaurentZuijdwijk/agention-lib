@@ -14,7 +14,7 @@ import {
   MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
-import { History, toolResult, toolUse, text } from "../../history/History";
+import { History, toolResult, toolUse, text, MessageContent } from "../../history/History";
 import { anthropicTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
@@ -97,12 +97,16 @@ export class ClaudeAgent extends BaseAgent {
     return "";
   }
 
-  async execute(input: string): Promise<string> {
+  async execute(input: string | MessageContent[]): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
     this.lastTokenUsage = undefined;
     this.currentToolCallCount = 0;
+
+    // Normalise input to a display string for viz reporting
+    const inputPreview =
+      typeof input === "string" ? input : JSON.stringify(input);
 
     // Start visualization reporting
     if (vizConfig.isEnabled()) {
@@ -111,7 +115,7 @@ export class ClaudeAgent extends BaseAgent {
         this.name,
         this.config.model!,
         "anthropic",
-        input
+        inputPreview
       );
     }
 
@@ -121,7 +125,11 @@ export class ClaudeAgent extends BaseAgent {
       this.addSystemMessage(this.getSystemMessage());
     }
 
-    this.addTextToHistory("user", input);
+    if (typeof input === "string") {
+      this.addTextToHistory("user", input);
+    } else {
+      this.addMessageToHistory("user", input);
+    }
 
     try {
       const messages = anthropicTransformer.toProvider(this.history.getEntries());
@@ -293,6 +301,7 @@ export class ClaudeAgent extends BaseAgent {
 
           const newResponse = await this.client.messages.create({
             model: this.config.model!,
+            system: this.history.getSystemMessage(),
             max_tokens: this.config.maxTokens!,
             messages,
             tools: this.getToolDefinitions(),

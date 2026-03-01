@@ -73,6 +73,7 @@ import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 
 - **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral—same interface. Switch models with one line.
 - **Composable, Not Magical** - Agents are objects. Pipelines are arrays. No hidden state, no surprises.
+- **Multimodal / Vision** - Send images alongside text with a unified `MessageContent[]` API across all providers.
 - **Full Observability** - Per-call token counts, execution timing, pipeline structure visualization.
 - **TypeScript-Native** - Strict typing, interfaces, and generics from the ground up.
 - **RAG Ready** - LanceDB vector store, token-aware chunking, ingestion pipeline out of the box.
@@ -175,6 +176,43 @@ const researcher = new ClaudeAgent({
 const result = await researcher.execute('Latest developments in quantum computing');
 ```
 
+### Multimodal / Vision
+
+Send images alongside text using `imageUrl()` or `imageBase64()`. The same `MessageContent[]` interface works across all providers:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { imageUrl, imageBase64 } from '@agentionai/agents/core';
+import * as fs from 'fs';
+
+const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  model: 'claude-opus-4-6',
+  name: 'VisionAgent',
+  description: 'You analyze images.',
+});
+
+// Remote image by URL
+const response = await agent.execute([
+  imageUrl('https://example.com/chart.png'),
+  { type: 'text', text: 'Summarize this chart in one sentence.' },
+]);
+
+// Local image as base64
+const data = fs.readFileSync('./photo.jpg').toString('base64');
+const response2 = await agent.execute([
+  imageBase64(data, 'image/jpeg'),
+  { type: 'text', text: 'What plant is this?' },
+]);
+```
+
+| Provider | URL | Base64 |
+|----------|:---:|:------:|
+| Claude | ✅ | ✅ |
+| OpenAI | ✅ | ✅ |
+| Gemini | ✅ | ✅ |
+| Mistral | ✅ | ❌ |
+
 ## Core Concepts
 
 ### Agents
@@ -186,6 +224,11 @@ Unified interface across Claude, OpenAI, Gemini, and Mistral. Tools, history, an
 JSON Schema + handler pattern. Unique capability: wrap any agent as a tool for delegation hierarchies.
 
 [Learn more →](https://docs.agention.ai/guide/tools)
+
+### Multimodal / Vision
+Unified `MessageContent[]` interface for images across all providers. URL and base64 images, mix text and images freely in a single call.
+
+[Learn more →](https://docs.agention.ai/guide/multimodal)
 
 ### History
 Provider-agnostic, persistent (Redis, file, custom), shareable across agents of different providers.
@@ -213,6 +256,7 @@ Per-call and per-node token counts, duration metrics, full execution visibility.
 - **[Quick Start](https://docs.agention.ai/guide/quickstart)** - Build a weather assistant in 5 minutes
 - **[Agents](https://docs.agention.ai/guide/agents)** - Agent configuration and providers
 - **[Tools](https://docs.agention.ai/guide/tools)** - Adding capabilities and agent delegation
+- **[Multimodal / Vision](https://docs.agention.ai/guide/multimodal)** - Sending images across all providers
 - **[Graph Pipelines](https://docs.agention.ai/guide/graph-pipelines)** - Multi-agent workflows
 - **[Vector Stores](https://docs.agention.ai/guide/vector-stores)** - RAG and semantic search
 - **[Examples](https://docs.agention.ai/guide/examples)** - Real-world implementations

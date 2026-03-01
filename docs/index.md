@@ -18,6 +18,8 @@ features:
     details: Claude, OpenAI, Gemini, Mistral—same interface. Mix providers in a single workflow. Switch models with one line.
   - title: Composable, Not Magical
     details: Agents are objects. Pipelines are arrays. No hidden state, no framework fighting, no surprises.
+  - title: Multimodal / Vision
+    details: Send images alongside text with a unified API. URL and base64 images work across all four providers with the same MessageContent[] interface.
   - title: Full Observability
     details: Per-call token counts, execution timing, pipeline structure visualization. See exactly what's happening.
   - title: TypeScript-Native
@@ -98,6 +100,30 @@ const pipeline = new Pipeline([
 ]);
 ```
 [Learn more →](/guide/graph-pipelines)
+
+### Multimodal / Vision
+Send images alongside text using a unified `MessageContent[]` interface. Works across all four providers — the transformer handles the format differences.
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { imageUrl, imageBase64 } from '@agentionai/agents/core';
+
+const agent = new ClaudeAgent({ model: 'claude-opus-4-6', ... });
+
+// Remote URL
+await agent.execute([
+  imageUrl('https://example.com/chart.png'),
+  { type: 'text', text: 'Summarize this chart.' },
+]);
+
+// Local file as base64
+const data = fs.readFileSync('./photo.jpg').toString('base64');
+await agent.execute([
+  imageBase64(data, 'image/jpeg'),
+  { type: 'text', text: 'What plant is this?' },
+]);
+```
+[Learn more →](/guide/multimodal)
 
 ### RAG Ready
 LanceDB vector store, token-aware chunking, ingestion pipeline, and retrieval tools out of the box.
@@ -217,6 +243,7 @@ npm install openai             # For OpenAI/GPT
 - [Getting Started](/guide/getting-started) — Installation and first agent
 - [Agents](/guide/agents) — Agent configuration and providers
 - [Tools](/guide/tools) — Adding capabilities and agent delegation
+- [Multimodal / Vision](/guide/multimodal) — Sending images across all providers
 - [History](/guide/history) — Conversation persistence and sharing
 - [Context Management](/guide/context-management) — Token budgets, masking, and compression
 - [Graph Pipelines](/guide/graph-pipelines) — Multi-agent workflows

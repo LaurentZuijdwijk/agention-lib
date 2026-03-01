@@ -9,6 +9,8 @@ import {
   text,
   textMessage,
   resetTokenxCache,
+  imageUrl,
+  imageBase64,
   type HistoryPlugin,
   type ReducibleEntry,
 } from "./History";
@@ -434,6 +436,40 @@ describe("History module", () => {
         await reduceDone;
         expect(afterAddCalls).toEqual([]); // afterAdd not fired during reduce
       });
+    });
+  });
+
+  describe("image token estimation", () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      resetTokenxCache();
+      history = new History([], {});
+    });
+
+    it("estimates image_url blocks as 1000 tokens each", () => {
+      history.addMessage("user", [imageUrl("https://example.com/photo.jpg")]);
+      expect(history.totalEstimatedTokens).toBe(1000);
+    });
+
+    it("estimates image_base64 blocks as 1000 tokens each", () => {
+      history.addMessage("user", [imageBase64("abc123", "image/png")]);
+      expect(history.totalEstimatedTokens).toBe(1000);
+    });
+
+    it("sums text and image token estimates correctly", () => {
+      const textBlock = text("hello");
+      const imageBlock = imageUrl("https://example.com/photo.jpg");
+      history.addMessage("user", [textBlock, imageBlock]);
+
+      // text block: JSON.stringify(textBlock) → ~chars/4 tokens; image: 1000 flat
+      const textTokens = Math.ceil(JSON.stringify(textBlock).length / 4);
+      expect(history.totalEstimatedTokens).toBe(textTokens + 1000);
+    });
+
+    it("accumulates token estimates across multiple image entries", () => {
+      history.addMessage("user", [imageUrl("https://example.com/a.jpg")]);
+      history.addMessage("user", [imageUrl("https://example.com/b.jpg")]);
+      expect(history.totalEstimatedTokens).toBe(2000);
     });
   });
 });

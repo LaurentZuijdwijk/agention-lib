@@ -38,9 +38,45 @@ export type ToolResultContent = {
 };
 
 /**
+ * Supported image MIME types across all providers
+ */
+export type ImageMimeType =
+  | "image/jpeg"
+  | "image/png"
+  | "image/gif"
+  | "image/webp";
+
+/**
+ * Image referenced by URL
+ */
+export type ImageUrlContent = {
+  type: "image_url";
+  url: string;
+  /** Required hint for Gemini (fileData); optional for other providers */
+  mimeType?: ImageMimeType;
+  /** OpenAI detail level hint — ignored by other providers */
+  detail?: "low" | "high" | "auto";
+};
+
+/**
+ * Image provided as raw base64-encoded data (no data: URI prefix)
+ */
+export type ImageBase64Content = {
+  type: "image_base64";
+  /** Raw base64 string — do not include the `data:<mime>;base64,` prefix */
+  data: string;
+  mimeType: ImageMimeType;
+};
+
+/**
  * Union of all content types
  */
-export type MessageContent = TextContent | ToolUseContent | ToolResultContent;
+export type MessageContent =
+  | TextContent
+  | ToolUseContent
+  | ToolResultContent
+  | ImageUrlContent
+  | ImageBase64Content;
 
 // =============================================================================
 // Provider Metadata
@@ -154,6 +190,24 @@ export function isToolResultContent(
   return content.type === "tool_result";
 }
 
+export function isImageUrlContent(
+  content: MessageContent
+): content is ImageUrlContent {
+  return content.type === "image_url";
+}
+
+export function isImageBase64Content(
+  content: MessageContent
+): content is ImageBase64Content {
+  return content.type === "image_base64";
+}
+
+export function isImageContent(
+  content: MessageContent
+): content is ImageUrlContent | ImageBase64Content {
+  return content.type === "image_url" || content.type === "image_base64";
+}
+
 // =============================================================================
 // Utility Functions
 // =============================================================================
@@ -192,6 +246,26 @@ export function toolResult(
  */
 export function textMessage(role: MessageRole, value: string): HistoryEntry {
   return { role, content: [text(value)] };
+}
+
+/**
+ * Create an image URL content block
+ */
+export function imageUrl(
+  url: string,
+  options?: { mimeType?: ImageMimeType; detail?: "low" | "high" | "auto" }
+): ImageUrlContent {
+  return { type: "image_url", url, ...options };
+}
+
+/**
+ * Create a base64 image content block
+ */
+export function imageBase64(
+  data: string,
+  mimeType: ImageMimeType
+): ImageBase64Content {
+  return { type: "image_base64", data, mimeType };
 }
 
 // =============================================================================

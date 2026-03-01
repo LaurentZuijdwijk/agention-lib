@@ -185,7 +185,46 @@ const usage = agent.lastTokenUsage;
 console.log(`Input: ${usage?.inputTokens}, Output: ${usage?.outputTokens}`);
 ```
 
+## Multimodal / Vision
 
+All four providers accept images in a single `execute()` call. Instead of passing a string, pass a `MessageContent[]` array that mixes text and image blocks:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { imageUrl, imageBase64 } from '@agentionai/agents/core';
+
+const agent = new ClaudeAgent({
+  id: 'vision',
+  name: 'VisionAgent',
+  description: 'You analyze images.',
+  model: 'claude-opus-4-6',
+});
+
+// Remote image by URL
+const response = await agent.execute([
+  imageUrl('https://example.com/chart.png'),
+  { type: 'text', text: 'Summarize this chart.' },
+]);
+
+// Local image as base64
+import * as fs from 'fs';
+const data = fs.readFileSync('./photo.jpg').toString('base64');
+const response2 = await agent.execute([
+  imageBase64(data, 'image/jpeg'),
+  { type: 'text', text: 'What plant is this?' },
+]);
+```
+
+**Provider support at a glance:**
+
+| Provider | URL Images | Base64 |
+|----------|:----------:|:------:|
+| Claude | ✅ | ✅ |
+| OpenAI | ✅ | ✅ |
+| Gemini | ✅ | ✅ |
+| Mistral | ✅ | ❌ |
+
+[Full multimodal guide →](/guide/multimodal)
 
 ## Why are agents important?
 

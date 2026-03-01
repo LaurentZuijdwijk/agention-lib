@@ -85,6 +85,8 @@ The graph module provides workflow orchestration patterns:
 - [x] Fixed `PlanStore.addStep()` step ID collision (now uses max existing index)
 - [x] Fixed `PlanStore.updatePlanStatus()` to treat `skipped` steps as done
 - [x] Fixed `PlanExecutor` with `stopOnFailure=true` to drain in-flight promises before throwing
+- [x] Multi-provider multimodal support — `ImageUrlContent` / `ImageBase64Content` types, all 4 provider transformers updated, `BaseAgent.addImage()` helper, `execute()` accepts `string | MessageContent[]` on all agents. Fixed missing `system` param on Claude follow-up tool calls.
+  - Future: per-image token estimation (currently flat 1000 tokens), `imageCompressionPlugin` for base64 history trimming
 
 ---
 
@@ -95,7 +97,7 @@ These are derived from context engineering research (lost-in-the-middle, U-shape
 
 - [x] **Token-aware history trimming** — `History` now accepts `maxTokens` option; each entry stores `estimatedTokens` (ceil(contentLength/4)); trimming preserves the system message. `AgentConfig.maxHistoryTokens` wires this through to the agent's history. Also fixed: `maxHistoryLength` was stored on `BaseAgent` but never passed to `History` — now both fields are correctly applied at construction time.
 - [ ] **Context summarization** — When history must be trimmed, the current FIFO drop discards the oldest entries first — exactly the ones the model attends to most. Implement a `summarize()` strategy that compresses old turns into a single summary entry before dropping them.
-- [ ] **Fix system message missing from follow-up tool calls** — `ClaudeAgent.ts:294` omits the system message on recursive calls after tool results. Without it, model behaviour can drift across a multi-turn tool chain ("context clash"). Add `system: this.history.getSystemMessage()` to the follow-up API call.
+- [x] **Fix system message missing from follow-up tool calls** — Fixed: `system: this.history.getSystemMessage()` added to ClaudeAgent follow-up call.
 - [ ] **Progressive tool disclosure** — All tool definitions are sent on every API call including follow-up tool-result calls (`ClaudeAgent.ts:298`). With MCP or large tool sets this wastes significant tokens per hop. Send only tools relevant to the current step, or omit tools entirely on follow-up calls when no further tool use is expected.
 - [ ] **Long-term / external memory** — History is in-memory only; nothing persists across restarts. Wire the existing `VectorStore` into History retrieval so agents can fetch relevant past context rather than carrying everything in the window.
 - [ ] **Context quality / degradation detection** — No mechanism exists to detect adversarial tool results, contradictory information, or excessively noisy responses (context poisoning/distraction). Add at minimum a configurable max-token guard per tool result, especially relevant for MCP integrations where external servers return arbitrary content.

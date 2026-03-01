@@ -6,6 +6,7 @@ import {
   text,
   isTextContent,
   isToolResultContent,
+  isImageContent,
 } from "./types";
 import type { ReduceOptions } from "./types";
 
@@ -27,16 +28,43 @@ export function resetTokenxCache(): void {
   _estimateTokenCount = (t: string) => Math.ceil(t.length / 4);
 }
 
+/**
+ * Estimate token count for a content block array.
+ * Image blocks use a flat 1000-token estimate (resolution-independent conservative value).
+ * Text and tool blocks fall through to the tokenx estimator.
+ */
+function estimateContentTokens(content: MessageContent[]): number {
+  return content.reduce((sum, block) => {
+    if (isImageContent(block)) {
+      return sum + 1000;
+    }
+    return sum + _estimateTokenCount(JSON.stringify(block));
+  }, 0);
+}
+
 // Re-export types for convenience
-export type { HistoryEntry, MessageRole, MessageContent, ReduceOptions } from "./types";
+export type {
+  HistoryEntry,
+  MessageRole,
+  MessageContent,
+  ReduceOptions,
+  ImageMimeType,
+  ImageUrlContent,
+  ImageBase64Content,
+} from "./types";
 export {
   text,
   toolUse,
   toolResult,
   textMessage,
+  imageUrl,
+  imageBase64,
   isTextContent,
   isToolUseContent,
   isToolResultContent,
+  isImageUrlContent,
+  isImageBase64Content,
+  isImageContent,
 } from "./types";
 
 // =============================================================================
@@ -215,7 +243,7 @@ export class History extends EventEmitter {
     const __metadata: EntryMetadata = {
       date: new Date().toISOString(),
       contentLength,
-      estimatedTokens: _estimateTokenCount(serialized),
+      estimatedTokens: estimateContentTokens(entry.content),
     };
 
     this._entries.push({

@@ -10,6 +10,7 @@ import type {
   TextBlockParam,
   ToolUseBlockParam,
   ToolResultBlockParam,
+  ImageBlockParam,
   ContentBlock,
 } from "@anthropic-ai/sdk/resources";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
@@ -25,6 +26,8 @@ import {
   isTextContent,
   isToolUseContent,
   isToolResultContent,
+  isImageUrlContent,
+  isImageBase64Content,
 } from "./types";
 
 // =============================================================================
@@ -61,6 +64,22 @@ export const anthropicTransformer = {
               content: block.content,
               is_error: block.is_error,
             } as ToolResultBlockParam;
+          }
+          if (isImageUrlContent(block)) {
+            return {
+              type: "image",
+              source: { type: "url", url: block.url },
+            } as ImageBlockParam;
+          }
+          if (isImageBase64Content(block)) {
+            return {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: block.mimeType,
+                data: block.data,
+              },
+            } as ImageBlockParam;
           }
           throw new Error(
             `Unknown content type: ${(block as MessageContent).type}`
@@ -165,12 +184,15 @@ export const openAiTransformer = {
         continue;
       }
 
-      // Separate tool_use from other content for OpenAI format
+      // Separate content blocks by type for OpenAI format
       const textBlocks = entry.content.filter(isTextContent);
       const toolUseBlocks = entry.content.filter(isToolUseContent);
       const toolResultBlocks = entry.content.filter(isToolResultContent);
+      const imageUrlBlocks = entry.content.filter(isImageUrlContent);
+      const imageBase64Blocks = entry.content.filter(isImageBase64Content);
+      const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
 
-      // Add text message if present
+      // Add text/image message if present
       if (textBlocks.length > 0 && entry.role !== "user") {
         items.push({
           type: "message",
@@ -179,14 +201,40 @@ export const openAiTransformer = {
         });
       } else if (
         entry.role === "user" &&
-        textBlocks.length > 0 &&
+        (textBlocks.length > 0 || hasImages) &&
         toolResultBlocks.length === 0
       ) {
-        items.push({
-          type: "message",
-          role: "user",
-          content: textBlocks.map((c) => c.text).join("\n"),
-        });
+        if (hasImages) {
+          // Mixed content: build an array of content parts
+          const parts: Array<{ type: string; text?: string; image_url?: string; detail?: string }> = [];
+          for (const block of entry.content) {
+            if (isTextContent(block)) {
+              parts.push({ type: "input_text", text: block.text });
+            } else if (isImageUrlContent(block)) {
+              parts.push({
+                type: "input_image",
+                image_url: block.url,
+                ...(block.detail ? { detail: block.detail } : {}),
+              });
+            } else if (isImageBase64Content(block)) {
+              parts.push({
+                type: "input_image",
+                image_url: `data:${block.mimeType};base64,${block.data}`,
+              });
+            }
+          }
+          items.push({
+            type: "message",
+            role: "user",
+            content: parts as any,
+          });
+        } else {
+          items.push({
+            type: "message",
+            role: "user",
+            content: textBlocks.map((c) => c.text).join("\n"),
+          });
+        }
       }
 
       // Add tool calls as separate function_call items (OpenAI format)
@@ -339,7 +387,7 @@ export const mistralTransformer = {
         continue;
       }
 
-      // User role - could be text or tool results
+      // User role - could be text, images, or tool results
       if (toolResultBlocks.length > 0) {
         // Mistral uses separate "tool" role messages for each result
         // We need to find the corresponding tool name from the assistant's tool_calls
@@ -353,11 +401,31 @@ export const mistralTransformer = {
             name: toolName,
           });
         }
-      } else if (textBlocks.length > 0) {
-        messages.push({
-          role: "user",
-          content: textBlocks.map((c) => c.text).join("\n"),
-        });
+      } else {
+        const imageUrlBlocks = entry.content.filter(isImageUrlContent);
+        const imageBase64Blocks = entry.content.filter(isImageBase64Content);
+        if (imageBase64Blocks.length > 0) {
+          throw new Error(
+            "Mistral does not support base64 image inputs. Convert images to URLs before using with MistralAgent."
+          );
+        }
+        if (imageUrlBlocks.length > 0) {
+          // Mistral vision: array content with text + image_url parts
+          const parts: Array<{ type: string; text?: string; image_url?: string }> = [];
+          for (const block of entry.content) {
+            if (isTextContent(block)) {
+              parts.push({ type: "text", text: block.text });
+            } else if (isImageUrlContent(block)) {
+              parts.push({ type: "image_url", image_url: block.url });
+            }
+          }
+          messages.push({ role: "user", content: parts as any });
+        } else if (textBlocks.length > 0) {
+          messages.push({
+            role: "user",
+            content: textBlocks.map((c) => c.text).join("\n"),
+          });
+        }
       }
     }
 
@@ -452,6 +520,25 @@ export const geminiTransformer = {
       // Add text parts
       for (const block of textBlocks) {
         parts.push({ text: block.text });
+      }
+
+      // Add image parts
+      for (const block of entry.content) {
+        if (isImageUrlContent(block)) {
+          parts.push({
+            fileData: {
+              mimeType: block.mimeType ?? "image/jpeg",
+              fileUri: block.url,
+            },
+          } as Part);
+        } else if (isImageBase64Content(block)) {
+          parts.push({
+            inlineData: {
+              mimeType: block.mimeType,
+              data: block.data,
+            },
+          } as Part);
+        }
       }
 
       // Add function call parts (for assistant/model messages)

@@ -82,11 +82,11 @@ export type OpenSearchSpaceType = "cosinesimil" | "l2" | "innerproduct";
 
 /**
  * k-NN engine used by the OpenSearch k-NN plugin.
- * - `nmslib` — default, supports all space types
+ * - `lucene` — native Lucene ANN (cosinesimil and l2 only); default since OpenSearch 3.x
  * - `faiss`  — high-throughput GPU-accelerated (l2 and innerproduct only)
- * - `lucene` — native Lucene ANN (cosinesimil and l2 only)
+ * - `nmslib` — deprecated and removed in OpenSearch 3.0; do not use
  */
-export type OpenSearchKnnEngine = "nmslib" | "faiss" | "lucene";
+export type OpenSearchKnnEngine = "lucene" | "faiss" | "nmslib";
 
 /**
  * Configuration for OpenSearchVectorStore.
@@ -116,8 +116,8 @@ export interface OpenSearchVectorStoreConfig {
    */
   spaceType?: OpenSearchSpaceType;
   /**
-   * k-NN engine (default: `"nmslib"`).
-   * Change to `"lucene"` for newer OpenSearch deployments without the k-NN plugin.
+   * k-NN engine (default: `"lucene"`).
+   * `nmslib` was removed in OpenSearch 3.0 and cannot be used for new indices.
    */
   engine?: OpenSearchKnnEngine;
   /**
@@ -283,7 +283,7 @@ export class OpenSearchVectorStore extends VectorStore {
     this.dimensions =
       config.dimensions ?? config.embeddings?.dimensions ?? 1536;
     this.spaceType = config.spaceType ?? "cosinesimil";
-    this.engine = config.engine ?? "nmslib";
+    this.engine = config.engine ?? "lucene";
     this.efSearch = config.efSearch ?? 512;
     this.efConstruction = config.efConstruction ?? 512;
     this.m = config.m ?? 16;

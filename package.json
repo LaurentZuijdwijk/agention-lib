@@ -139,6 +139,7 @@
     "@lancedb/lancedb": "^0.23.0",
     "@mistralai/mistralai": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@opensearch-project/opensearch": "^2.0.0",
     "apache-arrow": "^18.0.0",
     "openai": "^6.16.0",
     "voyageai": "^0.0.3"
@@ -167,9 +168,13 @@
     },
     "voyageai": {
       "optional": true
+    },
+    "@opensearch-project/opensearch": {
+      "optional": true
     }
   },
   "dependencies": {
+    "@opensearch-project/opensearch": "^3.5.1",
     "tokenx": "^1.2.1"
   }
 }

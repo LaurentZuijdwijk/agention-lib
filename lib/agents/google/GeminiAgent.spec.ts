@@ -101,6 +101,30 @@ describe("GeminiAgent", () => {
         },
       });
     });
+
+    it("should call history.setSessionAnchor() once per execute()", async () => {
+      const mockResponse = {
+        response: {
+          candidates: [
+            {
+              content: { parts: [{ text: "Hello" }] },
+              finishReason: "STOP",
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 5,
+            totalTokenCount: 10,
+          },
+        },
+      };
+      mockModel.generateContent.mockResolvedValue(mockResponse);
+
+      const anchorSpy = jest.spyOn(agent["history"], "setSessionAnchor");
+      await agent.execute("test input");
+
+      expect(anchorSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("handleResponse", () => {

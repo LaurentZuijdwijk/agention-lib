@@ -176,6 +176,20 @@ describe("OpenAiAgent", () => {
       });
     });
 
+    it("should call history.setSessionAnchor() once per execute()", async () => {
+      const mockResponse = {
+        output: [{ type: "message", status: "completed", content: "Hello" }],
+        output_text: "Hello",
+        usage: { input_tokens: 5, output_tokens: 5, total_tokens: 10 },
+      };
+      mockClient.responses.create.mockResolvedValue(mockResponse);
+
+      const anchorSpy = jest.spyOn(agent["history"], "setSessionAnchor");
+      await agent.execute("test input");
+
+      expect(anchorSpy).toHaveBeenCalledTimes(1);
+    });
+
     it("should handle OpenAI API errors", async () => {
       const mockError = {
         error: {

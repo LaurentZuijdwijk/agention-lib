@@ -85,6 +85,20 @@ describe("ClaudeAgent", () => {
         temperature: 0,
       });
     });
+
+    it("should call history.setSessionAnchor() once per execute()", async () => {
+      const mockResponse = {
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "Hello" }],
+        usage: { input_tokens: 5, output_tokens: 5 },
+      };
+      (mockClient.messages.create as jest.Mock).mockResolvedValue(mockResponse as any);
+
+      const anchorSpy = jest.spyOn(agent["history"], "setSessionAnchor");
+      await agent.execute("test input");
+
+      expect(anchorSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("handleResponse", () => {

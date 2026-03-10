@@ -131,6 +131,10 @@ export class ClaudeAgent extends BaseAgent {
       this.addMessageToHistory("user", input);
     }
 
+    // Mark session boundary so transform plugins (e.g. toolResultMaskingPlugin)
+    // don't mask tool results produced within this execute() loop.
+    this.history.setSessionAnchor();
+
     try {
       const messages = anthropicTransformer.toProvider(this.history.getEntries());
       const systemMessage = this.history.getSystemMessage();

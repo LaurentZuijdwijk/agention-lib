@@ -154,6 +154,10 @@ export class OpenAiAgent extends BaseAgent {
       this.addMessageToHistory("user", input);
     }
 
+    // Mark session boundary so transform plugins (e.g. toolResultMaskingPlugin)
+    // don't mask tool results produced within this execute() loop.
+    this.history.setSessionAnchor();
+
     try {
       const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
 

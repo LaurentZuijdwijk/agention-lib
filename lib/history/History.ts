@@ -6,6 +6,7 @@ import {
   text,
   isTextContent,
   isToolResultContent,
+  isToolUseContent,
   isImageContent,
 } from "./types";
 import type { ReduceOptions } from "./types";
@@ -129,7 +130,7 @@ type EntryWithMetadata = ReducibleEntry;
 /**
  * History configuration options
  */
-type HistoryOptions = {
+export type HistoryOptions = {
   maxLength?: number;
   /**
    * Maximum estimated tokens to retain in history. When exceeded, oldest
@@ -196,6 +197,7 @@ export class History extends EventEmitter {
   public transient: boolean = false;
   private _plugins: HistoryPlugin[] = [];
   private _reducing = false;
+  private _sessionAnchor: number | null = null;
 
   constructor(entries: HistoryEntry[] = [], options: HistoryOptions = {}) {
     super();
@@ -230,6 +232,26 @@ export class History extends EventEmitter {
     return this;
   }
 
+  /**
+   * Mark the current entry count as the session boundary.
+   * Call this at the start of each agent `execute()` after adding the user
+   * message. Transform plugins (e.g. toolResultMaskingPlugin) will not mask
+   * any entries added at or after this position, preventing tool results from
+   * the current execution loop from being masked mid-session.
+   */
+  setSessionAnchor(): void {
+    this._sessionAnchor = this._entries.length;
+  }
+
+  /**
+   * The entry index set by the last call to `setSessionAnchor()`, or `null`
+   * if no anchor has been set. Entries at this index or beyond belong to the
+   * current session and should not be masked by transform plugins.
+   */
+  get sessionAnchor(): number | null {
+    return this._sessionAnchor;
+  }
+
   // ===========================================================================
   // Core write operations
   // ===========================================================================
@@ -251,13 +273,7 @@ export class History extends EventEmitter {
       __metadata,
     });
 
-    if (this.options.maxLength && this._entries.length > this.options.maxLength) {
-      this._entries = this._entries.slice(this._entries.length - this.options.maxLength);
-    }
-
-    if (this.options.maxTokens) {
-      this.trimToTokenBudget();
-    }
+    this.applyTrimming();
 
     this.emit("entry", entry);
 
@@ -486,6 +502,21 @@ export class History extends EventEmitter {
   // ===========================================================================
 
   /**
+   * Apply maxLength and maxTokens trimming to the current entry list.
+   * Safe to call after bulk-loading entries (e.g. RedisHistory.load()).
+   * Subclasses may call this after directly manipulating _entries.
+   */
+  protected applyTrimming(): void {
+    if (this.options.maxLength && this._entries.length > this.options.maxLength) {
+      this._entries = this._entries.slice(this._entries.length - this.options.maxLength);
+      this.sanitizeToolPairs();
+    }
+    if (this.options.maxTokens) {
+      this.trimToTokenBudget();
+    }
+  }
+
+  /**
    * Drop oldest non-system entries until totalEstimatedTokens fits within budget.
    * Called synchronously from addEntry() as a safety net.
    * The system message is always preserved.
@@ -498,5 +529,34 @@ export class History extends EventEmitter {
       if (firstNonSystem === -1) break;
       this._entries.splice(firstNonSystem, 1);
     }
+    this.sanitizeToolPairs();
+  }
+
+  /**
+   * After any trim, remove tool_result blocks whose paired tool_use was dropped.
+   * Entries that become empty after filtering are also removed.
+   * This prevents 400 errors from providers that require tool_result blocks to
+   * have a corresponding tool_use in the conversation history.
+   */
+  private sanitizeToolPairs(): void {
+    // Collect all tool_use IDs still present in the history
+    const toolUseIds = new Set<string>();
+    for (const entry of this._entries) {
+      for (const block of entry.content) {
+        if (isToolUseContent(block)) {
+          toolUseIds.add(block.id);
+        }
+      }
+    }
+
+    // Filter out orphaned tool_result blocks; drop entries that become empty
+    this._entries = this._entries.filter((entry) => {
+      const filtered = entry.content.filter(
+        (block) => !isToolResultContent(block) || toolUseIds.has(block.tool_use_id)
+      );
+      if (filtered.length === 0) return false;
+      entry.content = filtered;
+      return true;
+    });
   }
 }

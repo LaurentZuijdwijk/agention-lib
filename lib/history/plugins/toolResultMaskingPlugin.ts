@@ -148,7 +148,14 @@ export function toolResultMaskingPlugin(
       type ResultRef = { entryIdx: number; blockIdx: number; id: string };
       const maskable: ResultRef[] = [];
 
+      const sessionAnchor = _history?.sessionAnchor ?? null;
+
       for (let ei = 0; ei < entries.length; ei++) {
+        // Never mask entries from the current execute() session — doing so
+        // would cause the model to call retrieve_tool_result mid-loop, whose
+        // result would itself be masked, creating an infinite retrieval loop.
+        if (sessionAnchor !== null && ei >= sessionAnchor) continue;
+
         const entry = entries[ei];
         for (let bi = 0; bi < entry.content.length; bi++) {
           const block = entry.content[bi];

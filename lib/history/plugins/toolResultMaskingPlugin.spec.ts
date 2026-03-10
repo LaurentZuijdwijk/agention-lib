@@ -259,4 +259,76 @@ describe("toolResultMaskingPlugin", () => {
       expect(block.content).toBe("[MASKED - ref: my_tool_id]");
     });
   });
+
+  describe("session anchor — no masking within current execute() loop", () => {
+    it("should not mask tool results added after setSessionAnchor()", () => {
+      // Simulate: prior session has 2 tool calls (would normally trigger masking),
+      // then agent sets session anchor and makes 3 more calls in the current loop.
+      const plugin = toolResultMaskingPlugin({ keepRecentResults: 1 });
+      const history = new History([], {}).use(plugin);
+
+      // Prior session results
+      addToolCall(history, "tu_old_1", "search", "old result 1");
+      addToolCall(history, "tu_old_2", "search", "old result 2");
+
+      // Agent sets session anchor at start of new execute()
+      history.setSessionAnchor();
+
+      // Current session: 3 tool calls within one execute() loop
+      addToolCall(history, "tu_new_1", "search", "new result 1");
+      addToolCall(history, "tu_new_2", "search", "new result 2");
+      addToolCall(history, "tu_new_3", "search", "new result 3");
+
+      const viewBlocks = history
+        .getEntries()
+        .flatMap((e) => e.content)
+        .filter((b) => b.type === "tool_result") as Array<{ type: "tool_result"; content: string; tool_use_id: string }>;
+
+      // tu_old_1 should be masked (old, beyond keepRecentResults=1 for pre-anchor entries)
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_old_1")?.content).toBe("[MASKED - ref: tu_old_1]");
+      // tu_old_2 is the most recent pre-anchor result — kept verbatim
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_old_2")?.content).toBe("old result 2");
+      // All current-session results must never be masked
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_new_1")?.content).toBe("new result 1");
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_new_2")?.content).toBe("new result 2");
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_new_3")?.content).toBe("new result 3");
+    });
+
+    it("should mask all pre-anchor results when keepRecentResults=0", () => {
+      const spy = jest.spyOn(console, "warn").mockImplementation(() => {});
+      const plugin = toolResultMaskingPlugin({ keepRecentResults: 0 });
+      spy.mockRestore();
+      const history = new History([], {}).use(plugin);
+
+      addToolCall(history, "tu_old", "search", "old result");
+      history.setSessionAnchor();
+      addToolCall(history, "tu_new", "search", "new result");
+
+      const viewBlocks = history
+        .getEntries()
+        .flatMap((e) => e.content)
+        .filter((b) => b.type === "tool_result") as Array<{ type: "tool_result"; content: string; tool_use_id: string }>;
+
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_old")?.content).toBe("[MASKED - ref: tu_old]");
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_new")?.content).toBe("new result");
+    });
+
+    it("should mask everything when no session anchor is set (default behaviour unchanged)", () => {
+      const plugin = toolResultMaskingPlugin({ keepRecentResults: 1 });
+      const history = new History([], {}).use(plugin);
+
+      addToolCall(history, "tu_1", "search", "result 1");
+      addToolCall(history, "tu_2", "search", "result 2");
+      addToolCall(history, "tu_3", "search", "result 3");
+
+      const viewBlocks = history
+        .getEntries()
+        .flatMap((e) => e.content)
+        .filter((b) => b.type === "tool_result") as Array<{ type: "tool_result"; content: string; tool_use_id: string }>;
+
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_1")?.content).toBe("[MASKED - ref: tu_1]");
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_2")?.content).toBe("[MASKED - ref: tu_2]");
+      expect(viewBlocks.find((b) => b.tool_use_id === "tu_3")?.content).toBe("result 3");
+    });
+  });
 });

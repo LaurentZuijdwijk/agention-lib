@@ -1,4 +1,5 @@
-import { History } from "./History";
+import { History, HistoryOptions } from "./History";
+import type { HistoryEntry } from "./types";
 
 interface RedisInstance {
   get(key: string): Promise<string | null>;
@@ -6,12 +7,17 @@ interface RedisInstance {
 }
 
 export class RedisHistory extends History {
-  constructor(private redisInstance: RedisInstance) {
-    super([], { transient: false });
+  constructor(
+    private redisInstance: RedisInstance,
+    options: HistoryOptions = {}
+  ) {
+    super([], options);
   }
 
   /**
-   * Loads history entries from Redis using the specified key
+   * Loads history entries from Redis using the specified key.
+   * Entries are re-added via addEntry() so metadata is computed correctly.
+   * Trimming (maxLength / maxTokens) is applied after load.
    *
    * @param {string} key - The Redis key to retrieve history entries from
    * @returns {Promise<void>} A promise that resolves when history is loaded
@@ -19,16 +25,28 @@ export class RedisHistory extends History {
    */
   async load(key: string): Promise<void> {
     try {
-      // Retrieve the serialized history from Redis
       const serializedHistory = await this.redisInstance.get(key);
+      if (!serializedHistory) return;
 
-      // If no history exists for the key, return early
-      if (!serializedHistory) {
-        return;
+      const entries = JSON.parse(serializedHistory) as HistoryEntry[];
+      this._entries = [];
+
+      // Re-add via addEntry to compute metadata; suppress plugins during bulk load
+      // by temporarily bypassing plugin afterAdd hooks (handled by _reducing flag
+      // which is private — so we push entries directly and call applyTrimming once).
+      for (const entry of entries) {
+        const serialized = JSON.stringify(entry.content);
+        this._entries.push({
+          ...entry,
+          __metadata: {
+            date: new Date().toISOString(),
+            contentLength: serialized.length,
+            estimatedTokens: Math.ceil(serialized.length / 4),
+          },
+        });
       }
-      // Parse the serialized history and create a new History instance
-      const entries = JSON.parse(serializedHistory);
-      this._entries = entries;
+
+      this.applyTrimming();
     } catch (error: unknown) {
       console.error(`Error loading history from Redis key "${key}":`, error);
       throw new Error(
@@ -48,9 +66,7 @@ export class RedisHistory extends History {
    */
   async save(key: string): Promise<void> {
     try {
-      // Serialize the current history entries
       const serializedHistory = this.toJSON();
-      // Save the serialized history to Redis
       await this.redisInstance.set(key, serializedHistory);
     } catch (error) {
       console.error(`Error saving history to Redis key "${key}":`, error);

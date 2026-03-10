@@ -197,6 +197,7 @@ export class History extends EventEmitter {
   public transient: boolean = false;
   private _plugins: HistoryPlugin[] = [];
   private _reducing = false;
+  private _executing = false;
   private _sessionAnchor: number | null = null;
 
   constructor(entries: HistoryEntry[] = [], options: HistoryOptions = {}) {
@@ -502,11 +503,38 @@ export class History extends EventEmitter {
   // ===========================================================================
 
   /**
+   * Signal the start of an agent execute() loop. While executing, automatic
+   * trimming on addEntry() is suspended so tool_use / tool_result pairs are
+   * never split mid-loop. Call endExecution() in a finally block to resume.
+   */
+  beginExecution(): void {
+    this._executing = true;
+  }
+
+  /**
+   * Signal the end of an agent execute() loop. Resumes automatic trimming and
+   * immediately enforces maxLength / maxTokens limits on the accumulated history.
+   */
+  endExecution(): void {
+    this._executing = false;
+    this.applyTrimming();
+  }
+
+  /**
+   * Explicitly enforce maxLength and maxTokens limits. Useful when using
+   * History standalone, outside of an agent execute() loop.
+   */
+  trim(): void {
+    this.applyTrimming();
+  }
+
+  /**
    * Apply maxLength and maxTokens trimming to the current entry list.
    * Safe to call after bulk-loading entries (e.g. RedisHistory.load()).
    * Subclasses may call this after directly manipulating _entries.
    */
   protected applyTrimming(): void {
+    if (this._executing) return;
     if (this.options.maxLength && this._entries.length > this.options.maxLength) {
       this._entries = this._entries.slice(this._entries.length - this.options.maxLength);
       this.sanitizeToolPairs();

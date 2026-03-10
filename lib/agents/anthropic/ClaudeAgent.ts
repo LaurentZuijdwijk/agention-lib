@@ -134,6 +134,9 @@ export class ClaudeAgent extends BaseAgent {
     // Mark session boundary so transform plugins (e.g. toolResultMaskingPlugin)
     // don't mask tool results produced within this execute() loop.
     this.history.setSessionAnchor();
+    // Suspend auto-trimming so tool_use / tool_result pairs are never split
+    // mid-loop. endExecution() in the finally block enforces limits once.
+    this.history.beginExecution();
 
     try {
       const messages = anthropicTransformer.toProvider(this.history.getEntries());
@@ -196,6 +199,8 @@ export class ClaudeAgent extends BaseAgent {
 
         throw executionError;
       }
+    } finally {
+      this.history.endExecution();
     }
   }
 

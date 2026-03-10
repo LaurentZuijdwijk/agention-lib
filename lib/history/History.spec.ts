@@ -185,7 +185,6 @@ describe("History module", () => {
 
     it("should respect maxLength and maxTokens independently", () => {
       const h = new History([], { maxLength: 10, maxTokens: 5 });
-      // Add enough entries to trigger token trimming (budget is 5 tokens, very tight)
       h.addText("user", "hello world");
       h.addText("assistant", "hello world");
       // totalEstimatedTokens will exceed 5, so only 1 entry survives

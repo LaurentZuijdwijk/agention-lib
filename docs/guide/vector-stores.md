@@ -7,16 +7,25 @@ Vector stores enable semantic search by storing documents with embeddings and re
 The vector store system provides:
 
 - **VectorStore interface** - Abstract base class for any vector database
-- **LanceDB implementation** - Built-in embedded vector database
+- **LanceDB implementation** - Embedded vector database (local / S3)
+- **OpenSearch implementation** - Distributed k-NN search via the OpenSearch k-NN plugin
 - **Agent tools** - Convert stores to retrieval/storage tools with `toRetrievalTool()` and `toAddDocumentsTool()`
 - **Embeddings integration** - Automatic embedding generation using any provider
 
 ## Installation
 
-LanceDB is an optional peer dependency:
+Each backend is an optional peer dependency. Install only what you need.
+
+**LanceDB** (embedded, local or S3):
 
 ```bash
 npm install @lancedb/lancedb apache-arrow
+```
+
+**OpenSearch** (distributed, requires a running OpenSearch cluster):
+
+```bash
+npm install @opensearch-project/opensearch
 ```
 
 For embeddings, see the [Embeddings guide](/guide/embeddings).
@@ -118,6 +127,8 @@ const learningAgent = new ClaudeAgent({
 
 ## LanceDB Configuration
 
+LanceDB is an embedded vector database that runs in-process with no external server required. It supports local storage and S3-compatible backends.
+
 ### Basic Setup
 
 ```typescript
@@ -180,6 +191,174 @@ await store.addEmbeddedDocuments([
 ]);
 
 const results = await store.searchByVector([0.1, 0.2, ...], { limit: 5 });
+```
+
+## OpenSearch Configuration
+
+OpenSearch uses the [k-NN plugin](https://opensearch.org/docs/latest/search-plugins/knn/index/) for approximate nearest-neighbour (ANN) search via HNSW indexing. It is a good fit for production workloads that need distributed storage, full-text search alongside vector search, or managed cloud deployments (Amazon OpenSearch Service).
+
+### Local Development
+
+Start a single-node OpenSearch cluster with Docker:
+
+```bash
+docker run -p 9200:9200 -p 9600:9600 \
+  -e "discovery.type=single-node" \
+  -e 'OPENSEARCH_INITIAL_ADMIN_PASSWORD=MySearch@7742' \
+  opensearchproject/opensearch:latest
+```
+
+### Basic Setup
+
+```typescript
+import { OpenSearchVectorStore } from '@agentionai/agents/vectorstore';
+import { OpenAIEmbeddings } from '@agentionai/agents/embeddings';
+
+const embeddings = new OpenAIEmbeddings({ model: 'text-embedding-3-small' });
+
+const store = await OpenSearchVectorStore.create({
+  name: 'knowledge_base',
+  node: 'https://localhost:9200',
+  auth: { username: 'admin', password: 'admin' },
+  ssl: { rejectUnauthorized: false },  // allow self-signed certs in dev
+  indexName: 'my_index',
+  embeddings,
+});
+
+await store.addDocuments([
+  { id: '1', content: 'OpenSearch is a distributed search engine.' },
+  { id: '2', content: 'HNSW is a graph-based ANN algorithm.' },
+]);
+
+const results = await store.search('vector search', { limit: 5 });
+```
+
+`OpenSearchVectorStore.create()` connects to the cluster and creates the index with the k-NN mapping if it does not already exist.
+
+### Configuration Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `name` | string | — | Store identifier |
+| `node` | string | — | OpenSearch endpoint URL |
+| `auth` | object | — | `{ username, password }` for basic auth |
+| `ssl` | object | — | `{ rejectUnauthorized }` SSL options |
+| `indexName` | string | — | OpenSearch index to use |
+| `embeddings` | Embeddings | — | Embeddings provider |
+| `dimensions` | number | `embeddings.dimensions \| 1536` | Vector dimensions |
+| `spaceType` | string | `"cosinesimil"` | Distance metric (see below) |
+| `engine` | string | `"lucene"` | k-NN engine (see below) |
+| `efSearch` | number | `512` | HNSW recall vs. latency at query time |
+| `efConstruction` | number | `512` | HNSW graph quality at index time |
+| `m` | number | `16` | HNSW bidirectional links per node |
+| `metadataFields` | array | — | Explicit metadata field type declarations |
+
+### Space Types
+
+| `spaceType` | Description |
+|-------------|-------------|
+| `cosinesimil` | Cosine similarity (default). Scores normalised to [0, 1]. |
+| `l2` | Euclidean distance. Already in (0, 1] — no normalisation needed. |
+| `innerproduct` | Dot product. Passed through as-is. |
+
+### k-NN Engines
+
+| `engine` | Notes |
+|----------|-------|
+| `lucene` | Default since OpenSearch 3.x. Supports `cosinesimil` and `l2`. |
+| `faiss` | High-throughput GPU-accelerated. Supports `l2` and `innerproduct`. |
+| `nmslib` | Removed in OpenSearch 3.0 — do not use. |
+
+### Metadata Field Declarations
+
+By default, OpenSearch uses dynamic mapping for the `metadata` object. String fields are mapped as `text` with a `.keyword` sub-field, which the store handles automatically. For stricter type control and reliable filtering, declare fields explicitly:
+
+```typescript
+const store = await OpenSearchVectorStore.create({
+  name: 'kb',
+  node: 'https://localhost:9200',
+  auth: { username: 'admin', password: 'admin' },
+  ssl: { rejectUnauthorized: false },
+  indexName: 'knowledge_base',
+  embeddings,
+  metadataFields: [
+    { name: 'category', type: 'string' },
+    { name: 'source',   type: 'string' },
+    { name: 'page',     type: 'number' },
+    { name: 'reviewed', type: 'boolean' },
+  ],
+});
+```
+
+Chunk metadata fields produced by the library's chunkers (`hash`, `prev_id`, `next_id`, etc.) are always declared automatically — you do not need to list them.
+
+### Metadata Filtering
+
+Pass a `filter` object to scope results to specific metadata values:
+
+```typescript
+// Filter by a single field
+const results = await store.search('HNSW parameters', {
+  limit: 5,
+  filter: { category: 'knn' },
+});
+
+// Filter by multiple fields (all conditions must match)
+const results2 = await store.search('billing policy', {
+  limit: 10,
+  filter: { tenantId: 'acme', category: 'billing' },
+});
+```
+
+### Namespace Support
+
+Namespaces let you partition a single index into logical tenants. All operations (`addDocuments`, `search`, `clear`) accept a `namespace` option:
+
+```typescript
+// Write to a namespace
+await store.addDocuments(
+  [{ id: 'internal-1', content: 'Internal document.' }],
+  { namespace: 'internal' }
+);
+
+// Search within a namespace only
+const results = await store.search('document', {
+  limit: 5,
+  namespace: 'public',
+});
+
+// Clear only one namespace
+await store.clear({ namespace: 'internal' });
+```
+
+### OpenSearch-Specific Methods
+
+| Method | Description |
+|--------|-------------|
+| `getIndexName()` | Returns the configured index name |
+| `getDimensions()` | Returns the configured vector dimension count |
+| `getEmbeddings()` | Returns the embeddings provider (if any) |
+| `getClient()` | Returns the raw `@opensearch-project/opensearch` client for advanced use |
+| `deleteIndex()` | Permanently deletes the entire index and all its data |
+
+### RAG Agent Example
+
+```typescript
+const searchTool = store.toRetrievalTool(
+  'Search the knowledge base for relevant context.',
+  { defaultLimit: 3 }
+);
+
+const agent = new ClaudeAgent({
+  name: 'RAG Assistant',
+  id: 'rag_assistant',
+  model: 'claude-haiku-4-5',
+  description: 'Always use the search tool before answering questions.',
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  tools: [searchTool],
+});
+
+const answer = await agent.execute('What is the HNSW algorithm?');
 ```
 
 ## VectorStore Interface

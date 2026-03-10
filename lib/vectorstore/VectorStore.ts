@@ -8,6 +8,33 @@
 import { Tool, ToolInputSchema } from "../tools/Tool";
 
 /**
+ * Supported types for metadata field definitions.
+ */
+export type MetadataFieldType = "string" | "number" | "boolean";
+
+/**
+ * Definition for a typed metadata field.
+ * Used by vector store implementations to declare explicit field types
+ * for metadata properties, enabling correct indexing and filtering.
+ *
+ * @example
+ * ```typescript
+ * const fields: MetadataFieldDefinition[] = [
+ *   { name: "source", type: "string" },
+ *   { name: "page", type: "number" },
+ * ];
+ * ```
+ */
+export interface MetadataFieldDefinition {
+  /** Name of the metadata field. Use snake_case (e.g. `tenant_id`). */
+  name: string;
+  /** Data type for the field */
+  type: MetadataFieldType;
+  /** Whether the field can be null (default: true) */
+  nullable?: boolean;
+}
+
+/**
  * Represents a document with its content and optional metadata.
  */
 export interface Document {

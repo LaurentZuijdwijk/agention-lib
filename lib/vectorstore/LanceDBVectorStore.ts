@@ -17,6 +17,8 @@ import {
   AddDocumentsOptions,
   SearchOptions,
   DeleteOptions,
+  MetadataFieldDefinition,
+  MetadataFieldType,
 } from "./VectorStore";
 import { Embeddings } from "../embeddings/Embeddings";
 
@@ -31,23 +33,6 @@ const CHUNK_METADATA_KEYS = [
 ] as const;
 
 const CHUNK_METADATA_KEY_SET = new Set<string>(CHUNK_METADATA_KEYS);
-
-/**
- * Supported types for metadata fields.
- */
-export type MetadataFieldType = "string" | "number" | "boolean";
-
-/**
- * Definition for a metadata field that will be stored as a separate column.
- */
-export interface MetadataFieldDefinition {
-  /** Name of the metadata field. Use snake_case (e.g. `tenant_id`) to avoid SQL filter issues. */
-  name: string;
-  /** Data type for the field */
-  type: MetadataFieldType;
-  /** Whether the field can be null (default: true) */
-  nullable?: boolean;
-}
 
 /**
  * Configuration for LanceDBVectorStore.

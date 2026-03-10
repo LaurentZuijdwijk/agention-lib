@@ -33,14 +33,21 @@ export {
   DeleteOptions,
   RetrievalToolOptions,
   AddDocumentsToolOptions,
+  MetadataFieldType,
+  MetadataFieldDefinition,
 } from "./VectorStore";
 
 export {
   LanceDBVectorStore,
   LanceDBVectorStoreConfig,
-  MetadataFieldType,
-  MetadataFieldDefinition,
 } from "./LanceDBVectorStore";
+
+export {
+  OpenSearchVectorStore,
+  OpenSearchVectorStoreConfig,
+  OpenSearchSpaceType,
+  OpenSearchKnnEngine,
+} from "./OpenSearchVectorStore";
 
 // Re-export embeddings for backward compatibility
 export { Embeddings, EmbeddingOptions } from "../embeddings/Embeddings";

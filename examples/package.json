@@ -5,6 +5,7 @@
   "version": "0.0.1",
   "dependencies": {
     "@lancedb/lancedb": "^0.18.1",
+    "@opensearch-project/opensearch": "^3.5.1",
     "@types/ws": "^8.18.0",
     "colors": "^1.4.0",
     "dotenv": "^16.6.1",

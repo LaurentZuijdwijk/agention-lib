@@ -167,9 +167,13 @@
     },
     "voyageai": {
       "optional": true
+    },
+    "@opensearch-project/opensearch": {
+      "optional": true
     }
   },
   "dependencies": {
+    "@opensearch-project/opensearch": "^3.5.1",
     "tokenx": "^1.2.1"
   }
 }

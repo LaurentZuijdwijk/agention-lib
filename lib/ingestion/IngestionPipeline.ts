@@ -1,7 +1,10 @@
 import { Chunk, ChunkOptions } from "../chunkers/types";
 import { Chunker } from "../chunkers/Chunker";
+import { ElementChunker } from "../chunkers/ElementChunker";
 import { Embeddings } from "../embeddings/Embeddings";
 import { VectorStore, EmbeddedDocument } from "../vectorstore/VectorStore";
+import { DocumentParser } from "../parsers/DocumentParser";
+import { ParseOptions } from "../parsers/types";
 import {
   IngestionOptions,
   IngestionResult,
@@ -37,11 +40,25 @@ export class IngestionPipeline {
   private chunker: Chunker;
   private embeddings: Embeddings;
   private store: VectorStore;
+  private parser?: DocumentParser;
 
-  constructor(chunker: Chunker, embeddings: Embeddings, store: VectorStore) {
+  /**
+   * @param chunker    - Chunker to split parsed/raw text into chunks
+   * @param embeddings - Embeddings provider
+   * @param store      - Vector store for persistence
+   * @param parser     - Optional default parser used by {@link ingestFile} and
+   *                     {@link ingestFiles} when no parser is passed at call time
+   */
+  constructor(
+    chunker: Chunker,
+    embeddings: Embeddings,
+    store: VectorStore,
+    parser?: DocumentParser
+  ) {
     this.chunker = chunker;
     this.embeddings = embeddings;
     this.store = store;
+    this.parser = parser;
   }
 
   /**
@@ -125,6 +142,203 @@ export class IngestionPipeline {
 
     // Process all chunks together
     return this.processChunks(allChunks, options ?? {}, startTime);
+  }
+
+  /**
+   * Parse a file and ingest it into the vector store.
+   *
+   * Combines parsing + chunking + embedding + storing in a single call.
+   * When the pipeline's chunker is an {@link ElementChunker} and the parser
+   * returns structured elements, chunking is done on element boundaries
+   * instead of raw text.
+   *
+   * The `parser` argument is optional when one was configured on the pipeline
+   * constructor; it is required otherwise.
+   *
+   * @example Using a pipeline-level parser:
+   * ```typescript
+   * const pipeline = new IngestionPipeline(
+   *   new ElementChunker({ chunkSize: 1000 }),
+   *   embeddings,
+   *   store,
+   *   new UnstructuredLocalParser(),
+   * );
+   * await pipeline.ingestFile("/docs/report.pdf", { strategy: "hi_res" });
+   * ```
+   *
+   * @example Passing a parser per call:
+   * ```typescript
+   * await pipeline.ingestFile("/docs/report.pdf", new UnstructuredLocalParser(), {
+   *   strategy: "hi_res",
+   *   sourceId: "report-2024",
+   * });
+   * ```
+   */
+  async ingestFile(
+    filePath: string,
+    options?: ParseOptions & ChunkOptions & IngestionOptions
+  ): Promise<IngestionResult>;
+  async ingestFile(
+    filePath: string,
+    parser: DocumentParser,
+    options?: ParseOptions & ChunkOptions & IngestionOptions
+  ): Promise<IngestionResult>;
+  async ingestFile(
+    filePath: string,
+    parserOrOptions?: DocumentParser | (ParseOptions & ChunkOptions & IngestionOptions),
+    options?: ParseOptions & ChunkOptions & IngestionOptions
+  ): Promise<IngestionResult> {
+    let parser: DocumentParser | undefined;
+    let opts: (ParseOptions & ChunkOptions & IngestionOptions) | undefined;
+
+    if (parserOrOptions != null && typeof (parserOrOptions as DocumentParser).parse === "function") {
+      parser = parserOrOptions as DocumentParser;
+      opts = options;
+    } else {
+      parser = this.parser;
+      opts = parserOrOptions as ParseOptions & ChunkOptions & IngestionOptions | undefined;
+    }
+
+    if (!parser) {
+      throw new Error(
+        "No parser provided. Pass a DocumentParser to ingestFile() or set one in the IngestionPipeline constructor."
+      );
+    }
+
+    const parseOptions: ParseOptions = {
+      strategy: opts?.strategy,
+      languages: opts?.languages,
+    };
+
+    const parsed = await parser.parse(filePath, parseOptions);
+
+    const chunkOptions: ChunkOptions = {
+      sourceId: opts?.sourceId,
+      sourcePath: opts?.sourcePath ?? filePath,
+      metadata: opts?.metadata,
+    };
+
+    const ingestionOptions: IngestionOptions = {
+      batchSize: opts?.batchSize,
+      onProgress: opts?.onProgress,
+      onError: opts?.onError,
+      skipDuplicates: opts?.skipDuplicates,
+    };
+
+    // When the pipeline uses an ElementChunker and the parser returned
+    // structured elements, chunk on element boundaries instead of raw text.
+    if (this.chunker instanceof ElementChunker && parsed.elements?.length) {
+      const startTime = Date.now();
+      const chunks = await this.chunker.chunkElements(parsed.elements, chunkOptions);
+      return this.processChunks(chunks, ingestionOptions, startTime);
+    }
+
+    return this.ingest(parsed.text, { ...chunkOptions, ...ingestionOptions });
+  }
+
+  /**
+   * Parse and ingest multiple files.
+   *
+   * Files are parsed sequentially; all chunks are batched together for
+   * embedding and storage. When the pipeline uses an {@link ElementChunker}
+   * and the parser returns structured elements, element-aware chunking is
+   * applied per file (preserving `element_types` and `page` metadata).
+   * The `parser` argument is optional when one was set on the pipeline
+   * constructor.
+   *
+   * @example Using a pipeline-level parser:
+   * ```typescript
+   * await pipeline.ingestFiles(["/a.pdf", "/b.docx"], { skipDuplicates: true });
+   * ```
+   *
+   * @example Passing a parser per call:
+   * ```typescript
+   * await pipeline.ingestFiles(
+   *   ["/docs/a.pdf", "/docs/b.docx"],
+   *   new UnstructuredAPIParser({ serverUrl: "http://localhost:8000" }),
+   *   { strategy: "auto", skipDuplicates: true }
+   * );
+   * ```
+   */
+  async ingestFiles(
+    filePaths: string[],
+    options?: ParseOptions & ChunkOptions & IngestionOptions
+  ): Promise<IngestionResult>;
+  async ingestFiles(
+    filePaths: string[],
+    parser: DocumentParser,
+    options?: ParseOptions & ChunkOptions & IngestionOptions
+  ): Promise<IngestionResult>;
+  async ingestFiles(
+    filePaths: string[],
+    parserOrOptions?: DocumentParser | (ParseOptions & ChunkOptions & IngestionOptions),
+    options?: ParseOptions & ChunkOptions & IngestionOptions
+  ): Promise<IngestionResult> {
+    let parser: DocumentParser | undefined;
+    let opts: (ParseOptions & ChunkOptions & IngestionOptions) | undefined;
+
+    if (parserOrOptions != null && typeof (parserOrOptions as DocumentParser).parse === "function") {
+      parser = parserOrOptions as DocumentParser;
+      opts = options;
+    } else {
+      parser = this.parser;
+      opts = parserOrOptions as (ParseOptions & ChunkOptions & IngestionOptions) | undefined;
+    }
+
+    if (!parser) {
+      throw new Error(
+        "No parser provided. Pass a DocumentParser to ingestFiles() or set one in the IngestionPipeline constructor."
+      );
+    }
+
+    const parseOptions: ParseOptions = {
+      strategy: opts?.strategy,
+      languages: opts?.languages,
+    };
+
+    const ingestionOptions: IngestionOptions = {
+      batchSize: opts?.batchSize,
+      onProgress: opts?.onProgress,
+      onError: opts?.onError,
+      skipDuplicates: opts?.skipDuplicates,
+    };
+
+    const startTime = Date.now();
+    const allChunks: Chunk[] = [];
+
+    this.emitProgress(ingestionOptions.onProgress, {
+      phase: "chunking",
+      processed: 0,
+      total: filePaths.length,
+    });
+
+    for (let i = 0; i < filePaths.length; i++) {
+      const filePath = filePaths[i];
+      const parsed = await parser.parse(filePath, parseOptions);
+
+      const chunkOptions: ChunkOptions = {
+        sourceId: opts?.sourceId,
+        sourcePath: filePath,
+        metadata: opts?.metadata,
+      };
+
+      let fileChunks: Chunk[];
+      if (this.chunker instanceof ElementChunker && parsed.elements?.length) {
+        fileChunks = await this.chunker.chunkElements(parsed.elements, chunkOptions);
+      } else {
+        fileChunks = await this.chunker.chunk(parsed.text, chunkOptions);
+      }
+
+      allChunks.push(...fileChunks);
+
+      this.emitProgress(ingestionOptions.onProgress, {
+        phase: "chunking",
+        processed: i + 1,
+        total: filePaths.length,
+      });
+    }
+
+    return this.processChunks(allChunks, ingestionOptions, startTime);
   }
 
   /**
@@ -326,5 +540,12 @@ export class IngestionPipeline {
    */
   getStore(): VectorStore {
     return this.store;
+  }
+
+  /**
+   * Get the default parser configured on this pipeline, if any.
+   */
+  getParser(): DocumentParser | undefined {
+    return this.parser;
   }
 }

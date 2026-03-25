@@ -1,7 +1,7 @@
 {
   "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Agent Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,6 +29,10 @@
     "./gemini": {
       "types": "./dist/gemini.d.ts",
       "default": "./dist/gemini.js"
+    },
+    "./ollama": {
+      "types": "./dist/agents/ollama/OllamaAgent.d.ts",
+      "default": "./dist/agents/ollama/OllamaAgent.js"
     },
     "./embeddings": {
       "types": "./dist/embeddings/index.d.ts",
@@ -61,6 +65,26 @@
     "./history/plugins": {
       "types": "./dist/history/plugins/index.d.ts",
       "default": "./dist/history/plugins/index.js"
+    },
+    "./parsers": {
+      "types": "./dist/parsers/index.d.ts",
+      "default": "./dist/parsers/index.js"
+    },
+    "./parsers/unstructured-local": {
+      "types": "./dist/parsers/UnstructuredLocalParser.d.ts",
+      "default": "./dist/parsers/UnstructuredLocalParser.js"
+    },
+    "./parsers/unstructured-api": {
+      "types": "./dist/parsers/UnstructuredAPIParser.d.ts",
+      "default": "./dist/parsers/UnstructuredAPIParser.js"
+    },
+    "./parsers/llamaindex": {
+      "types": "./dist/parsers/LlamaIndexParser.d.ts",
+      "default": "./dist/parsers/LlamaIndexParser.js"
+    },
+    "./parsers/ollama-ocr": {
+      "types": "./dist/parsers/OllamaOCRParser.d.ts",
+      "default": "./dist/parsers/OllamaOCRParser.js"
     }
   },
   "files": [
@@ -141,7 +165,12 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "apache-arrow": "^18.0.0",
     "openai": "^6.16.0",
-    "voyageai": "^0.0.3"
+    "voyageai": "^0.0.3",
+    "@epilogo/unstructured-io-node": "*",
+    "unstructured-client": "*",
+    "llamaindex": "*",
+    "@llamaindex/readers": "*",
+    "pdf-to-img": "*"
   },
   "peerDependenciesMeta": {
     "@lancedb/lancedb": {
@@ -169,6 +198,21 @@
       "optional": true
     },
     "@opensearch-project/opensearch": {
+      "optional": true
+    },
+    "@epilogo/unstructured-io-node": {
+      "optional": true
+    },
+    "unstructured-client": {
+      "optional": true
+    },
+    "llamaindex": {
+      "optional": true
+    },
+    "@llamaindex/readers": {
+      "optional": true
+    },
+    "pdf-to-img": {
       "optional": true
     }
   },

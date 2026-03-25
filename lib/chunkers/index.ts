@@ -15,3 +15,4 @@ export { Chunker } from "./Chunker";
 export { TextChunker } from "./TextChunker";
 export { RecursiveChunker } from "./RecursiveChunker";
 export { TokenChunker } from "./TokenChunker";
+export { ElementChunker, type ElementChunkerConfig } from "./ElementChunker";

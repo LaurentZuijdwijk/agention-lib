@@ -36,12 +36,11 @@
 |-----------|----------|-------------|
 | `BaseAgent` | `lib/agents/BaseAgent.ts` | Abstract foundation for all LLM agents |
 | `ClaudeAgent` | `lib/agents/anthropic/ClaudeAgent.ts` | Anthropic Claude implementation |
-| `OpenAiAgent` | `lib/agents/openai/OpenAiAgent.ts` | OpenAI implementation (in progress) |
+| `OpenAiAgent` | `lib/agents/openai/OpenAiAgent.ts` | OpenAI implementation |
 | `MistralAgent` | `lib/agents/mistral/MistralAgent.ts` | Mistral implementation |
 | `Tool` | `lib/tools/Tool.ts` | Tool definition and execution |
 | `MCPClient` | `lib/mcp/MCPClient.ts` | MCP server client — wraps MCP tools as `Tool` instances (optional peer: `@modelcontextprotocol/sdk`) |
 | `History` | `lib/history/History.ts` | Conversation history management |
-| `Team` | `lib/team/Team.ts` | Multi-agent coordination |
 
 ### Graph System (`lib/graph/`)
 
@@ -96,29 +95,29 @@ The graph module provides workflow orchestration patterns:
 These are derived from context engineering research (lost-in-the-middle, U-shaped attention, attention scarcity). Priority order reflects impact.
 
 - [x] **Token-aware history trimming** — `History` now accepts `maxTokens` option; each entry stores `estimatedTokens` (ceil(contentLength/4)); trimming preserves the system message. `AgentConfig.maxHistoryTokens` wires this through to the agent's history. Also fixed: `maxHistoryLength` was stored on `BaseAgent` but never passed to `History` — now both fields are correctly applied at construction time.
-- [ ] **Context summarization** — When history must be trimmed, the current FIFO drop discards the oldest entries first — exactly the ones the model attends to most. Implement a `summarize()` strategy that compresses old turns into a single summary entry before dropping them.
+- [x] **Context summarization** — `compressionPlugin` implements rolling LLM summary; old turns are compressed into a summary entry before being dropped.
 - [x] **Fix system message missing from follow-up tool calls** — Fixed: `system: this.history.getSystemMessage()` added to ClaudeAgent follow-up call.
 - [ ] **Progressive tool disclosure** — All tool definitions are sent on every API call including follow-up tool-result calls (`ClaudeAgent.ts:298`). With MCP or large tool sets this wastes significant tokens per hop. Send only tools relevant to the current step, or omit tools entirely on follow-up calls when no further tool use is expected.
-- [ ] **Long-term / external memory** — History is in-memory only; nothing persists across restarts. Wire the existing `VectorStore` into History retrieval so agents can fetch relevant past context rather than carrying everything in the window.
-- [ ] **Context quality / degradation detection** — No mechanism exists to detect adversarial tool results, contradictory information, or excessively noisy responses (context poisoning/distraction). Add at minimum a configurable max-token guard per tool result, especially relevant for MCP integrations where external servers return arbitrary content.
+- [x] **Long-term / external memory** — Redis-backed history persistence available via `RedisHistory`. Future: add Postgres/Prisma or other adapters.
+- [ ] **Context quality / degradation detection** — `toolResultMaskingPlugin` handles read-time masking, but no mechanism exists for detecting adversarial/noisy tool results at write time. Add a configurable max-token guard per tool result, especially relevant for MCP integrations where external servers return arbitrary content.
 
 ### Architecture Improvements
 - [ ] Add retry mechanisms with backoff to executors
-- [ ] Add ConditionalExecutor for branching workflows
+- [x] Add ConditionalExecutor for branching workflows — implemented as Router
 - [ ] Add context passing through pipeline stages
 
 ### Code Quality
 - [ ] Reduce use of 'any' types in `Tool.ts` - Replace `Record<string, any>` with proper interfaces
 - [ ] Add proper validation - Validate inputs for agents and tools
 - [ ] Fix test inconsistencies - Tests in BaseAgent.spec.ts and ClaudeAgent.spec.ts need alignment
-- [ ] Complete OpenAI agent implementation
+- [x] Complete OpenAI agent implementation
 - [ ] Fix `isAgent()` check in PlanExecutor - use `instanceof BaseAgent` instead of duck-typing
 
 ### Features to Add
 1. **Streaming responses** - Support streaming from LLM APIs
 2. **Middleware system** - Add request/response processing hooks
 3. **PDF parsing** - Add tools for PDF document processing
-4. **Vector DB integration** - Add tools for vector database operations
+4. **Additional vector DB adapters** - LanceDB is available; add Postgres/pgvector, Pinecone, or other adapters
 5. **Graph visualization** - Visual representation of pipeline structure and metrics
 
 ### Documentation
@@ -131,5 +130,5 @@ These are derived from context engineering research (lost-in-the-middle, U-shape
 - [ ] Create consistent mocking strategy for LLM APIs
 
 ### DevOps
-- [ ] CI/CD pipeline - Add GitHub Actions for testing and deployment
-- [ ] Version management - Implement proper semantic versioning
+- [x] CI/CD pipeline - GitHub Actions for testing and deployment
+- [x] Version management - Semantic versioning in place

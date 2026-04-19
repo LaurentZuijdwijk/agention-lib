@@ -10,10 +10,17 @@
  * @see https://docs.anthropic.com/en/docs/about-claude/models
  */
 export type ClaudeModel =
+  // Claude 4.7
+  | "claude-opus-4-7"
+  // Claude 4.6
+  | "claude-opus-4-6"
+  | "claude-sonnet-4-6"
+  // Claude 4.5
   | "claude-opus-4-5"
   | "claude-sonnet-4-5"
   | "claude-haiku-4-5"
-  // Latest aliases
+  | "claude-haiku-4-5-20251001"
+  // Allow custom strings for new models while preserving autocomplete
   | (string & Record<never, never>);
 
 /**

@@ -1,7 +1,7 @@
 {
   "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "Agent Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,6 +29,10 @@
     "./gemini": {
       "types": "./dist/gemini.d.ts",
       "default": "./dist/gemini.js"
+    },
+    "./ollama": {
+      "types": "./dist/ollama.d.ts",
+      "default": "./dist/ollama.js"
     },
     "./embeddings": {
       "types": "./dist/embeddings/index.d.ts",
@@ -140,6 +144,7 @@
     "@mistralai/mistralai": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "apache-arrow": "^18.0.0",
+    "ollama": "^0.5.18",
     "openai": "^6.16.0",
     "voyageai": "^0.0.3"
   },
@@ -169,6 +174,9 @@
       "optional": true
     },
     "@opensearch-project/opensearch": {
+      "optional": true
+    },
+    "ollama": {
       "optional": true
     }
   },

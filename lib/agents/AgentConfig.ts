@@ -2,7 +2,7 @@ import { Tool } from "../tools/Tool";
 import { BaseAgent } from "./BaseAgent";
 
 /** Supported LLM vendors */
-export type AgentVendor = "openai" | "anthropic" | "mistral" | "gemini";
+export type AgentVendor = "openai" | "anthropic" | "mistral" | "gemini" | "ollama";
 
 /**
  * Common configuration shared by all agents
@@ -121,6 +121,14 @@ export interface GeminiSpecificConfig {
 }
 
 /**
+ * Vendor-specific configuration for Ollama (local)
+ */
+export interface OllamaSpecificConfig {
+  /** Ollama server URL (default: http://localhost:11434) */
+  host?: string;
+}
+
+/**
  * Generic vendor-specific configuration container
  * This allows any vendor to add custom config without modifying base types
  */
@@ -129,6 +137,7 @@ export interface VendorSpecificConfig {
   openai?: OpenAISpecificConfig;
   mistral?: MistralSpecificConfig;
   gemini?: GeminiSpecificConfig;
+  ollama?: OllamaSpecificConfig;
 }
 
 /**
@@ -170,6 +179,8 @@ export type TypedAgentConfig<V extends AgentVendor> = CommonAgentConfig & {
     ? { mistral?: MistralSpecificConfig }
     : V extends "gemini"
     ? { gemini?: GeminiSpecificConfig }
+    : V extends "ollama"
+    ? { ollama?: OllamaSpecificConfig }
     : never;
 };
 
@@ -184,4 +195,6 @@ export type VendorConfigFor<V extends AgentVendor> = V extends "anthropic"
   ? MistralSpecificConfig
   : V extends "gemini"
   ? GeminiSpecificConfig
+  : V extends "ollama"
+  ? OllamaSpecificConfig
   : never;

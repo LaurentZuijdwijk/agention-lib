@@ -13,6 +13,7 @@ export * from "./agents/anthropic/ClaudeAgent";
 export { OpenAiAgent } from "./agents/openai/OpenAiAgent";
 export { MistralAgent } from "./agents/mistral/MistralAgent";
 export { GeminiAgent } from "./agents/google/GeminiAgent";
+export { OllamaAgent } from "./agents/ollama/OllamaAgent";
 export * from "./agents/model-types";
 export * from "./agents/AgentConfig";
 export * from "./agents/AgentEvent";
@@ -26,6 +27,7 @@ export {
   openAiTransformer,
   mistralTransformer,
   geminiTransformer,
+  ollamaTransformer,
 } from "./history/transformers";
 
 // Graph

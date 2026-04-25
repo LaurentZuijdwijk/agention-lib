@@ -115,13 +115,22 @@ export type GeminiMeta = {
 };
 
 /**
+ * Ollama-specific metadata
+ */
+export type OllamaMeta = {
+  provider: "ollama";
+  tool_call_id?: string;
+};
+
+/**
  * Union of all provider metadata types
  */
 export type ProviderMeta =
   | AnthropicMeta
   | OpenAiMeta
   | MistralMeta
-  | GeminiMeta;
+  | GeminiMeta
+  | OllamaMeta;
 
 // =============================================================================
 // History Entry

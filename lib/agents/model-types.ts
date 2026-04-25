@@ -61,6 +61,43 @@ export type MistralModel =
   | (string & {});
 
 /**
+ * Popular Ollama models (locally hosted).
+ * You can also provide any custom string for models you have pulled.
+ * @see https://ollama.com/library
+ */
+export type OllamaModel =
+  // Meta Llama
+  | "llama3.2"
+  | "llama3.2:1b"
+  | "llama3.1"
+  | "llama3.1:70b"
+  | "llama3"
+  // Mistral
+  | "mistral"
+  | "mistral-nemo"
+  | "mixtral"
+  // Alibaba Qwen (strong tool-use support)
+  | "qwen2.5"
+  | "qwen2.5:7b"
+  | "qwen2.5:72b"
+  | "qwen2.5-coder"
+  // Google Gemma
+  | "gemma2"
+  | "gemma2:27b"
+  // Microsoft Phi
+  | "phi3"
+  | "phi4"
+  // DeepSeek
+  | "deepseek-r1"
+  | "deepseek-r1:7b"
+  | "deepseek-r1:14b"
+  | "deepseek-r1:70b"
+  // Code
+  | "codellama"
+  // Allow custom strings for any pulled model
+  | (string & {});
+
+/**
  * Supported OpenAI models.
  * You can also provide any custom string for newer models not yet listed.
  * @see https://platform.openai.com/docs/models

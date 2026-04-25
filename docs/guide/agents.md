@@ -10,6 +10,7 @@ Agents are the core building block of Agention. Each agent wraps an LLM and prov
 | Google | `GeminiAgent` | `gemini-2.0-flash` |
 | OpenAI | `OpenAiAgent` | `gpt-4o`, `gpt-4-turbo` |
 | Mistral | `MistralAgent` | `mistral-large-latest`, `mistral-medium` |
+| Ollama (local) | `OllamaAgent` | `llama3.2`, `qwen2.5`, `deepseek-r1` |
 
 ## Installation & Imports
 
@@ -27,6 +28,9 @@ npm install @agentionai/agents @google/generative-ai
 
 # Mistral only
 npm install @agentionai/agents @mistralai/mistralai
+
+# Ollama (local — no API key needed, requires Ollama running on your machine)
+npm install @agentionai/agents ollama
 ```
 
 Import using selective imports to avoid installing unnecessary dependencies:
@@ -36,15 +40,7 @@ import { ClaudeAgent } from '@agentionai/agents/claude';
 import { OpenAiAgent } from '@agentionai/agents/openai';
 import { GeminiAgent } from '@agentionai/agents/gemini';
 import { MistralAgent } from '@agentionai/agents/mistral';
-```
-
-Or import everything (requires all SDKs):
-
-```typescript
-import { ClaudeAgent } from '@agentionai/agents/claude';
-import { OpenAiAgent } from '@agentionai/agents/openai';
-import { GeminiAgent } from '@agentionai/agents/gemini';
-import { MistralAgent } from '@agentionai/agents/mistral';
+import { OllamaAgent } from '@agentionai/agents/ollama';
 ```
 
 ## Basic Usage
@@ -147,6 +143,7 @@ All agents share the same interface, making it easy to switch providers:
 import { ClaudeAgent } from '@agentionai/agents/claude';
 import { OpenAiAgent } from '@agentionai/agents/openai';
 import { MistralAgent } from '@agentionai/agents/mistral';
+import { OllamaAgent } from '@agentionai/agents/ollama';
 
 // Same interface, different provider
 const claude = new ClaudeAgent({
@@ -170,9 +167,99 @@ const mistral = new MistralAgent({
   model: 'mistral-large-latest',
 });
 
+const ollama = new OllamaAgent({
+  id: 'ollama',
+  name: 'Ollama',
+  description: 'You are a helpful assistant.',
+  model: 'llama3.2',
+  apiKey: '',  // Ollama doesn't require an API key
+});
+
 // All work the same way
 const response = await claude.execute('Hello');
 ```
+
+## Ollama (Local Models)
+
+`OllamaAgent` runs models locally via [Ollama](https://ollama.com) — no API key or internet connection required.
+
+**Setup:**
+
+```bash
+# 1. Install Ollama from https://ollama.com/download
+
+# 2. Pull a model
+ollama pull llama3.2        # general use
+ollama pull qwen2.5         # recommended for tool use
+
+# 3. Install the npm package
+npm install ollama
+```
+
+**Basic usage:**
+
+```typescript
+import { OllamaAgent } from '@agentionai/agents/ollama';
+
+const agent = new OllamaAgent({
+  id: 'local',
+  name: 'Local Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'llama3.2',
+  apiKey: '',
+});
+
+const response = await agent.execute('What is the capital of France?');
+```
+
+**Configuration options specific to Ollama:**
+
+```typescript
+const agent = new OllamaAgent({
+  id: 'local',
+  name: 'Local Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'qwen2.5',
+  apiKey: '',
+
+  // Point to a non-default Ollama server (default: http://localhost:11434)
+  host: 'http://my-gpu-box:11434',
+
+  // Enable extended thinking for models that support it (e.g. deepseek-r1)
+  think: true,
+
+  // Standard sampling params work too
+  temperature: 0.7,
+  maxTokens: 2048,
+});
+```
+
+**Tool use:**
+
+Tool use quality varies by model. `qwen2.5` and `llama3.2` have the best tool-call support:
+
+```typescript
+const agent = new OllamaAgent({
+  id: 'tool-agent',
+  name: 'Tool Agent',
+  description: 'You are a helpful assistant.',
+  model: 'qwen2.5',
+  apiKey: '',
+  tools: [myTool],
+});
+```
+
+**Popular models:**
+
+| Model | Best for |
+|-------|----------|
+| `llama3.2` | General chat |
+| `qwen2.5` | Tool use, coding |
+| `deepseek-r1` | Reasoning (use with `think: true`) |
+| `mistral` | Instruction following |
+| `codellama` | Code generation |
+
+Any model string you have pulled locally is valid — the type allows arbitrary strings while offering autocomplete for common ones.
 
 ## Token Usage Tracking
 
@@ -223,6 +310,7 @@ const response2 = await agent.execute([
 | OpenAI | ✅ | ✅ |
 | Gemini | ✅ | ✅ |
 | Mistral | ✅ | ❌ |
+| Ollama | ❌ | ❌ |
 
 [Full multimodal guide →](/guide/multimodal)
 

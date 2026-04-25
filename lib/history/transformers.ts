@@ -634,3 +634,119 @@ export const geminiTransformer = {
       .join("\n");
   },
 };
+
+// =============================================================================
+// Ollama Transformer
+// =============================================================================
+
+type OllamaMessage = {
+  role: "user" | "assistant" | "system" | "tool";
+  content: string;
+  tool_calls?: Array<{
+    function: {
+      name: string;
+      arguments: Record<string, unknown>;
+    };
+  }>;
+};
+
+type OllamaResponseMessage = {
+  role: string;
+  content: string;
+  tool_calls?: Array<{
+    function: {
+      name: string;
+      arguments: Record<string, unknown> | string;
+    };
+  }>;
+};
+
+export const ollamaTransformer = {
+  /**
+   * Convert normalized entries to Ollama message format.
+   * Tool results become role:"tool" messages; tool calls are embedded in assistant messages.
+   */
+  toProvider(entries: HistoryEntry[]): OllamaMessage[] {
+    const messages: OllamaMessage[] = [];
+
+    for (const entry of entries) {
+      const textBlocks = entry.content.filter(isTextContent);
+      const toolUseBlocks = entry.content.filter(isToolUseContent);
+      const toolResultBlocks = entry.content.filter(isToolResultContent);
+
+      if (entry.role === "system") {
+        messages.push({ role: "system", content: textBlocks.map((c) => c.text).join("\n") });
+        continue;
+      }
+
+      if (entry.role === "assistant") {
+        const msg: OllamaMessage = {
+          role: "assistant",
+          content: textBlocks.map((c) => c.text).join("\n"),
+        };
+        if (toolUseBlocks.length > 0) {
+          msg.tool_calls = toolUseBlocks.map((block) => ({
+            function: {
+              name: block.name,
+              arguments: block.input,
+            },
+          }));
+        }
+        messages.push(msg);
+        continue;
+      }
+
+      // User role — could be text or tool results
+      if (toolResultBlocks.length > 0) {
+        for (const result of toolResultBlocks) {
+          messages.push({ role: "tool", content: result.content });
+        }
+      } else if (textBlocks.length > 0) {
+        messages.push({ role: "user", content: textBlocks.map((c) => c.text).join("\n") });
+      }
+    }
+
+    return messages;
+  },
+
+  /**
+   * Convert Ollama response message to normalized HistoryEntry.
+   * generatedIds must supply one ID per tool call (Ollama doesn't return IDs).
+   */
+  fromProviderMessage(message: OllamaResponseMessage, generatedIds: string[]): HistoryEntry {
+    const content: MessageContent[] = [];
+
+    if (typeof message.content === "string" && message.content) {
+      content.push(text(message.content));
+    }
+
+    if (message.tool_calls) {
+      message.tool_calls.forEach((call, idx) => {
+        const args =
+          typeof call.function.arguments === "string"
+            ? JSON.parse(call.function.arguments)
+            : call.function.arguments;
+        content.push(
+          toolUse(generatedIds[idx] ?? `ollama_tool_${idx}`, call.function.name, args as Record<string, unknown>)
+        );
+      });
+    }
+
+    return {
+      role: "assistant",
+      content,
+      meta: { provider: "ollama" },
+    };
+  },
+
+  /**
+   * Create a normalized tool result entry for Ollama
+   */
+  toolResultEntry(tool_call_id: string, output: string): HistoryEntry {
+    return {
+      role: "user",
+      content: [toolResult(tool_call_id, output)],
+      meta: { provider: "ollama", tool_call_id },
+    };
+  },
+};

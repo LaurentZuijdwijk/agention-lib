@@ -15,6 +15,7 @@ import { createInterface } from "node:readline/promises";
 import { ClaudeAgent } from "../lib/agents/anthropic/ClaudeAgent";
 import { OpenAiAgent } from "../lib/agents/openai/OpenAiAgent";
 import { MistralAgent } from "../lib/agents/mistral/MistralAgent";
+import { OllamaAgent } from "../lib/agents/ollama/OllamaAgent";
 import { BaseAgent } from "../lib/agents/BaseAgent";
 import { Tool } from "../lib/tools/Tool";
 
@@ -115,7 +116,7 @@ const WEATHERMAN_DESCRIPTION = `You are a weather data retrieval specialist. You
 Be efficient and only make the necessary tool calls. Return the data concisely.`;
 
 function createWeathermanAgent(
-  provider: "claude" | "openai" | "mistral"
+  provider: "claude" | "openai" | "mistral" | "ollama"
 ): BaseAgent {
   const config = {
     id: "weatherman",
@@ -139,7 +140,14 @@ function createWeathermanAgent(
       apiKey: process.env.MISTRAL_API_KEY as string,
     });
   }
-
+  if (provider === "ollama") {
+    return new OllamaAgent({
+      ...config,
+      apiKey: "",
+      model: "gemma4:e4b",
+      think: false,
+    });
+  }
   return new ClaudeAgent({
     ...config,
     apiKey: process.env.ANTHROPIC_API_KEY as string,
@@ -161,7 +169,7 @@ When the user asks about weather:
 Be friendly and helpful. Add interesting observations about the weather when appropriate.`;
 
 function createMainAgent(
-  provider: "claude" | "openai" | "mistral",
+  provider: "claude" | "openai" | "mistral" | "ollama",
   weathermanTool: Tool<string>
 ): BaseAgent {
   const config = {
@@ -187,7 +195,14 @@ function createMainAgent(
       model: "mistral-large-latest",
     });
   }
-
+  if (provider === "ollama") {
+    return new OllamaAgent({
+      ...config,
+      apiKey: "",
+      model: "gemma4:e4b",
+      think: false,
+    });
+  }
   return new ClaudeAgent({
     ...config,
     apiKey: process.env.ANTHROPIC_API_KEY as string,
@@ -208,13 +223,15 @@ async function main() {
 
   // Choose provider
   const providerChoice = await rl.question(
-    "Which provider? [1] Claude (default), [2] OpenAI, or [3] Mistral: "
+    "Which provider? [1] Claude (default), [2] OpenAI, or [3] Mistral or [4] Ollama: "
   );
-  let provider: "claude" | "openai" | "mistral" = "claude";
+  let provider: "claude" | "openai" | "mistral" | "ollama" = "claude";
   if (providerChoice === "2") {
     provider = "openai";
   } else if (providerChoice === "3") {
     provider = "mistral";
+  } else if (providerChoice === "4") {
+    provider = "ollama";
   }
   console.log(`Using ${provider}\n`);
 

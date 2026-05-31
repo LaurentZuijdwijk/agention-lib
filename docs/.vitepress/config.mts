@@ -63,6 +63,10 @@ export default defineConfig({
           ],
         },
         {
+          text: "Testing & Evaluation",
+          items: [{ text: "Evaluation", link: "/guide/evals" }],
+        },
+        {
           text: "Resources",
           items: [
             { text: "Examples", link: "/guide/examples" },

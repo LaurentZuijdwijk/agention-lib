@@ -36,6 +36,7 @@ Agention is for developers who:
 - **Graph Pipelines** - Orchestrate complex workflows with sequential, parallel, and voting patterns
 - **Conversation History** - Provider-agnostic history management
 - **Metrics & Observability** - Track tokens, timing, and pipeline execution
+- **Evaluation** - Score agents and pipelines against datasets with `@agentionai/eval`
 
 ## Installation
 
@@ -126,3 +127,4 @@ import { OpenAiAgent } from '@agentionai/agents/openai';
 - [Agents](/guide/agents) - Learn about agent configuration and providers
 - [Tools](/guide/tools) - Add capabilities to your agents
 - [Graph Pipelines](/guide/graph-pipelines) - Build multi-agent workflows
+- [Evaluation](/guide/evals) - Score and compare agents against datasets

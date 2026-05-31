@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
+  ignoreDeadLinks: [/^http:\/\/localhost/],
   title: "Agention",
   description:
     "A modular TypeScript library for building AI agents and workflows",

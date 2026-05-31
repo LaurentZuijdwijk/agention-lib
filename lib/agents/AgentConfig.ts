@@ -124,7 +124,7 @@ export interface GeminiSpecificConfig {
  * Vendor-specific configuration for Ollama (local)
  */
 export interface OllamaSpecificConfig {
-  /** Ollama server URL (default: http://localhost:11434) */
+  /** Ollama server URL (default: `http://localhost:11434`) */
   host?: string;
 }
 

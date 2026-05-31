@@ -13,7 +13,7 @@ import { vizConfig } from "../../viz/VizConfig";
 import { OllamaModel } from "../model-types";
 
 type AgentConfig = BaseAgentConfig & {
-  /** Ollama server URL (default: http://localhost:11434) */
+  /** Ollama server URL (default: `http://localhost:11434`) */
   host?: string;
   model?: OllamaModel;
   maxTokens?: number;

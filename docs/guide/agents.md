@@ -11,6 +11,7 @@ Agents are the core building block of Agention. Each agent wraps an LLM and prov
 | OpenAI | `OpenAiAgent` | `gpt-4o`, `gpt-4-turbo` |
 | Mistral | `MistralAgent` | `mistral-large-latest`, `mistral-medium` |
 | Ollama (local) | `OllamaAgent` | `llama3.2`, `qwen2.5`, `deepseek-r1` |
+| llama.cpp (local) | `LlamaCppAgent` | any GGUF model loaded by `llama-server` |
 
 ## Installation & Imports
 
@@ -31,6 +32,9 @@ npm install @agentionai/agents @mistralai/mistralai
 
 # Ollama (local — no API key needed, requires Ollama running on your machine)
 npm install @agentionai/agents ollama
+
+# llama.cpp (local — no API key needed, requires `llama-server` running on your machine)
+npm install @agentionai/agents openai
 ```
 
 Import using selective imports to avoid installing unnecessary dependencies:
@@ -41,6 +45,7 @@ import { OpenAiAgent } from '@agentionai/agents/openai';
 import { GeminiAgent } from '@agentionai/agents/gemini';
 import { MistralAgent } from '@agentionai/agents/mistral';
 import { OllamaAgent } from '@agentionai/agents/ollama';
+import { LlamaCppAgent } from '@agentionai/agents/llamacpp';
 ```
 
 ## Basic Usage
@@ -87,6 +92,32 @@ const agent = new ClaudeAgent({
   }
 });
 ```
+
+## Authentication: API Keys vs. OAuth Tokens (Claude)
+
+By default, `ClaudeAgent` sends `apiKey` to Anthropic as a standard API key (the `x-api-key` header). Anthropic also issues OAuth access tokens (e.g. from Claude Code / Claude.ai — these look like `sk-ant-oat...`), which must be sent differently, as a bearer `authToken`.
+
+Rather than inferring the scheme from the token's prefix (an implementation detail that can change), set `authType` explicitly:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+
+const agent = new ClaudeAgent({
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'claude-sonnet-4-5',
+  apiKey: process.env.CLAUDE_OAUTH_TOKEN, // an sk-ant-oat... token
+  authType: 'oauth',                      // sent as a bearer authToken instead of x-api-key
+});
+```
+
+| `authType` | Default | Header sent to Anthropic | Use for |
+|---|:---:|---|---|
+| `'apiKey'` | ✅ | `x-api-key` | Standard Anthropic API keys (`sk-ant-api...`) |
+| `'oauth'` |  | `Authorization: Bearer ...` | OAuth access tokens (`sk-ant-oat...`) |
+
+`authType` can also be set via `vendorConfig.anthropic.authType`.
 
 ## Conversation History
 
@@ -260,6 +291,52 @@ const agent = new OllamaAgent({
 | `codellama` | Code generation |
 
 Any model string you have pulled locally is valid — the type allows arbitrary strings while offering autocomplete for common ones.
+
+**Listing available models:**
+
+```typescript
+const models = await agent.listModels();
+console.log(models.map((m) => m.name));
+```
+
+## llama.cpp (Local Models)
+
+`LlamaCppAgent` talks to a locally-running [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server) (`llama-server`), which exposes an OpenAI-compatible `/v1/chat/completions` API. It reuses the `openai` package under the hood, pointed at your server's `baseURL`.
+
+**Setup:**
+
+```bash
+# 1. Build/install llama.cpp and download a GGUF model
+
+# 2. Start the server (defaults to http://localhost:8080)
+llama-server -m ./models/your-model.gguf
+
+# 3. Install the npm package (LlamaCppAgent uses the OpenAI client)
+npm install openai
+```
+
+**Basic usage:**
+
+```typescript
+import { LlamaCppAgent } from '@agentionai/agents/llamacpp';
+
+const agent = new LlamaCppAgent({
+  id: 'local',
+  name: 'Local Assistant',
+  description: 'You are a helpful assistant.',
+  apiKey: '',                          // llama.cpp doesn't require an API key
+  baseURL: 'http://localhost:8080/v1', // default
+});
+
+const response = await agent.execute('What is the capital of France?');
+```
+
+**Listing available models:**
+
+```typescript
+const models = await agent.listModels();
+console.log(models.map((m) => m.id));
+```
 
 ## Token Usage Tracking
 

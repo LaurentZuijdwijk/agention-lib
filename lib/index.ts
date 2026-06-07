@@ -14,6 +14,7 @@ export { OpenAiAgent } from "./agents/openai/OpenAiAgent";
 export { MistralAgent } from "./agents/mistral/MistralAgent";
 export { GeminiAgent } from "./agents/google/GeminiAgent";
 export { OllamaAgent } from "./agents/ollama/OllamaAgent";
+export { LlamaCppAgent } from "./agents/llamacpp/LlamaCppAgent";
 export * from "./agents/model-types";
 export * from "./agents/AgentConfig";
 export * from "./agents/AgentEvent";
@@ -28,6 +29,7 @@ export {
   mistralTransformer,
   geminiTransformer,
   ollamaTransformer,
+  chatCompletionsTransformer,
 } from "./history/transformers";
 
 // Graph
@@ -35,6 +37,7 @@ export * from "./graph/AgentGraph";
 
 // Tools
 export * from "./tools/Tool";
+export * from "./tools/BuiltInTool";
 
 // MCP (Model Context Protocol)
 export * from "./mcp";

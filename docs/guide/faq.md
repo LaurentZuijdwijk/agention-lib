@@ -11,6 +11,8 @@ npm install @agentionai/agents @anthropic-ai/sdk    # Claude only
 npm install @agentionai/agents openai               # OpenAI only
 npm install @agentionai/agents @google/generative-ai # Gemini only
 npm install @agentionai/agents @mistralai/mistralai  # Mistral only
+npm install @agentionai/agents ollama                # Ollama only (local, no API key)
+npm install @agentionai/agents openai                # llama.cpp only (local, no API key — reuses the openai SDK)
 ```
 
 Use the matching sub-path import so the other SDKs are never loaded:
@@ -29,6 +31,8 @@ import { ClaudeAgent } from '@agentionai/agents/claude';
 | `@agentionai/agents/openai` | Core + `OpenAiAgent` + `openAiTransformer` |
 | `@agentionai/agents/mistral` | Core + `MistralAgent` + `mistralTransformer` |
 | `@agentionai/agents/gemini` | Core + `GeminiAgent` + `geminiTransformer` |
+| `@agentionai/agents/ollama` | Core + `OllamaAgent` + `ollamaTransformer` (local, no API key) |
+| `@agentionai/agents/llamacpp` | Core + `LlamaCppAgent` + `chatCompletionsTransformer` (local, no API key) |
 | `@agentionai/agents/embeddings` | Embedding providers only |
 | `@agentionai/agents/vectorstore` | Vector store + embeddings |
 | `@agentionai/agents/mcp` | MCP client only |

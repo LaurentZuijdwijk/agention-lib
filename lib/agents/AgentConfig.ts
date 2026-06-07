@@ -1,8 +1,15 @@
 import { Tool } from "../tools/Tool";
+import { BuiltInTool } from "../tools/BuiltInTool";
 import { BaseAgent } from "./BaseAgent";
 
 /** Supported LLM vendors */
-export type AgentVendor = "openai" | "anthropic" | "mistral" | "gemini" | "ollama";
+export type AgentVendor =
+  | "openai"
+  | "anthropic"
+  | "mistral"
+  | "gemini"
+  | "ollama"
+  | "llamacpp";
 
 /**
  * Common configuration shared by all agents
@@ -87,6 +94,21 @@ export interface CommonAgentConfig {
 export interface ClaudeSpecificConfig {
   disableParallelToolUse?: boolean;
   metadata?: Record<string, string>;
+  /**
+   * Provider-defined / server-side tools (e.g. web search, bash, text editor).
+   * These are executed by Anthropic rather than locally — see `lib/tools/BuiltInTool.ts`.
+   */
+  builtInTools?: BuiltInTool[];
+  /**
+   * How `apiKey` should be presented to the Anthropic SDK.
+   * - `"apiKey"` (default): sent as the `x-api-key` header — for standard Anthropic API keys.
+   * - `"oauth"`: sent as a bearer `authToken` — for OAuth access tokens (e.g. Claude Code /
+   *   Claude.ai tokens, which look like `sk-ant-oat...`).
+   *
+   * Set this explicitly rather than relying on the token's prefix, since prefixes are an
+   * implementation detail that can change.
+   */
+  authType?: "apiKey" | "oauth";
 }
 
 /**
@@ -129,6 +151,14 @@ export interface OllamaSpecificConfig {
 }
 
 /**
+ * Vendor-specific configuration for llama.cpp server (local)
+ */
+export interface LlamaCppSpecificConfig {
+  /** Base URL of the llama.cpp server's OpenAI-compatible API (default: `http://localhost:8080/v1`) */
+  baseURL?: string;
+}
+
+/**
  * Generic vendor-specific configuration container
  * This allows any vendor to add custom config without modifying base types
  */
@@ -138,6 +168,7 @@ export interface VendorSpecificConfig {
   mistral?: MistralSpecificConfig;
   gemini?: GeminiSpecificConfig;
   ollama?: OllamaSpecificConfig;
+  llamacpp?: LlamaCppSpecificConfig;
 }
 
 /**
@@ -181,6 +212,8 @@ export type TypedAgentConfig<V extends AgentVendor> = CommonAgentConfig & {
     ? { gemini?: GeminiSpecificConfig }
     : V extends "ollama"
     ? { ollama?: OllamaSpecificConfig }
+    : V extends "llamacpp"
+    ? { llamacpp?: LlamaCppSpecificConfig }
     : never;
 };
 
@@ -197,4 +230,6 @@ export type VendorConfigFor<V extends AgentVendor> = V extends "anthropic"
   ? GeminiSpecificConfig
   : V extends "ollama"
   ? OllamaSpecificConfig
+  : V extends "llamacpp"
+  ? LlamaCppSpecificConfig
   : never;

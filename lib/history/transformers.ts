@@ -750,3 +750,165 @@ export const ollamaTransformer = {
     };
   },
 };
+
+// =============================================================================
+// Chat Completions Transformer (OpenAI-compatible servers, e.g. llama.cpp)
+// =============================================================================
+
+/**
+ * Convert normalized entries to/from the OpenAI Chat Completions message format
+ * (`/v1/chat/completions`). Used by `LlamaCppAgent` and any other agent that
+ * targets an OpenAI-compatible chat-completions endpoint.
+ */
+export const chatCompletionsTransformer = {
+  /**
+   * Convert normalized entries to Chat Completions message format.
+   * Tool results become role:"tool" messages; tool calls are embedded in assistant messages.
+   */
+  toProvider(entries: HistoryEntry[]): ChatCompletionMessage[] {
+    const messages: ChatCompletionMessage[] = [];
+
+    for (const entry of entries) {
+      const textBlocks = entry.content.filter(isTextContent);
+      const toolUseBlocks = entry.content.filter(isToolUseContent);
+      const toolResultBlocks = entry.content.filter(isToolResultContent);
+      const imageUrlBlocks = entry.content.filter(isImageUrlContent);
+      const imageBase64Blocks = entry.content.filter(isImageBase64Content);
+      const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
+
+      if (entry.role === "system") {
+        messages.push({ role: "system", content: textBlocks.map((c) => c.text).join("\n") });
+        continue;
+      }
+
+      if (entry.role === "assistant") {
+        const msg: Extract<ChatCompletionMessage, { role: "assistant" }> = {
+          role: "assistant",
+          content: textBlocks.map((c) => c.text).join("\n") || null,
+        };
+        if (toolUseBlocks.length > 0) {
+          msg.tool_calls = toolUseBlocks.map((block) => ({
+            id: block.id,
+            type: "function" as const,
+            function: {
+              name: block.name,
+              arguments: JSON.stringify(block.input),
+            },
+          }));
+        }
+        messages.push(msg);
+        continue;
+      }
+
+      // User role — could be text, images, or tool results
+      if (toolResultBlocks.length > 0) {
+        for (const result of toolResultBlocks) {
+          messages.push({
+            role: "tool",
+            tool_call_id: result.tool_use_id,
+            content: result.content,
+          });
+        }
+      } else if (hasImages) {
+        const parts: ChatCompletionContentPart[] = [];
+        for (const block of entry.content) {
+          if (isTextContent(block)) {
+            parts.push({ type: "text", text: block.text });
+          } else if (isImageUrlContent(block)) {
+            parts.push({
+              type: "image_url",
+              image_url: {
+                url: block.url,
+                ...(block.detail ? { detail: block.detail } : {}),
+              },
+            });
+          } else if (isImageBase64Content(block)) {
+            parts.push({
+              type: "image_url",
+              image_url: { url: `data:${block.mimeType};base64,${block.data}` },
+            });
+          }
+        }
+        messages.push({ role: "user", content: parts });
+      } else if (textBlocks.length > 0) {
+        messages.push({ role: "user", content: textBlocks.map((c) => c.text).join("\n") });
+      }
+    }
+
+    return messages;
+  },
+
+  /**
+   * Convert a Chat Completions response message to a normalized HistoryEntry.
+   */
+  fromProviderMessage(message: ChatCompletionResponseMessage): HistoryEntry {
+    const content: MessageContent[] = [];
+
+    if (typeof message.content === "string" && message.content) {
+      content.push(text(message.content));
+    }
+
+    if (message.tool_calls) {
+      message.tool_calls.forEach((call) => {
+        if (!call.function) return;
+        const args = JSON.parse(call.function.arguments || "{}");
+        content.push(toolUse(call.id, call.function.name, args as Record<string, unknown>));
+      });
+    }
+
+    return {
+      role: "assistant",
+      content,
+      meta: { provider: "llamacpp" },
+    };
+  },
+
+  /**
+   * Create a normalized tool result entry for a Chat Completions tool call
+   */
+  toolResultEntry(tool_call_id: string, output: string): HistoryEntry {
+    return {
+      role: "user",
+      content: [toolResult(tool_call_id, output)],
+      meta: { provider: "llamacpp", tool_call_id },
+    };
+  },
+};
+
+type ChatCompletionToolCallParam = {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
+type ChatCompletionContentPart =
+  | { type: "text"; text: string }
+  | {
+      type: "image_url";
+      image_url: { url: string; detail?: "auto" | "low" | "high" };
+    };
+
+type ChatCompletionMessage =
+  | { role: "system"; content: string }
+  | { role: "user"; content: string | ChatCompletionContentPart[] }
+  | {
+      role: "assistant";
+      content: string | null;
+      tool_calls?: ChatCompletionToolCallParam[];
+    }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+type ChatCompletionResponseMessage = {
+  role: string;
+  content: string | null;
+  tool_calls?: Array<{
+    id: string;
+    function?: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+};

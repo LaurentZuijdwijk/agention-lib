@@ -123,6 +123,14 @@ export type OllamaMeta = {
 };
 
 /**
+ * llama.cpp-specific metadata
+ */
+export type LlamaCppMeta = {
+  provider: "llamacpp";
+  tool_call_id?: string;
+};
+
+/**
  * Union of all provider metadata types
  */
 export type ProviderMeta =
@@ -130,7 +138,8 @@ export type ProviderMeta =
   | OpenAiMeta
   | MistralMeta
   | GeminiMeta
-  | OllamaMeta;
+  | OllamaMeta
+  | LlamaCppMeta;
 
 // =============================================================================
 // History Entry

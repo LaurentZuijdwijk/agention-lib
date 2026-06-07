@@ -38,6 +38,7 @@ describe("ClaudeAgent", () => {
         temperature: 0,
         maxTokens: 1024,
         disableParallelToolUse: false,
+        authType: "apiKey",
       });
     });
 
@@ -53,7 +54,32 @@ describe("ClaudeAgent", () => {
         model: "custom-model",
         maxTokens: 2048,
         disableParallelToolUse: true,
+        authType: "apiKey",
       });
+    });
+
+    it("should authenticate with an OAuth bearer token when authType is 'oauth'", () => {
+      new ClaudeAgent({
+        apiKey: "sk-ant-oat-some-token",
+        id: "oauth-agent",
+        name: "OAuthAgent",
+        description: "Test Description",
+        authType: "oauth",
+      });
+
+      expect(Anthropic).toHaveBeenCalledWith({ authToken: "sk-ant-oat-some-token" });
+    });
+
+    it("should support authType via vendorConfig.anthropic", () => {
+      new ClaudeAgent({
+        apiKey: "sk-ant-oat-some-token",
+        id: "oauth-agent-vendor-config",
+        name: "OAuthAgent",
+        description: "Test Description",
+        vendorConfig: { anthropic: { authType: "oauth" } },
+      });
+
+      expect(Anthropic).toHaveBeenCalledWith({ authToken: "sk-ant-oat-some-token" });
     });
   });
 
@@ -114,6 +140,55 @@ describe("ClaudeAgent", () => {
       const result = await agent["handleResponse"](response);
 
       expect(result).toBe("Test response");
+    });
+
+    it("should return an empty string for an empty text block instead of throwing", async () => {
+      const response = {
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "" }],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 0,
+        },
+      };
+      const result = await agent["handleResponse"](response);
+
+      expect(result).toBe("");
+    });
+
+    it("should collect trailing text after server-side tool blocks (web search, etc.)", async () => {
+      const response = {
+        stop_reason: "end_turn",
+        content: [
+          { type: "server_tool_use", id: "srvtool_1", name: "web_search", input: {} },
+          { type: "web_search_tool_result", tool_use_id: "srvtool_1", content: [] },
+          { type: "text", text: "Here is what I found." },
+        ],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 50,
+        },
+      };
+      const result = await agent["handleResponse"](response);
+
+      expect(result).toBe("Here is what I found.");
+    });
+
+    it("should throw 'Unexpected response format' when no text block is present", async () => {
+      const response = {
+        stop_reason: "end_turn",
+        content: [
+          { type: "server_tool_use", id: "srvtool_1", name: "web_search", input: {} },
+        ],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+        },
+      };
+
+      await expect(agent["handleResponse"](response)).rejects.toThrow(
+        /Unexpected response format/
+      );
     });
 
     it("should handle tool use and make subsequent request", async () => {

@@ -5,12 +5,14 @@ import { OpenAiAgent } from "./openai/OpenAiAgent";
 import { GeminiAgent } from "./google/GeminiAgent";
 import { MistralAgent } from "./mistral/MistralAgent";
 import { OllamaAgent } from "./ollama/OllamaAgent";
+import { LlamaCppAgent } from "./llamacpp/LlamaCppAgent";
 import {
   ClaudeModel,
   OpenAIModel,
   GeminiModel,
   MistralModel,
   OllamaModel,
+  LlamaCppModel,
 } from "./model-types";
 
 // Vendor-specific agent configurations with typed models
@@ -40,12 +42,19 @@ type OllamaAgentConfig = Omit<BaseAgentConfig, "vendor" | "model"> & {
   host?: string;
 };
 
+type LlamaCppAgentConfig = Omit<BaseAgentConfig, "vendor" | "model"> & {
+  vendor: "llamacpp";
+  model?: LlamaCppModel;
+  baseURL?: string;
+};
+
 type AgentConfig =
   | ClaudeAgentConfig
   | OpenAIAgentConfig
   | GeminiAgentConfig
   | MistralAgentConfig
-  | OllamaAgentConfig;
+  | OllamaAgentConfig
+  | LlamaCppAgentConfig;
 
 export class Agent {
   static create(config: AgentConfig, history?: History) {
@@ -59,6 +68,8 @@ export class Agent {
       return new MistralAgent(config, history);
     } else if (config.vendor === "ollama") {
       return new OllamaAgent(config, history);
+    } else if (config.vendor === "llamacpp") {
+      return new LlamaCppAgent(config, history);
     } else {
       throw new Error("No vendor defined");
     }

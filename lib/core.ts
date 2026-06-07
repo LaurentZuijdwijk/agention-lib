@@ -16,6 +16,7 @@ export * from "./graph/AgentGraph";
 
 // Tools
 export * from "./tools/Tool";
+export * from "./tools/BuiltInTool";
 
 // MCP (Model Context Protocol)
 export * from "./mcp";

@@ -172,6 +172,54 @@ This pattern allows you to:
 
 The main agent sees sub-agents as tools and decides when to invoke them based on the task at hand.
 
+## Built-In (Provider-Defined) Tools
+
+Some providers offer server-side tools that the model can call directly — the provider runs them as part of generating its response, rather than the agent executing them locally. Anthropic's web search, bash, and text editor tools are examples.
+
+These differ from regular `Tool` instances: they have no `execute` function or input schema, since the agent never runs them — it just forwards the tool's definition to the provider.
+
+`ClaudeAgent` accepts them via `builtInTools`. Use the helpers from `lib/tools/BuiltInTool.ts`:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { webSearchTool, bashTool, textEditorTool } from '@agentionai/agents/claude';
+
+const agent = new ClaudeAgent({
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'You are a helpful research assistant with web access.',
+  model: 'claude-sonnet-4-6',
+  builtInTools: [
+    webSearchTool({ maxUses: 5, allowedDomains: ['wikipedia.org'] }),
+  ],
+});
+
+const response = await agent.execute('What happened in the news today?');
+```
+
+You can mix built-in tools with regular locally-executed tools:
+
+```typescript
+const agent = new ClaudeAgent({
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'claude-sonnet-4-6',
+  tools: [calculator, weatherTool],          // executed locally
+  builtInTools: [webSearchTool(), bashTool()], // executed by Anthropic
+});
+```
+
+If a provider adds a built-in tool not covered by the helpers, define it directly — only `type` and `name` are required, any other fields are passed through as-is:
+
+```typescript
+import { builtInTool } from '@agentionai/agents/claude';
+
+builtInTools: [
+  builtInTool({ type: 'code_execution_20250522', name: 'code_execution' }),
+],
+```
+
 ## Events
 
 Tools extend `EventEmitter` and fire events before and after execution. This lets you observe, log, or intercept tool calls without modifying the tool's logic.

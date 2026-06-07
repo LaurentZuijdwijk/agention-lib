@@ -3,7 +3,13 @@
  * These types define the contract between agention-lib and @agention/viz.
  */
 
-export type VizVendor = "anthropic" | "openai" | "mistral" | "gemini" | "ollama";
+export type VizVendor =
+  | "anthropic"
+  | "openai"
+  | "mistral"
+  | "gemini"
+  | "ollama"
+  | "llamacpp";
 
 export type VizEventType =
   | "session.start"

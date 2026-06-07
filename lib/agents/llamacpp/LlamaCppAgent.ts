@@ -1,3 +1,10 @@
+import OpenAI from "openai";
+import {
+  ChatCompletion,
+  ChatCompletionMessage,
+  ChatCompletionTool,
+} from "openai/resources/chat/completions";
+import { Model } from "openai/resources/models";
 import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
@@ -7,67 +14,44 @@ import {
   ToolExecutionError,
 } from "../errors/AgentError";
 import { History, MessageContent } from "../../history/History";
-import { ollamaTransformer } from "../../history/transformers";
+import { chatCompletionsTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
-import { OllamaModel } from "../model-types";
+import { LlamaCppModel } from "../model-types";
 
 type AgentConfig = BaseAgentConfig & {
-  /** Ollama server URL (default: `http://localhost:11434`) */
-  host?: string;
-  model?: OllamaModel;
+  /** Base URL of the llama.cpp server's OpenAI-compatible API (default: `http://localhost:8080/v1`) */
+  baseURL?: string;
+  model?: LlamaCppModel;
   maxTokens?: number;
-  think?: boolean;
-};
-
-type OllamaToolDefinition = {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: object;
-  };
-};
-
-type OllamaOptions = {
-  temperature?: number;
-  top_p?: number;
-  top_k?: number;
-  seed?: number;
-  num_predict?: number;
-  stop?: string[];
-  think?: boolean;
 };
 
 /**
- * Agent for locally-hosted Ollama models.
+ * Agent for locally-hosted models served by a llama.cpp server (`llama-server`),
+ * which exposes an OpenAI-compatible `/v1/chat/completions` API.
  *
- * Requires the `ollama` package as a peer dependency and Ollama running locally.
+ * Requires the `openai` package as a peer dependency and a running llama.cpp server.
  *
  * @example
  * ```typescript
- * const agent = new OllamaAgent({
+ * const agent = new LlamaCppAgent({
  *   id: "1",
  *   name: "Assistant",
  *   description: "A helpful assistant",
- *   model: "llama3.2",
+ *   apiKey: "",
+ *   baseURL: "http://localhost:8080/v1",
  * });
  *
  * const response = await agent.execute("Hello!");
  * ```
  *
- * @example With tools
+ * @example List available models
  * ```typescript
- * const agent = new OllamaAgent({
- *   id: "1",
- *   name: "Assistant",
- *   description: "A helpful assistant",
- *   model: "qwen2.5",  // Qwen models have strong tool-use support
- *   tools: [myTool],
- * });
+ * const models = await agent.listModels();
  * ```
  */
-export class OllamaAgent extends BaseAgent {
+export class LlamaCppAgent extends BaseAgent {
+  private client: OpenAI;
   protected config: Partial<AgentConfig>;
 
   /** Token usage from the last execution (for metrics tracking) */
@@ -79,86 +63,63 @@ export class OllamaAgent extends BaseAgent {
   /** Count of tool calls in current execution */
   private currentToolCallCount: number = 0;
 
-  /** Cached Ollama client instance */
-  private _client: unknown = null;
-
   constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
-    super({ ...config, vendor: "ollama" }, history);
+    super({ ...config, vendor: "llamacpp" }, history);
 
-    const vendorConfig = config.vendorConfig?.ollama || {};
-    const host = config.host ?? vendorConfig.host;
+    const vendorConfig = config.vendorConfig?.llamacpp || {};
+    const baseURL =
+      config.baseURL ?? vendorConfig.baseURL ?? "http://localhost:8080/v1";
+
+    this.client = new OpenAI({
+      apiKey: config.apiKey || "not-needed",
+      baseURL,
+    });
 
     this.config = {
-      model: config.model || "llama3.2",
-      host,
+      model: config.model || "default",
+      baseURL,
       maxTokens: config.maxTokens,
       temperature: config.temperature,
       topP: config.topP,
-      topK: config.topK,
       stopSequences: config.stopSequences,
       seed: config.seed,
-      think: config.think,
+      presencePenalty: config.presencePenalty,
+      frequencyPenalty: config.frequencyPenalty,
+      apiKey: config.apiKey,
     };
 
     this.addSystemMessage(this.getSystemMessage());
   }
 
-  private async getClient(): Promise<{
-    chat: (params: unknown) => Promise<unknown>;
-    list: () => Promise<{ models: OllamaModelInfo[] }>;
-  }> {
-    if (!this._client) {
-      const pkg = "ollama";
-      try {
-        const mod = (await import(pkg)) as {
-          Ollama?: new (opts: unknown) => unknown;
-          default?: { Ollama?: new (opts: unknown) => unknown };
-        };
-        const OllamaClass = mod.Ollama ?? mod.default?.Ollama;
-        if (!OllamaClass) {
-          throw new Error("Could not find Ollama class in ollama package");
-        }
-        this._client = new OllamaClass({ host: this.config.host });
-      } catch (err) {
-        throw new ExecutionError(
-          `Failed to load 'ollama' package. Install it with: npm install ollama\n${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
-      }
-    }
-    return this._client as {
-      chat: (params: unknown) => Promise<unknown>;
-      list: () => Promise<{ models: OllamaModelInfo[] }>;
-    };
-  }
-
   /**
-   * List the models currently available on the Ollama server.
+   * List the models currently available on the llama.cpp server (via its
+   * OpenAI-compatible `/v1/models` endpoint).
    */
-  async listModels(): Promise<OllamaModelInfo[]> {
+  async listModels(): Promise<Model[]> {
     try {
-      const client = await this.getClient();
-      const response = await client.list();
-      return response.models;
+      const page = await this.client.models.list();
+      return page.data;
     } catch (error: unknown) {
       throw new ExecutionError(
-        `Failed to list Ollama models: ${
+        `Failed to list llama.cpp models: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
       );
     }
   }
 
-  protected getToolDefinitions(): OllamaToolDefinition[] {
-    return Array.from(this.tools.values()).map((tool) => ({
-      type: "function" as const,
-      function: {
-        name: tool.getPrompt().name,
-        description: tool.getPrompt().description,
-        parameters: tool.getPrompt().input_schema,
-      },
-    }));
+  protected getToolDefinitions(): ChatCompletionTool[] {
+    return Array.from(this.tools.values()).map((tool) => {
+      const prompt = tool.getPrompt();
+      return {
+        type: "function" as const,
+        function: {
+          name: prompt.name,
+          description: prompt.description,
+          parameters: prompt.input_schema as unknown as Record<string, unknown>,
+        },
+      };
+    });
   }
 
   protected async process(_input: string): Promise<string> {
@@ -178,7 +139,7 @@ export class OllamaAgent extends BaseAgent {
         this.id,
         this.name,
         this.config.model!,
-        "ollama",
+        "llamacpp",
         inputPreview
       );
     }
@@ -198,11 +159,29 @@ export class OllamaAgent extends BaseAgent {
     this.history.beginExecution();
 
     try {
-      await this.getClient(); // ensure client is cached before handleResponse loop
-      const response = await this.callOllama();
+      const response = await this.callLlamaCpp();
       this.emit(AgentEvent.AFTER_EXECUTE, response);
-      return await this.handleResponse(response as OllamaResponse);
+      return await this.handleResponse(response);
     } catch (error: unknown) {
+      if (error instanceof OpenAI.APIError) {
+        const apiError = new ApiError(
+          `llama.cpp API error: ${error.message}`,
+          error.status,
+          error
+        );
+        this.emit(AgentEvent.ERROR, apiError);
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "ApiError",
+            apiError.message,
+            error.status === 429
+          );
+          this.vizEventId = undefined;
+        }
+        throw apiError;
+      }
+
       if (error instanceof ExecutionError || error instanceof ApiError) {
         this.emit(AgentEvent.ERROR, error);
         if (this.vizEventId) {
@@ -218,7 +197,7 @@ export class OllamaAgent extends BaseAgent {
       }
 
       const executionError = new ExecutionError(
-        `Ollama error: ${
+        `llama.cpp error: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
       );
@@ -238,40 +217,29 @@ export class OllamaAgent extends BaseAgent {
     }
   }
 
-  private buildOptions(): OllamaOptions {
-    const opts: OllamaOptions = {};
-    if (this.config.temperature !== undefined)
-      opts.temperature = this.config.temperature;
-    if (this.config.topP !== undefined) opts.top_p = this.config.topP;
-    if (this.config.topK !== undefined) opts.top_k = this.config.topK;
-    if (this.config.seed !== undefined) opts.seed = this.config.seed;
-    if (this.config.maxTokens !== undefined)
-      opts.num_predict = this.config.maxTokens;
-    if (this.config.stopSequences?.length)
-      opts.stop = this.config.stopSequences;
-    if (this.config.think) opts.think = this.config.think;
-    return opts;
-  }
-
-  private async callOllama(): Promise<unknown> {
-    const client = await this.getClient();
-    const messages = ollamaTransformer.toProvider(this.history.getEntries());
+  private async callLlamaCpp(): Promise<ChatCompletion> {
+    const messages = chatCompletionsTransformer.toProvider(
+      this.history.getEntries()
+    );
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
-    const options = this.buildOptions();
-    return client.chat({
+
+    return this.client.chat.completions.create({
       model: this.config.model!,
       messages,
       tools,
       stream: false,
-      think: this.config.think,
-      options: Object.keys(options).length > 0 ? options : undefined,
+      max_tokens: this.config.maxTokens,
+      temperature: this.config.temperature,
+      top_p: this.config.topP,
+      stop: this.config.stopSequences,
+      seed: this.config.seed,
+      presence_penalty: this.config.presencePenalty,
+      frequency_penalty: this.config.frequencyPenalty,
     });
   }
 
-  protected async handleResponse(response: unknown): Promise<string> {
-    const ollamaResponse = response as OllamaResponse;
-
-    const usage = this.parseUsage(ollamaResponse);
+  protected async handleResponse(response: ChatCompletion): Promise<string> {
+    const usage = this.parseUsage(response);
 
     if (this.lastTokenUsage) {
       this.lastTokenUsage.input_tokens += usage.input_tokens;
@@ -281,10 +249,13 @@ export class OllamaAgent extends BaseAgent {
       this.lastTokenUsage = { ...usage };
     }
 
-    if (ollamaResponse.done_reason === "length") {
+    const choice = response.choices[0];
+    const message = choice.message;
+
+    if (choice.finish_reason === "length") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 2048
+        this.config.maxTokens || 1024
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);
@@ -300,13 +271,12 @@ export class OllamaAgent extends BaseAgent {
       throw error;
     }
 
-    const message = ollamaResponse.message;
     const hasToolCalls = message.tool_calls && message.tool_calls.length > 0;
 
     if (!hasToolCalls) {
       const textContent = message.content || "";
 
-      const entry = ollamaTransformer.fromProviderMessage(message, []);
+      const entry = chatCompletionsTransformer.fromProviderMessage(message);
       this.addToHistory(entry);
 
       this.emit(AgentEvent.DONE, message, usage);
@@ -335,21 +305,13 @@ export class OllamaAgent extends BaseAgent {
     this.emit(AgentEvent.TOOL_USE, toolCalls);
     this.currentToolCallCount += toolCalls.length;
 
-    // Generate IDs — Ollama doesn't provide tool call IDs
-    const generatedIds = toolCalls.map(
-      (_: unknown, i: number) => `ollama_${Date.now()}_${i}`
-    );
-
-    const assistantEntry = ollamaTransformer.fromProviderMessage(
-      message,
-      generatedIds
-    );
+    const assistantEntry = chatCompletionsTransformer.fromProviderMessage(message);
     this.addToHistory(assistantEntry);
 
-    const toolResults = await this.handleToolCalls(toolCalls, generatedIds);
+    const toolResults = await this.handleToolCalls(toolCalls);
 
     for (const result of toolResults) {
-      const resultEntry = ollamaTransformer.toolResultEntry(
+      const resultEntry = chatCompletionsTransformer.toolResultEntry(
         result.toolCallId,
         result.content
       );
@@ -358,12 +320,12 @@ export class OllamaAgent extends BaseAgent {
 
     // Continue conversation with tool results
     try {
-      const newResponse = await this.callOllama();
+      const newResponse = await this.callLlamaCpp();
       this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
       return this.handleResponse(newResponse);
     } catch (error: unknown) {
       const executionError = new ExecutionError(
-        `Ollama error during tool response: ${
+        `llama.cpp error during tool response: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
       );
@@ -373,31 +335,28 @@ export class OllamaAgent extends BaseAgent {
   }
 
   private async handleToolCalls(
-    toolCalls: OllamaToolCall[],
-    generatedIds: string[]
+    toolCalls: NonNullable<ChatCompletionMessage["tool_calls"]>
   ): Promise<Array<{ toolCallId: string; content: string }>> {
     return Promise.all(
-      toolCalls.map(async (toolCall, idx) => {
-        const toolName = toolCall.function.name;
+      toolCalls.map(async (toolCall) => {
+        const toolName =
+          toolCall.type === "function" ? toolCall.function.name : "";
         const tool = this.tools.get(toolName);
-        const toolCallId = generatedIds[idx];
+        const toolCallId = toolCall.id;
 
-        if (!tool) {
+        if (toolCall.type !== "function" || !tool) {
           const errorMessage = `Tool '${toolName}' not found`;
           const error = new ToolExecutionError(
             errorMessage,
             toolName,
-            toolCall.function.arguments
+            toolCall.type === "function" ? toolCall.function.arguments : undefined
           );
           this.emit(AgentEvent.TOOL_ERROR, error);
           return { toolCallId, content: errorMessage };
         }
 
         try {
-          const args =
-            typeof toolCall.function.arguments === "string"
-              ? JSON.parse(toolCall.function.arguments)
-              : toolCall.function.arguments;
+          const args = JSON.parse(toolCall.function.arguments || "{}");
 
           const result = await tool.execute(
             this.getId(),
@@ -405,7 +364,7 @@ export class OllamaAgent extends BaseAgent {
             args as Record<string, unknown>,
             toolCallId,
             this.config.model,
-            "ollama"
+            "llamacpp"
           );
 
           return { toolCallId, content: JSON.stringify(result) };
@@ -430,53 +389,12 @@ export class OllamaAgent extends BaseAgent {
     );
   }
 
-  protected parseUsage(input: unknown): TokenUsage {
-    const response = input as OllamaResponse;
+  protected parseUsage(response: ChatCompletion): TokenUsage {
+    const usage = response.usage;
     return {
-      input_tokens: response.prompt_eval_count ?? 0,
-      output_tokens: response.eval_count ?? 0,
-      total_tokens:
-        (response.prompt_eval_count ?? 0) + (response.eval_count ?? 0),
+      input_tokens: usage?.prompt_tokens ?? 0,
+      output_tokens: usage?.completion_tokens ?? 0,
+      total_tokens: usage?.total_tokens ?? 0,
     };
   }
 }
-
-// Internal response shape from the ollama package
-type OllamaToolCall = {
-  function: {
-    name: string;
-    arguments: Record<string, unknown> | string;
-  };
-};
-
-type OllamaResponse = {
-  model: string;
-  message: {
-    role: string;
-    content: string;
-    tool_calls?: OllamaToolCall[];
-  };
-  done: boolean;
-  done_reason?: string;
-  eval_count?: number;
-  prompt_eval_count?: number;
-};
-
-/**
- * A model available on the Ollama server, as returned by `client.list()`.
- */
-export type OllamaModelInfo = {
-  name: string;
-  model: string;
-  modified_at: Date;
-  size: number;
-  digest: string;
-  details: {
-    parent_model: string;
-    format: string;
-    family: string;
-    families: string[];
-    parameter_size: string;
-    quantization_level: string;
-  };
-};

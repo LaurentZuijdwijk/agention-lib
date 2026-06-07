@@ -15,7 +15,7 @@ hero:
 
 features:
   - title: Multi-Provider, No Lock-in
-    details: Claude, OpenAI, Gemini, Mistral—same interface. Mix providers in a single workflow. Switch models with one line.
+    details: Claude, OpenAI, Gemini, Mistral, plus local models via Ollama and llama.cpp—same interface. Mix providers in a single workflow. Switch models with one line.
   - title: Composable, Not Magical
     details: Agents are objects. Pipelines are arrays. No hidden state, no framework fighting, no surprises.
   - title: Multimodal / Vision
@@ -41,7 +41,7 @@ From simple tool-calling agents to hierarchical RAG-powered research teams—bui
 ## Core Building Blocks
 
 ### Agents
-Unified interface across Claude, OpenAI, Gemini, and Mistral. Tools, history, and token tracking built-in.
+Unified interface across Claude, OpenAI, Gemini, Mistral, and local models via Ollama and llama.cpp. Tools, history, and token tracking built-in.
 
 ```typescript
 import { ClaudeAgent } from '@agentionai/agents/claude';
@@ -54,15 +54,17 @@ const agent = new ClaudeAgent({
 [Learn more →](/guide/agents)
 
 ### Tools
-JSON Schema + handler pattern. Unique capability: wrap any agent as a tool for delegation hierarchies.
+JSON Schema + handler pattern. Unique capability: wrap any agent as a tool for delegation hierarchies. Also supports provider-defined built-in tools (e.g. Anthropic's web search, bash, text editor) that run server-side.
 
 ```typescript
 import { ClaudeAgent } from '@agentionai/agents/claude';
+import { webSearchTool } from '@agentionai/agents/claude';
 
-// Use a specialized agent as a tool
+// Mix locally-executed tools, sub-agents, and provider-side built-in tools
 const mainAgent = new ClaudeAgent({
-  agents: [researchAssistant],  // Sub-agent becomes a callable tool
-  tools: [webSearchTool],
+  agents: [researchAssistant],          // Sub-agent becomes a callable tool
+  tools: [calculatorTool],              // Executed locally
+  builtInTools: [webSearchTool({ maxUses: 5 })], // Executed by Anthropic
 });
 ```
 [Learn more →](/guide/tools)

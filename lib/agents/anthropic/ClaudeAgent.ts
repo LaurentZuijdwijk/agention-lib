@@ -2,10 +2,12 @@ import { Anthropic, APIError } from "@anthropic-ai/sdk";
 import {
   ContentBlock,
   Message,
+  ToolUnion,
   ToolUseBlock,
   Usage,
 } from "@anthropic-ai/sdk/resources";
 import { type ToolDefinition } from "../../tools/Tool";
+import { type BuiltInTool } from "../../tools/BuiltInTool";
 import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
@@ -28,6 +30,18 @@ type AgentConfig = BaseAgentConfig & {
   // Backward compatibility: vendor-specific at top level (deprecated)
   disableParallelToolUse?: boolean;
   metadata?: Record<string, string>;
+  /**
+   * How `apiKey` should be presented to the Anthropic SDK — `"apiKey"` (default, `x-api-key`
+   * header) or `"oauth"` (bearer `authToken`, for OAuth access tokens like Claude Code's
+   * `sk-ant-oat...` tokens). Set explicitly; do not infer it from the token's prefix.
+   */
+  authType?: "apiKey" | "oauth";
+  /**
+   * Provider-defined / server-side tools (e.g. web search, bash, text editor).
+   * These run on Anthropic's infrastructure rather than locally.
+   * @see lib/tools/BuiltInTool.ts
+   */
+  builtInTools?: BuiltInTool[];
 };
 
 /**
@@ -60,9 +74,6 @@ export class ClaudeAgent extends BaseAgent {
 
   constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
     super({ ...config, vendor: "anthropic" }, history);
-    this.client = new Anthropic({
-      apiKey: config.apiKey,
-    });
 
     // Merge flat config (deprecated) with nested vendorConfig
     // Flat config takes precedence for backward compatibility
@@ -72,12 +83,22 @@ export class ClaudeAgent extends BaseAgent {
       vendorConfig.disableParallelToolUse ??
       false;
     const metadata = config.metadata ?? vendorConfig.metadata;
+    const builtInTools = config.builtInTools ?? vendorConfig.builtInTools;
+    const authType = config.authType ?? vendorConfig.authType ?? "apiKey";
+
+    this.client = new Anthropic(
+      authType === "oauth"
+        ? { authToken: config.apiKey }
+        : { apiKey: config.apiKey }
+    );
 
     this.config = {
       model: config.model || "claude-3-5-haiku-latest",
       maxTokens: config.maxTokens || 1024,
       disableParallelToolUse,
       metadata,
+      builtInTools,
+      authType,
       apiKey: config.apiKey,
       temperature: config.temperature,
       topP: config.topP,
@@ -91,6 +112,17 @@ export class ClaudeAgent extends BaseAgent {
 
   protected getToolDefinitions(): ToolDefinition[] {
     return Array.from(this.tools.values()).map((tool) => tool.getPrompt());
+  }
+
+  /**
+   * Combine locally-executed tool definitions with provider-defined
+   * (server-side) built-in tools, in the shape Anthropic's API expects.
+   */
+  protected getAllToolDefinitions(): ToolUnion[] {
+    return [
+      ...this.getToolDefinitions(),
+      ...(this.config.builtInTools ?? []),
+    ] as ToolUnion[];
   }
 
   protected async process(_input: string): Promise<string> {
@@ -147,7 +179,7 @@ export class ClaudeAgent extends BaseAgent {
         system: systemMessage,
         max_tokens: this.config.maxTokens!,
         messages,
-        tools: this.getToolDefinitions(),
+        tools: this.getAllToolDefinitions(),
         temperature: this.config.temperature,
         top_p: this.config.topP,
         top_k: this.config.topK,
@@ -239,7 +271,16 @@ export class ClaudeAgent extends BaseAgent {
     }
 
     if (response.stop_reason !== "tool_use") {
-      if (response.content && response.content[0]?.type === "text") {
+      // Server-side tools (web search, bash, etc.) add their own content blocks
+      // (server_tool_use / web_search_tool_result / ...) ahead of the final
+      // text — collect every text block rather than assuming content[0] is text.
+      const textBlocks = response.content?.filter(
+        (block): block is ContentBlock & { type: "text"; text: string } => block.type === "text"
+      );
+
+      if (response.content && textBlocks && textBlocks.length > 0) {
+        const textContent = textBlocks.map((block) => block.text).join("\n");
+
         this.emit(AgentEvent.DONE, response, usage);
 
         // Convert response to normalized format and add to history
@@ -261,12 +302,12 @@ export class ClaudeAgent extends BaseAgent {
             "end_turn",
             this.currentToolCallCount > 0,
             this.currentToolCallCount,
-            response.content[0].text
+            textContent
           );
           this.vizEventId = undefined;
         }
 
-        return response.content[0].text;
+        return textContent;
       } else {
         const error = new ExecutionError(
           `Unexpected response format: ${JSON.stringify(response.content)}`
@@ -313,7 +354,7 @@ export class ClaudeAgent extends BaseAgent {
             system: this.history.getSystemMessage(),
             max_tokens: this.config.maxTokens!,
             messages,
-            tools: this.getToolDefinitions(),
+            tools: this.getAllToolDefinitions(),
             temperature: this.config.temperature,
             top_p: this.config.topP,
             top_k: this.config.topK,

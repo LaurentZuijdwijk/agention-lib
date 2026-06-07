@@ -27,6 +27,7 @@ Get an API key from your chosen provider:
 - **OpenAI**: [platform.openai.com](https://platform.openai.com/api-keys)
 - **Gemini**: [aistudio.google.com](https://aistudio.google.com/app/apikey)
 - **Mistral**: [console.mistral.ai](https://console.mistral.ai/)
+- **Ollama** / **llama.cpp**: no API key needed — run models locally (see [Agents guide](https://docs.agention.ai/guide/agents))
 
 Set it as an environment variable:
 
@@ -56,10 +57,12 @@ console.log(response);
 Import only the agents you need:
 
 ```typescript
-import { ClaudeAgent } from '@agentionai/agents/claude';    // Requires @anthropic-ai/sdk
-import { OpenAiAgent } from '@agentionai/agents/openai';    // Requires openai
-import { GeminiAgent } from '@agentionai/agents/gemini';    // Requires @google/generative-ai
-import { MistralAgent } from '@agentionai/agents/mistral';  // Requires @mistralai/mistralai
+import { ClaudeAgent } from '@agentionai/agents/claude';     // Requires @anthropic-ai/sdk
+import { OpenAiAgent } from '@agentionai/agents/openai';     // Requires openai
+import { GeminiAgent } from '@agentionai/agents/gemini';     // Requires @google/generative-ai
+import { MistralAgent } from '@agentionai/agents/mistral';   // Requires @mistralai/mistralai
+import { OllamaAgent } from '@agentionai/agents/ollama';     // Requires ollama (local, no API key)
+import { LlamaCppAgent } from '@agentionai/agents/llamacpp'; // Requires openai (local, no API key)
 ```
 
 Or import everything (requires all SDKs):
@@ -71,7 +74,8 @@ import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 
 ## Features
 
-- **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral—same interface. Switch models with one line.
+- **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral, plus local models via Ollama and llama.cpp—same interface. Switch models with one line.
+- **Built-In Tools** - Use provider-defined server-side tools (e.g. Anthropic's web search, bash, text editor) alongside your own.
 - **Composable, Not Magical** - Agents are objects. Pipelines are arrays. No hidden state, no surprises.
 - **Multimodal / Vision** - Send images alongside text with a unified `MessageContent[]` API across all providers.
 - **Full Observability** - Per-call token counts, execution timing, pipeline structure visualization.
@@ -113,6 +117,58 @@ const agent = new GeminiAgent({
 });
 
 const response = await agent.execute("What's the weather in Paris?");
+```
+
+### Local Models (Ollama / llama.cpp)
+
+Run models on your own machine — no API key required. Same agent interface as every other provider:
+
+```typescript
+import { OllamaAgent } from '@agentionai/agents/ollama';
+import { LlamaCppAgent } from '@agentionai/agents/llamacpp';
+
+// Ollama (https://ollama.com) — pull a model first: `ollama pull qwen2.5`
+const ollama = new OllamaAgent({
+  id: 'local-ollama',
+  name: 'Local Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'qwen2.5',
+  apiKey: '',
+});
+
+// llama.cpp server (`llama-server -m model.gguf`) — OpenAI-compatible API
+const llamaCpp = new LlamaCppAgent({
+  id: 'local-llamacpp',
+  name: 'Local Assistant',
+  description: 'You are a helpful assistant.',
+  apiKey: '',
+  baseURL: 'http://localhost:8080/v1',
+});
+
+const response = await ollama.execute('What can you run locally?');
+
+// Discover which models are available on the server
+const models = await ollama.listModels();
+```
+
+### Built-In Tools
+
+Use a provider's own server-side tools (executed by the provider, not locally) alongside your custom tools:
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+import { webSearchTool } from '@agentionai/agents/claude';
+
+const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'You are a helpful research assistant with web access.',
+  model: 'claude-sonnet-4-6',
+  builtInTools: [webSearchTool({ maxUses: 5 })],
+});
+
+const response = await agent.execute('What happened in the news today?');
 ```
 
 ### Multi-Agent Pipeline
@@ -216,12 +272,12 @@ const response2 = await agent.execute([
 ## Core Concepts
 
 ### Agents
-Unified interface across Claude, OpenAI, Gemini, and Mistral. Tools, history, and token tracking built-in.
+Unified interface across Claude, OpenAI, Gemini, Mistral, and local models via Ollama and llama.cpp. Tools, history, and token tracking built-in.
 
 [Learn more →](https://docs.agention.ai/guide/agents)
 
 ### Tools
-JSON Schema + handler pattern. Unique capability: wrap any agent as a tool for delegation hierarchies.
+JSON Schema + handler pattern. Unique capability: wrap any agent as a tool for delegation hierarchies. Also supports provider-defined built-in tools (e.g. Anthropic's web search, bash, text editor) that run server-side.
 
 [Learn more →](https://docs.agention.ai/guide/tools)
 

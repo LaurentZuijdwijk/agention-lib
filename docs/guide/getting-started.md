@@ -15,7 +15,7 @@ Building with LLMs today means choosing between:
 
 Agention sits in the middle: **enough structure to be productive, enough transparency to stay in control**.
 
-- **No vendor lock-in** - Switch between Claude, OpenAI, Gemini, or Mistral with the same interface. Mix providers in a single workflow.
+- **No vendor lock-in** - Switch between Claude, OpenAI, Gemini, Mistral, or local models via Ollama and llama.cpp with the same interface. Mix providers in a single workflow.
 - **Composable, not magical** - Agents are just objects. Pipelines are just arrays of agents. No hidden state, no surprising behavior.
 - **Hand-tailored reasoning** - Build custom reasoning workflows by composing specialized agents, instead of relying on opaque built-in "thinking" features you can't control or optimize.
 - **TypeScript-native** - Proper types throughout, not bolted on as an afterthought.
@@ -31,7 +31,7 @@ Agention is for developers who:
 
 ## Key Features
 
-- **Multi-Provider Agents** - Built-in support for Claude, OpenAI, Gemini, and Mistral
+- **Multi-Provider Agents** - Built-in support for Claude, OpenAI, Gemini, Mistral, and local models via Ollama and llama.cpp
 - **Tool System** - Define tools with JSON Schema, agents use them automatically
 - **Graph Pipelines** - Orchestrate complex workflows with sequential, parallel, and voting patterns
 - **Conversation History** - Provider-agnostic history management
@@ -54,6 +54,12 @@ npm install @agentionai/agents @google/generative-ai
 
 # Or for Mistral
 npm install @agentionai/agents @mistralai/mistralai
+
+# Or for local models via Ollama (no API key needed)
+npm install @agentionai/agents ollama
+
+# Or for local models via llama.cpp (no API key needed)
+npm install @agentionai/agents openai
 ```
 
 This approach ensures you only install the agent SDKs you actually use, reducing bundle size and installation time.
@@ -71,6 +77,8 @@ export OPENAI_API_KEY=your-key-here
 
 # Mistral
 export MISTRAL_API_KEY=your-key-here
+
+# Ollama / llama.cpp run locally — no API key needed
 ```
 
 ## Your First Agent
@@ -101,6 +109,7 @@ Environment variable names:
 - OpenAI: `OPENAI_API_KEY`
 - Gemini: `GEMINI_API_KEY` or `GOOGLE_API_KEY`
 - Mistral: `MISTRAL_API_KEY`
+- Ollama / llama.cpp: none — they run locally
 :::
 
 ### Selective Imports
@@ -108,10 +117,12 @@ Environment variable names:
 Import only the agents you need:
 
 ```typescript
-import { ClaudeAgent } from '@agentionai/agents/claude';    // Requires @anthropic-ai/sdk
-import { OpenAiAgent } from '@agentionai/agents/openai';    // Requires openai
-import { GeminiAgent } from '@agentionai/agents/gemini';    // Requires @google/generative-ai
-import { MistralAgent } from '@agentionai/agents/mistral';  // Requires @mistralai/mistralai
+import { ClaudeAgent } from '@agentionai/agents/claude';     // Requires @anthropic-ai/sdk
+import { OpenAiAgent } from '@agentionai/agents/openai';     // Requires openai
+import { GeminiAgent } from '@agentionai/agents/gemini';     // Requires @google/generative-ai
+import { MistralAgent } from '@agentionai/agents/mistral';   // Requires @mistralai/mistralai
+import { OllamaAgent } from '@agentionai/agents/ollama';     // Requires ollama (local, no API key)
+import { LlamaCppAgent } from '@agentionai/agents/llamacpp'; // Requires openai (local, no API key)
 ```
 
 Or import everything (requires all SDKs):

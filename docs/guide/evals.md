@@ -85,8 +85,8 @@ The workhorse for structured extraction. It parses the output as JSON and fuzzy-
 | Output string | Normalised to |
 |---|---|
 | `"$1,250.00"` / `"£890.50"` / `"€2.400,00"` | `1250` / `890.5` / `2400` |
-| `"Yes"` / `"true"` / `"1"` | `true` |
-| `"No"` / `"false"` / `"0"` | `false` |
+| `"Yes"` / `"true"` / `"1"` / `"on"` / `"y"` | `true` |
+| `"No"` / `"false"` / `"0"` / `"off"` / `"n"` | `false` |
 | `"25%"` | `25` |
 
 The `tolerance` option sets the maximum relative error for numeric fields (`0.01` = 1%).
@@ -262,6 +262,84 @@ report.leaderboard.forEach((t, i) =>
 
 `rank()` requires at least two targets and returns a `RankReport`: a `leaderboard` (sorted best→worst, each with `wins`, Borda `points`, and `averageRank`) and per-case `cases` (every target's `outputs`, the judge's `ranking`, and its `reason`). A case the judge can't rank cleanly is skipped in the aggregate.
 
+## Refinement Loop (best-of-N + iterative)
+
+`EvalRunner.refine()` runs the same dataset for multiple **rounds**. Each round generates `beamWidth` candidate outputs, scores all of them, and keeps the best-scoring one. An optional `buildInput` hook feeds the winning output back into the next round's prompt — turning a one-shot best-of-N into a genuine iterative refinement loop.
+
+```typescript
+const report = await EvalRunner.refine({
+  dataset,
+  target: extractor,
+  scorers: [Scorer.fieldAccuracy(['total', 'vendor'], { tolerance: 0.01 })],
+  rounds: 2,
+  beamWidth: 3,
+  // `current` is the current-round input, reflecting any prior-round transformations.
+  buildInput: (current, [best]) =>
+    `${current}\n\nPrevious attempt:\n${best}\nFill in any missing fields.`,
+  onRoundComplete(round, roundReport) {
+    console.log(`Round ${round + 1}: ${roundReport.passed}/${roundReport.total} passed`);
+  },
+});
+
+console.log(formatReport(report.final));
+console.log(`Improvement: +${(report.improvement * 100).toFixed(0)}pp`);
+```
+
+`buildInput` receives `(current, candidatesByScore)` where `current` is the **current-round evolved input** — already transformed by any prior call to `buildInput` — not the raw dataset input. That way multi-round chains can layer refinements rather than always restarting from scratch.
+
+**Multiple temperature targets.** Pass an array to `target` and each beam slot cycles through it, giving genuine diversity rather than repeated samples from the same distribution:
+
+```typescript
+const targets = [
+  new ClaudeAgent({ ...base, id: 'precise',  temperature: 0.2 }),
+  new ClaudeAgent({ ...base, id: 'balanced', temperature: 0.7 }),
+  new ClaudeAgent({ ...base, id: 'creative', temperature: 1.0 }),
+];
+
+await EvalRunner.refine({ dataset, target: targets, beamWidth: 3, rounds: 2, scorers });
+```
+
+**Per-slot prompt variation.** `buildBeamInput` rephrases the input differently for each beam slot. It runs *after* `buildInput`, so it always sees the current-round evolved input:
+
+```typescript
+const approaches = [
+  (input: string) => input,
+  (input: string) => `${input}\n\nApproach: write the equation first, then substitute.`,
+  (input: string) => `${input}\n\nApproach: identify the common mistake, then avoid it.`,
+];
+
+await EvalRunner.refine({
+  dataset, target, beamWidth: 3, rounds: 2, scorers,
+  buildBeamInput: (input, beamIndex) =>
+    approaches[beamIndex % approaches.length](input as string) as typeof input,
+});
+```
+
+`refine()` returns a `RefineReport`:
+
+| Field | Description |
+|---|---|
+| `rounds` | One `EvalReport` per round; index `0` is the first |
+| `final` | Same object as `rounds[rounds.length - 1]` |
+| `improvement` | `final.passRate − rounds[0].passRate`; `0` when only one round ran |
+| `roundInputs` | `roundInputs[r][i]` is the input actually used for case `i` in round `r`; `roundInputs[1][i]` is the evolved prompt that produced improvement in round 1 — inspect it to understand why self-correction worked, or redeploy it as your new prompt |
+
+**How refinement actually helps.** Empirically, the loop works as a *commitment device* more often than a reasoning aid. Models frequently produce correct chain-of-thought but emit a different (wrong) value in the final output — they drift between what they reasoned and what they write. Feeding the reasoning back anchors them to their own correct work and removes the opportunity to second-guess it. The implication: if round 0 scores are high but pass rates are low, your model probably already knows the answer; it just needs the loop to commit to it.
+
+::: tip Reuse evolved prompts to skip the warm-up round
+Once you've run a refinement loop and `roundInputs[1]` reliably produces correct outputs, you can hardcode those as your starting prompts and run a single round — effectively using `refine()` as a prompt engineering tool. If `roundInputs[1][i]` works consistently across runs, it's a better default prompt than the original.
+:::
+
+::: tip Token and tool-call data flows through normally
+The winning beam's token usage and tool-call trace are captured on each `EvalCaseResult`, the same as in a regular `run()`. `report.tokenCost` is accurate.
+:::
+
+::: warning Concurrency and beam parallelism
+`concurrency` gates the number of concurrent **cases** (default `1`). Beam candidates within a single case always run in parallel, so the effective number of simultaneous LLM requests is `concurrency × beamWidth`. Set `concurrency` lower if you are hitting rate limits.
+
+`rounds >= 1` and `beamWidth >= 1` are required — the method throws immediately otherwise.
+:::
+
 ## PDF / Document Extraction
 
 The primary use case. `fieldAccuracy` absorbs currency symbols, number formatting, and boolean strings, so you don't normalise before comparing. Group results by a metadata key to spot per-segment regressions.
@@ -434,7 +512,7 @@ console.log(formatReport(report, { groupBy: 'document_type' }));
 Passed:   8 / 10 (80.0%)
 Failed:   2
 Duration: 3,241ms
-Tokens:   12,450 total (1245.0 / case)
+Tokens:   12,450 total (1245.0 / case) · 38.2 tok/s
 
 Scorer Results:
   jsonSchema           [████████████████████]  1.000
@@ -495,6 +573,13 @@ interface EvalCase<TInput = string> {
   name?: string;           // test description; falls back to an input preview
 }
 
+interface ScorerResult {
+  pass: boolean;
+  score: number;           // 0–1
+  reason?: string;         // present on failure; surfaced in all report formats
+  scorerName: string;
+}
+
 interface EvalCaseResult<TInput = string> {
   case: EvalCase<TInput>;
   output: string;
@@ -502,6 +587,14 @@ interface EvalCaseResult<TInput = string> {
   pass: boolean;           // true only if every scorer passed
   durationMs: number;
   tokens?: { input: number; output: number; total: number };
+  tokensPerSecond?: number; // tokens.total / (durationMs / 1000); present when token data is available
+  toolCalls?: ToolCall[];  // tools the target called during this case
+}
+
+interface ToolCall {
+  name: string;
+  input: Record<string, unknown>;
+  id?: string;             // provider tool-call id, when available
 }
 
 interface EvalReport<TInput = string> {
@@ -510,9 +603,16 @@ interface EvalReport<TInput = string> {
   total: number;
   passRate: number;
   scores: Record<string, number>;  // scorer name → mean score across all cases
-  tokenCost: { total: number; perCase: number };
+  tokenCost: { total: number; perCase: number; perSecond: number }; // perSecond is mean tok/s across cases
   durationMs: number;
   cases: EvalCaseResult<TInput>[];
+}
+
+interface RefineReport<TInput = string> {
+  rounds: EvalReport<TInput>[];  // one per round; index 0 = first round
+  final: EvalReport<TInput>;     // same as rounds[rounds.length - 1]
+  improvement: number;           // passRate delta: final.passRate - rounds[0].passRate; 0 when only one round ran
+  roundInputs: TInput[][];       // roundInputs[r][i] = input used for case i in round r
 }
 
 // Structural — satisfied by any Agention Pipeline, AgentGraph, or GraphNode

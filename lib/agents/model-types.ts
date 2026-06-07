@@ -98,6 +98,26 @@ export type OllamaModel =
   | (string & {});
 
 /**
+ * Models served by a local llama.cpp server (`llama-server`).
+ * The model is identified by the GGUF file/alias loaded by the server, so any
+ * string is accepted — the values below are common conventions.
+ * @see https://github.com/ggml-org/llama.cpp/tree/master/tools/server
+ */
+export type LlamaCppModel =
+  | "default"
+  | "gpt-oss-20b"
+  | "gpt-oss-120b"
+  | "llama-3.1-8b-instruct"
+  | "llama-3.2-3b-instruct"
+  | "qwen2.5-7b-instruct"
+  | "qwen2.5-coder-7b-instruct"
+  | "mistral-7b-instruct"
+  | "phi-4"
+  | "deepseek-r1-distill-qwen-7b"
+  // Allow custom strings for any locally loaded GGUF model
+  | (string & {});
+
+/**
  * Supported OpenAI models.
  * You can also provide any custom string for newer models not yet listed.
  * @see https://platform.openai.com/docs/models

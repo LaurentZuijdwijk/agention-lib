@@ -119,7 +119,7 @@ const agent = new GeminiAgent({
 const response = await agent.execute("What's the weather in Paris?");
 ```
 
-### Local Models (Ollama / llama.cpp)
+### Local Models (Ollama / llama.cpp / OpenAI-compatible servers)
 
 Run models on your own machine — no API key required. Same agent interface as every other provider:
 
@@ -150,6 +150,21 @@ const response = await ollama.execute('What can you run locally?');
 // Discover which models are available on the server
 const models = await ollama.listModels();
 ```
+
+**Custom OpenAI-compatible server** (vLLM, LM Studio, Together AI, Groq, …): extend `OpenAICompatibleAgent` directly:
+
+```typescript
+import { OpenAICompatibleAgent, OpenAICompatibleConfig } from '@agentionai/agents/llamacpp';
+
+class VLLMAgent extends OpenAICompatibleAgent {
+  constructor(config: Omit<OpenAICompatibleConfig, 'vendor'>) {
+    super({ ...config, vendor: 'llamacpp', baseURL: config.baseURL ?? 'http://localhost:8000/v1' });
+  }
+  protected getVendorName() { return 'vLLM'; }
+}
+```
+
+[Full guide →](https://docs.agention.ai/guide/agents#custom-openai-compatible-agents)
 
 ### Built-In Tools
 

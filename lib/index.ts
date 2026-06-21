@@ -15,6 +15,8 @@ export { MistralAgent } from "./agents/mistral/MistralAgent";
 export { GeminiAgent } from "./agents/google/GeminiAgent";
 export { OllamaAgent } from "./agents/ollama/OllamaAgent";
 export { LlamaCppAgent } from "./agents/llamacpp/LlamaCppAgent";
+export { OpenAICompatibleAgent } from "./agents/openai-compatible/OpenAICompatibleAgent";
+export type { OpenAICompatibleConfig } from "./agents/openai-compatible/OpenAICompatibleAgent";
 export * from "./agents/model-types";
 export * from "./agents/AgentConfig";
 export * from "./agents/AgentEvent";

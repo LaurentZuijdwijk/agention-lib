@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-06-21
+
+### Added
+- `OpenAICompatibleAgent` (`lib/agents/openai-compatible/`) — abstract base class for any server exposing an OpenAI-compatible `/v1/chat/completions` API. Subclass it to build typed agents for vLLM, LM Studio, Together AI, Groq, and similar providers. Exported from both `@agentionai/agents` and `@agentionai/agents/llamacpp`.
+- `LlamaCppAgent` now extends `OpenAICompatibleAgent`, reducing its implementation to a constructor and a `getVendorName()` override. All behaviour is unchanged.
+- `buildExtraRequestParams()` hook on `OpenAICompatibleAgent` — override to inject vendor-specific fields into the completions request (e.g. `reasoning_effort`, routing headers).
+- Full test suite for `OpenAICompatibleAgent` (22 tests covering constructor, `listModels`, tool definitions, execute happy paths, tool calls, all error paths, `parseUsage`, and `buildExtraRequestParams`).
+- `examples/openai-compatible.ts` — demonstrates `LlamaCppAgent` (zero config) and a custom `VLLMAgent` subclass with tools.
+- Docs: new "Custom OpenAI-Compatible Agents" section in the agents guide; README local-models section updated.
+
+### Fixed
+- `MaxTokensExceededError` (and other `AgentError` subclasses) thrown inside `handleResponse` are now correctly re-thrown from `execute()` instead of being double-wrapped in `ExecutionError`.
+
 ## [0.13.0] - 2026-06-07
 
 ### Added

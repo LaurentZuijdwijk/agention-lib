@@ -338,6 +338,72 @@ const models = await agent.listModels();
 console.log(models.map((m) => m.id));
 ```
 
+## Custom OpenAI-Compatible Agents
+
+`OpenAICompatibleAgent` is the abstract base class that powers `LlamaCppAgent`. Use it directly to build your own typed agent for any server that speaks the OpenAI `/v1/chat/completions` protocol — vLLM, LM Studio, Together AI, Groq, Fireworks, and more.
+
+**Why extend instead of using `LlamaCppAgent`?**
+
+- Give the agent a meaningful vendor name that appears in error messages and metrics
+- Add server-specific request parameters (sampling options, routing headers, etc.)
+- Narrow the model type to a typed union for your platform
+- Keep a clean import path (`@agentionai/agents/llamacpp` exports the base class too)
+
+**Minimal example:**
+
+```typescript
+import {
+  OpenAICompatibleAgent,
+  OpenAICompatibleConfig,
+} from '@agentionai/agents/llamacpp';
+import { History } from '@agentionai/agents/core';
+
+type VLLMConfig = Omit<OpenAICompatibleConfig, 'baseURL' | 'vendor'> & {
+  baseURL?: string;
+};
+
+class VLLMAgent extends OpenAICompatibleAgent {
+  constructor(config: VLLMConfig, history?: History) {
+    super({
+      ...config,
+      vendor: 'llamacpp',                          // reuse the llamacpp vendor slot
+      baseURL: config.baseURL ?? 'http://localhost:8000/v1',
+      model: config.model ?? 'default',
+    }, history);
+  }
+
+  protected getVendorName(): string {
+    return 'vLLM';                                 // used in error messages
+  }
+}
+
+const agent = new VLLMAgent({
+  id: 'vllm',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+});
+
+const response = await agent.execute('What is 2 + 2?');
+```
+
+**Adding vendor-specific request params:**
+
+Override `buildExtraRequestParams()` to inject fields the OpenAI SDK will merge into the completions call. Useful for sampling options or provider-specific headers your server supports:
+
+```typescript
+class GroqAgent extends OpenAICompatibleAgent {
+  // ...constructor omitted for brevity...
+
+  protected getVendorName() { return 'Groq'; }
+
+  protected buildExtraRequestParams() {
+    return { reasoning_effort: 'default' };       // Groq-specific field
+  }
+}
+```
+
+**Full example:** `examples/openai-compatible.ts`
+
 ## Token Usage Tracking
 
 Track token usage for cost monitoring:

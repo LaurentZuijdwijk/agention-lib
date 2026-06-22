@@ -136,7 +136,7 @@
     "typescript": "^5.0.3",
     "typescript-eslint": "^8.28.0",
     "vitepress": "^1.6.4",
-    "voyageai": "^0.1.0"
+    "voyageai": "^0.4.0"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

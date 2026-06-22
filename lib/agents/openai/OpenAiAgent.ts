@@ -8,7 +8,7 @@ import {
   MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
-import { History, toolResult, MessageContent } from "../../history/History";
+import { History, MessageContent } from "../../history/History";
 import { openAiTransformer } from "../../history/transformers";
 import {
   Tool,

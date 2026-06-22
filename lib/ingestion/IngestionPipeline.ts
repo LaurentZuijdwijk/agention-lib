@@ -241,7 +241,7 @@ export class IngestionPipeline {
       try {
         await this.store.addEmbeddedDocuments(embeddedDocs);
         result.chunksStored += embeddedDocs.length;
-      } catch (error) {
+      } catch {
         // Try storing one by one to identify problematic chunks
         for (let i = 0; i < embeddedDocs.length; i++) {
           try {

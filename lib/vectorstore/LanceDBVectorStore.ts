@@ -18,7 +18,6 @@ import {
   SearchOptions,
   DeleteOptions,
   MetadataFieldDefinition,
-  MetadataFieldType,
 } from "./VectorStore";
 import { Embeddings } from "../embeddings/Embeddings";
 
@@ -31,8 +30,6 @@ const CHUNK_METADATA_KEYS = [
   "start", "end", "source_id", "source_path",
   "char_count", "token_count", "hash", "section", "page",
 ] as const;
-
-const CHUNK_METADATA_KEY_SET = new Set<string>(CHUNK_METADATA_KEYS);
 
 /**
  * Configuration for LanceDBVectorStore.

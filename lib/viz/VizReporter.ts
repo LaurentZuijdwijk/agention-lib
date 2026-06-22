@@ -9,7 +9,6 @@ import { EventEmitter } from "events";
 import { vizConfig } from "./VizConfig";
 import {
   VizEvent,
-  VizEventType,
   VizSource,
   VizVendor,
   VizTokenUsage,

@@ -1,9 +1,5 @@
 import { BaseAgent } from "../agents/BaseAgent";
-import {
-  BaseExecutor,
-  MetricsCollector,
-  MetricsTokenUsage,
-} from "./BaseExecutor";
+import { BaseExecutor, MetricsTokenUsage } from "./BaseExecutor";
 
 /**
  * Options for configuring sequential execution behavior.

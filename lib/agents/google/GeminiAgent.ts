@@ -18,7 +18,7 @@ import {
   MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
-import { History, toolResult, MessageContent } from "../../history/History";
+import { History, MessageContent } from "../../history/History";
 import { geminiTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
@@ -180,7 +180,7 @@ export class GeminiAgent extends BaseAgent {
           ),
           description,
         };
-      case "object":
+      case "object": {
         const objProps: { [k: string]: Schema } = {};
         if (prop.properties) {
           const subProps = prop.properties as Record<
@@ -197,6 +197,7 @@ export class GeminiAgent extends BaseAgent {
           description,
           required: prop.required as string[] | undefined,
         };
+      }
       default:
         return { type: SchemaType.STRING, description };
     }

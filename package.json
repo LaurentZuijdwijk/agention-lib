@@ -87,8 +87,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint 'lib/**/*.{js,ts}'",
-    "lint:fix": "eslint 'src/**/*.{js,ts}' --fix",
-    "format": "prettier --write 'src/**/*.{js,ts,json,md}'",
+    "lint:fix": "eslint 'lib/**/*.{js,ts}' --fix",
+    "format": "prettier --write 'lib/**/*.{js,ts,json,md}'",
     "prepare": "npm run build",
     "example": "tsx",
     "example:watch": "nodemon --watch examples --watch src --ext ts --exec 'ts-node --project tsconfig.esm.json' examples/index.ts",
@@ -102,7 +102,6 @@
     "publish:all": "npm run publish:npm && npm run publish:github"
   },
   "overrides": {
-    "ajv": "^8.17.1",
     "whatwg-url": "^14.0.0"
   },
   "devDependencies": {
@@ -116,12 +115,10 @@
     "@mistralai/mistralai": "^1.13.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^18.15.11",
-    "@typescript-eslint/eslint-plugin": "^5.57.1",
-    "@typescript-eslint/parser": "^5.57.1",
     "apache-arrow": "^18.1.0",
     "babel-jest": "^29.7.0",
     "docdash": "^2.0.2",
-    "eslint": "^8.57.1",
+    "eslint": "^9.23.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-prettier": "^4.2.1",
     "globals": "^16.0.0",

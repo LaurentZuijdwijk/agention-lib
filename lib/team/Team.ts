@@ -92,16 +92,7 @@ export class Team extends EventEmitter {
    * @returns The result from the lead agent
    */
   async execute(input: string): Promise<any> {
-    // this.emit("teamTaskStarted", { input, teamName: this.name });
-
-    try {
-      const result = await this.leadAgent.execute(input);
-      // this.emit("teamTaskCompleted", { input, result, teamName: this.name });
-      return result;
-    } catch (error) {
-      // this.emit("teamTaskError", { input, error, teamName: this.name });
-      throw error;
-    }
+    return this.leadAgent.execute(input);
   }
 
   /**

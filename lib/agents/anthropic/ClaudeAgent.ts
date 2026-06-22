@@ -21,12 +21,11 @@ import {
   MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
-import { History, toolResult, toolUse, text, MessageContent } from "../../history/History";
+import { History, toolResult, MessageContent } from "../../history/History";
 import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
 import { anthropicTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
-import { VizStopReason } from "../../viz/types";
 import { ClaudeModel } from "../model-types";
 
 type AgentConfig = BaseAgentConfig & {

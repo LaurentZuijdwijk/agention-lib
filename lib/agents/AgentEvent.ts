@@ -10,6 +10,8 @@ export class AgentEvent {
   public static MAX_RETRIES_EXCEEDED = "max_retries_exceeded";
   public static MAX_TOKENS_EXCEEDED = "max_tokens_exceeded";
   public static TOOL_ERROR = "tool_error";
+  public static CHUNK = "chunk";
+  public static REASONING_CHUNK = "reasoning_chunk";
 
   private defaultPrevented = false;
 

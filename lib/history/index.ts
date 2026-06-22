@@ -15,6 +15,7 @@ export type {
   TextContent,
   ToolUseContent,
   ToolResultContent,
+  ThinkingContent,
   ProviderMeta,
   ReduceOptions,
 } from "./types";
@@ -23,8 +24,10 @@ export {
   text,
   toolUse,
   toolResult,
+  thinking,
   textMessage,
   isTextContent,
   isToolUseContent,
   isToolResultContent,
+  isThinkingContent,
 } from "./types";

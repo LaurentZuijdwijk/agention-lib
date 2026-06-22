@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { Anthropic } from "@anthropic-ai/sdk";
 import { ClaudeAgent } from "./ClaudeAgent"; // Adjust the import path as needed
+import { MaxTokensExceededError } from "../errors/AgentError";
+import { AgentEvent } from "../AgentEvent";
 
 // Mock the Anthropic SDK
 jest.mock("@anthropic-ai/sdk");
@@ -26,6 +28,9 @@ describe("ClaudeAgent", () => {
       description: "Test Description",
       temperature: 0,
     });
+    // Prevent EventEmitter from throwing on emit("error") when a test path
+    // emits an error without registering a listener.
+    agent.on(AgentEvent.ERROR, () => {});
   });
 
   describe("constructor", () => {
@@ -295,6 +300,168 @@ describe("ClaudeAgent", () => {
           is_error: true,
         },
       ]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // executeStream
+  // ---------------------------------------------------------------------------
+
+  describe("executeStream", () => {
+    // Build a mock Anthropic event stream from an array of events
+    function makeStream(events) {
+      return (async function* () {
+        for (const event of events) yield event;
+      })();
+    }
+
+    async function collectStream(gen) {
+      const results = [];
+      for await (const chunk of gen) results.push(chunk);
+      return results;
+    }
+
+    it("yields text chunks and emits CHUNK events", async () => {
+      mockClient.messages.create.mockResolvedValue(
+        makeStream([
+          { type: "message_start", message: { usage: { input_tokens: 8, output_tokens: 0 } } },
+          { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello" } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: " world" } },
+          { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 3 } },
+        ])
+      );
+
+      const spy = jest.spyOn(agent, "emit");
+      const chunks = await collectStream(agent.executeStream("Hi"));
+
+      expect(chunks).toEqual([
+        { type: "text", content: "Hello" },
+        { type: "text", content: " world" },
+      ]);
+      expect(spy).toHaveBeenCalledWith("chunk", "Hello");
+      expect(agent.lastTokenUsage).toEqual({
+        input_tokens: 8,
+        output_tokens: 3,
+        total_tokens: 11,
+      });
+    });
+
+    it("yields reasoning chunks for thinking deltas", async () => {
+      mockClient.messages.create.mockResolvedValue(
+        makeStream([
+          { type: "message_start", message: { usage: { input_tokens: 5, output_tokens: 0 } } },
+          { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } },
+          { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Let me think" } },
+          { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "sig-1" } },
+          { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+          { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Answer" } },
+          { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } },
+        ])
+      );
+
+      const spy = jest.spyOn(agent, "emit");
+      const chunks = await collectStream(agent.executeStream("Hi"));
+
+      expect(chunks).toEqual([
+        { type: "reasoning", content: "Let me think" },
+        { type: "text", content: "Answer" },
+      ]);
+      expect(spy).toHaveBeenCalledWith("reasoning_chunk", "Let me think");
+    });
+
+    it("preserves thinking blocks (with signature) in the follow-up tool request", async () => {
+      const toolStream = makeStream([
+        { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 0 } } },
+        { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } },
+        { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Need weather" } },
+        { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "sig-abc" } },
+        { type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "tool_1", name: "get_weather", input: {} } },
+        { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"city":"Paris"}' } },
+        { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 6 } },
+      ]);
+
+      const finalStream = makeStream([
+        { type: "message_start", message: { usage: { input_tokens: 12, output_tokens: 0 } } },
+        { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+        { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Sunny in Paris." } },
+        { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 5 } },
+      ]);
+
+      mockClient.messages.create
+        .mockResolvedValueOnce(toolStream)
+        .mockResolvedValueOnce(finalStream);
+
+      agent["tools"].set("get_weather", {
+        execute: jest.fn().mockResolvedValue({ tempC: 22 }),
+        getPrompt: jest.fn().mockReturnValue({ name: "get_weather", description: "", input_schema: {} }),
+      } as any);
+
+      const chunks = await collectStream(agent.executeStream("Weather in Paris?"));
+
+      expect(chunks).toEqual([
+        { type: "reasoning", content: "Need weather" },
+        { type: "text", content: "Sunny in Paris." },
+      ]);
+      expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
+
+      // The follow-up request must echo back the thinking block (with signature)
+      // ahead of the tool_use block, or Anthropic rejects the turn.
+      const followUpMessages = mockClient.messages.create.mock.calls[1][0].messages;
+      const assistantMsg = followUpMessages.find((m) => m.role === "assistant");
+      const types = assistantMsg.content.map((b) => b.type);
+      expect(types.indexOf("thinking")).toBeGreaterThanOrEqual(0);
+      expect(types.indexOf("thinking")).toBeLessThan(types.indexOf("tool_use"));
+      expect(assistantMsg.content.find((b) => b.type === "thinking")).toEqual({
+        type: "thinking",
+        thinking: "Need weather",
+        signature: "sig-abc",
+      });
+    });
+
+    it("sends thinking config and omits sampling params when thinkingBudgetTokens is set", async () => {
+      const thinkingAgent = new ClaudeAgent({
+        apiKey: "test-api-key",
+        id: "1",
+        name: "TestAgent",
+        description: "Test Description",
+        temperature: 0.7,
+        maxTokens: 4096,
+        thinkingBudgetTokens: 2048,
+      });
+
+      mockClient.messages.create.mockResolvedValue(
+        makeStream([
+          { type: "message_start", message: { usage: { input_tokens: 5, output_tokens: 0 } } },
+          { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "ok" } },
+          { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 1 } },
+        ])
+      );
+
+      await collectStream(thinkingAgent.executeStream("Hi"));
+
+      const params = mockClient.messages.create.mock.calls[0][0];
+      expect(params.thinking).toEqual({ type: "enabled", budget_tokens: 2048 });
+      expect(params.temperature).toBeUndefined();
+      expect(params.top_p).toBeUndefined();
+      expect(params.top_k).toBeUndefined();
+      expect(params.stream).toBe(true);
+    });
+
+    it("throws MaxTokensExceededError when stop_reason is 'max_tokens'", async () => {
+      mockClient.messages.create.mockResolvedValue(
+        makeStream([
+          { type: "message_start", message: { usage: { input_tokens: 5, output_tokens: 0 } } },
+          { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "trunc" } },
+          { type: "message_delta", delta: { stop_reason: "max_tokens" }, usage: { output_tokens: 1 } },
+        ])
+      );
+
+      await expect(collectStream(agent.executeStream("long"))).rejects.toThrow(
+        MaxTokensExceededError
+      );
     });
   });
 });

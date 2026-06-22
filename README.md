@@ -75,6 +75,7 @@ import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 ## Features
 
 - **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral, plus local models via Ollama and llama.cpp—same interface. Switch models with one line.
+- **Streaming** - `executeStream()` on Claude, OpenAI, and all OpenAI-compatible agents. Yields `{ type: "text" | "reasoning" }` chunks; tool calls handled transparently.
 - **Built-In Tools** - Use provider-defined server-side tools (e.g. Anthropic's web search, bash, text editor) alongside your own.
 - **Composable, Not Magical** - Agents are objects. Pipelines are arrays. No hidden state, no surprises.
 - **Multimodal / Vision** - Send images alongside text with a unified `MessageContent[]` API across all providers.
@@ -185,6 +186,27 @@ const agent = new ClaudeAgent({
 
 const response = await agent.execute('What happened in the news today?');
 ```
+
+### Streaming
+
+All three major providers support streaming via `executeStream()`, which returns an `AsyncGenerator<StreamChunk>`. Each chunk is `{ type: "text" | "reasoning"; content: string }` — text for visible output, reasoning for internal thinking tokens (DeepSeek R1, Claude extended thinking, OpenAI o-series).
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+
+const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+});
+
+for await (const chunk of agent.executeStream('Tell me a story')) {
+  if (chunk.type === 'text') process.stdout.write(chunk.content);
+}
+```
+
+Tool calls are handled transparently — the generator continues streaming after each round-trip. The same API works across `ClaudeAgent`, `OpenAiAgent`, and `LlamaCppAgent` / any `OpenAICompatibleAgent` subclass.
 
 ### Multi-Agent Pipeline
 

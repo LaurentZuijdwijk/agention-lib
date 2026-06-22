@@ -2,8 +2,10 @@ import OpenAI from "openai";
 import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
+  AgentError,
   ApiError,
   ExecutionError,
+  MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
 import { History, toolResult, MessageContent } from "../../history/History";
@@ -11,12 +13,15 @@ import { openAiTransformer } from "../../history/transformers";
 import {
   Tool,
   Response,
+  ResponseCompletedEvent,
   ResponseFunctionToolCall,
+  ResponseStreamEvent,
   ResponseUsage,
 } from "openai/resources/responses/responses";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { OpenAIModel } from "../model-types";
+import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
@@ -536,6 +541,199 @@ export class OpenAiAgent extends BaseAgent {
     );
 
     return toolResults;
+  }
+
+  /**
+   * Stream a response as an async generator of `StreamChunk` objects.
+   * Yields `{ type: "text" }` for visible output and `{ type: "reasoning" }` for
+   * reasoning summary tokens (o-series models). Tool calls are handled transparently.
+   *
+   * @example
+   * ```typescript
+   * for await (const chunk of agent.executeStream("Explain recursion")) {
+   *   if (chunk.type === "text") process.stdout.write(chunk.content);
+   * }
+   * ```
+   */
+  async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
+    this.emit(AgentEvent.BEFORE_EXECUTE, input);
+    this.lastTokenUsage = undefined;
+    this.currentToolCallCount = 0;
+
+    const inputPreview =
+      typeof input === "string" ? input : JSON.stringify(input);
+
+    if (vizConfig.isEnabled()) {
+      this.vizEventId = vizReporter.agentStart(
+        this.id,
+        this.name,
+        this.config.model!,
+        "openai",
+        inputPreview
+      );
+    }
+
+    if (this.history.transient) {
+      this.history.clear();
+      this.addSystemMessage(this.getSystemMessage());
+    }
+
+    if (typeof input === "string") {
+      this.addTextToHistory("user", input);
+    } else {
+      this.addMessageToHistory("user", input);
+    }
+
+    this.history.setSessionAnchor();
+    this.history.beginExecution();
+
+    try {
+      yield* this.streamTurn();
+    } catch (error: unknown) {
+      if (error instanceof AgentError) {
+        this.emit(AgentEvent.ERROR, error);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, error.constructor.name, error.message, false);
+          this.vizEventId = undefined;
+        }
+        throw error;
+      }
+      if (error && typeof error === "object" && "error" in error) {
+        const openAIError = error as { error: { message?: string; code?: string }; status?: number };
+        const apiError = new ApiError(
+          `OpenAI API error: ${openAIError.error.message || "Unknown error"}`,
+          openAIError.status,
+          openAIError.error
+        );
+        this.emit(AgentEvent.ERROR, apiError);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, openAIError.error.code === "rate_limit_exceeded");
+          this.vizEventId = undefined;
+        }
+        throw apiError;
+      }
+      const executionError = new ExecutionError(
+        `OpenAI error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+      this.emit(AgentEvent.ERROR, executionError);
+      if (this.vizEventId) {
+        vizReporter.agentError(this.vizEventId, "ExecutionError", executionError.message, false);
+        this.vizEventId = undefined;
+      }
+      throw executionError;
+    } finally {
+      this.history.endExecution();
+    }
+  }
+
+  private async *streamTurn(): AsyncGenerator<StreamChunk> {
+    const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
+
+    const stream = await this.client.responses.create({
+      model: this.config.model!,
+      max_output_tokens: this.config.maxTokens,
+      input: inputMessages,
+      tools: this.getToolDefinitions(),
+      store: false,
+      stream: true,
+      temperature: this.config.temperature,
+      top_p: this.config.topP,
+      user: this.config.user,
+      ...(this.config.disableReasoning && { reasoning: { effort: null } }),
+      ...(this.config.reasoningEffort && !this.config.disableReasoning && {
+        // `summary: "auto"` is required for the Responses API to stream
+        // `response.reasoning_summary_text.delta` events.
+        reasoning: { effort: this.config.reasoningEffort, summary: "auto" },
+      }),
+    }) as AsyncIterable<ResponseStreamEvent>;
+
+    let completedEvent: ResponseCompletedEvent | null = null;
+
+    for await (const event of stream) {
+      if (event.type === "response.output_text.delta") {
+        this.emit(AgentEvent.CHUNK, event.delta);
+        yield { type: "text", content: event.delta };
+      }
+      if (event.type === "response.reasoning_summary_text.delta") {
+        this.emit(AgentEvent.REASONING_CHUNK, event.delta);
+        yield { type: "reasoning", content: event.delta };
+      }
+      if (event.type === "response.completed") {
+        completedEvent = event;
+        if (event.response.usage) {
+          const usage = this.parseUsage(event.response.usage);
+          if (this.lastTokenUsage) {
+            this.lastTokenUsage.input_tokens += usage.input_tokens;
+            this.lastTokenUsage.output_tokens += usage.output_tokens;
+            this.lastTokenUsage.total_tokens += usage.total_tokens;
+          } else {
+            this.lastTokenUsage = { ...usage };
+          }
+        }
+      }
+      if (event.type === "response.incomplete") {
+        throw new MaxTokensExceededError(
+          "Response incomplete: max tokens reached",
+          this.config.maxTokens || 1024
+        );
+      }
+    }
+
+    if (!completedEvent) {
+      throw new ExecutionError("OpenAI stream ended without a completed event");
+    }
+
+    const response = completedEvent.response;
+    const toolCalls = response.output.filter(
+      (o: any) => o.type === "function_call"
+    ) as unknown as ResponseFunctionToolCall[];
+
+    if (toolCalls.length > 0) {
+      this.emit(AgentEvent.TOOL_USE, toolCalls);
+      this.currentToolCallCount += toolCalls.length;
+
+      const functionCalls = toolCalls.map((tc) => ({
+        id: tc.id || tc.call_id,
+        call_id: tc.call_id,
+        name: tc.name,
+        arguments: tc.arguments,
+      }));
+      const assistantEntry = openAiTransformer.fromProviderMessage(
+        "assistant",
+        response.output_text || "",
+        functionCalls
+      );
+      this.addToHistory(assistantEntry);
+
+      const toolResults = await this.handleToolUse(toolCalls);
+      for (const result of toolResults) {
+        this.addToHistory(openAiTransformer.toolResultEntry(result.call_id, result.output, false));
+      }
+
+      yield* this.streamTurn();
+    } else {
+      const textContent = response.output_text || "";
+      const entry = openAiTransformer.fromProviderMessage("assistant", textContent);
+      this.addToHistory(entry);
+
+      this.emit(AgentEvent.DONE, response, this.lastTokenUsage);
+
+      if (this.vizEventId) {
+        vizReporter.agentComplete(
+          this.vizEventId,
+          {
+            input: this.lastTokenUsage?.input_tokens || 0,
+            output: this.lastTokenUsage?.output_tokens || 0,
+            total: this.lastTokenUsage?.total_tokens || 0,
+          },
+          "end_turn",
+          this.currentToolCallCount > 0,
+          this.currentToolCallCount,
+          textContent
+        );
+        this.vizEventId = undefined;
+      }
+    }
   }
 
   protected parseUsage(input: ResponseUsage): TokenUsage {

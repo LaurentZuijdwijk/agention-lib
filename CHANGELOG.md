@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-06-22
+
+First stable release. The public API across agents, tools, history, and the graph
+system is now considered stable and will follow semantic versioning.
+
+### Added
+- **Streaming** — `executeStream()` on `ClaudeAgent`, `OpenAiAgent`, and any
+  `OpenAICompatibleAgent` subclass (including `LlamaCppAgent`). Returns an
+  `AsyncGenerator<StreamChunk>` where each chunk is `{ type: "text" | "reasoning"; content: string }`.
+  Tool calls are handled transparently — the generator continues streaming after each
+  round-trip. New `AgentEvent.CHUNK` and `AgentEvent.REASONING_CHUNK` events are emitted
+  alongside the existing lifecycle events. `execute()` is unchanged; streaming is purely additive.
+- **Reasoning / extended thinking in streams:**
+  - `ClaudeAgent` — new `thinkingBudgetTokens` config (flat or `vendorConfig.anthropic`)
+    enables Anthropic extended thinking and surfaces thinking tokens as `"reasoning"` chunks.
+    Thinking blocks (and their signatures) are preserved across tool-call round-trips as the
+    API requires; `temperature`/`topP`/`topK` are omitted while thinking is enabled.
+  - `OpenAiAgent` — setting `reasoningEffort` now also requests a reasoning summary, which
+    streams as `"reasoning"` chunks for reasoning models (o-series / gpt-5).
+  - `OpenAICompatibleAgent` — emits `"reasoning"` chunks for models that return
+    `reasoning_content` (e.g. DeepSeek R1).
+- First-class reasoning content in normalized history — new `ThinkingContent` type, `thinking()`
+  helper, and `isThinkingContent()` guard; `anthropicTransformer` round-trips thinking and
+  redacted-thinking blocks.
+- `StreamChunk` type exported from `@agentionai/agents` and `@agentionai/agents/llamacpp`.
+- `examples/streaming.ts` — demonstrates streaming across all three providers, including
+  visible Claude reasoning.
+
+### Fixed
+- `ClaudeAgent.executeStream` now re-throws `AgentError` subclasses (e.g.
+  `MaxTokensExceededError`) with their type preserved instead of re-wrapping them in a generic
+  `ExecutionError`, matching the other streaming agents.
+
 ## [0.14.0] - 2026-06-21
 
 ### Added

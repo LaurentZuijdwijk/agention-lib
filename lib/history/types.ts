@@ -38,6 +38,21 @@ export type ToolResultContent = {
 };
 
 /**
+ * Extended-thinking / reasoning block produced by the assistant (Anthropic).
+ *
+ * These must be preserved verbatim — including `signature` — and echoed back on
+ * the following request when the assistant used a tool, or the provider rejects
+ * the turn. `redactedData` is set instead of `thinking` for redacted blocks,
+ * whose payload is opaque and must be returned unchanged.
+ */
+export type ThinkingContent = {
+  type: "thinking";
+  thinking: string;
+  signature?: string;
+  redactedData?: string;
+};
+
+/**
  * Supported image MIME types across all providers
  */
 export type ImageMimeType =
@@ -75,6 +90,7 @@ export type MessageContent =
   | TextContent
   | ToolUseContent
   | ToolResultContent
+  | ThinkingContent
   | ImageUrlContent
   | ImageBase64Content;
 
@@ -208,6 +224,12 @@ export function isToolResultContent(
   return content.type === "tool_result";
 }
 
+export function isThinkingContent(
+  content: MessageContent
+): content is ThinkingContent {
+  return content.type === "thinking";
+}
+
 export function isImageUrlContent(
   content: MessageContent
 ): content is ImageUrlContent {
@@ -246,6 +268,17 @@ export function toolUse(
   input: Record<string, unknown>
 ): ToolUseContent {
   return { type: "tool_use", id, name, input };
+}
+
+/**
+ * Create a thinking content block. Pass `redactedData` for redacted thinking.
+ */
+export function thinking(
+  thinkingText: string,
+  signature?: string,
+  redactedData?: string
+): ThinkingContent {
+  return { type: "thinking", thinking: thinkingText, signature, redactedData };
 }
 
 /**

@@ -2,6 +2,10 @@ import { Anthropic, APIError } from "@anthropic-ai/sdk";
 import {
   ContentBlock,
   Message,
+  RawContentBlockDeltaEvent,
+  RawContentBlockStartEvent,
+  RawMessageDeltaEvent,
+  RawMessageStartEvent,
   ToolUnion,
   ToolUseBlock,
   Usage,
@@ -11,12 +15,14 @@ import { type BuiltInTool } from "../../tools/BuiltInTool";
 import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
+  AgentError,
   ApiError,
   ExecutionError,
   MaxTokensExceededError,
   ToolExecutionError,
 } from "../errors/AgentError";
 import { History, toolResult, toolUse, text, MessageContent } from "../../history/History";
+import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
 import { anthropicTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
@@ -42,6 +48,12 @@ type AgentConfig = BaseAgentConfig & {
    * @see lib/tools/BuiltInTool.ts
    */
   builtInTools?: BuiltInTool[];
+  /**
+   * Enable extended thinking with this token budget (≥ 1024, and strictly less than
+   * `maxTokens`). When set, thinking tokens are streamed as `"reasoning"` chunks and
+   * `temperature`/`topP`/`topK` are omitted (required by the API when thinking is on).
+   */
+  thinkingBudgetTokens?: number;
 };
 
 /**
@@ -85,6 +97,8 @@ export class ClaudeAgent extends BaseAgent {
     const metadata = config.metadata ?? vendorConfig.metadata;
     const builtInTools = config.builtInTools ?? vendorConfig.builtInTools;
     const authType = config.authType ?? vendorConfig.authType ?? "apiKey";
+    const thinkingBudgetTokens =
+      config.thinkingBudgetTokens ?? vendorConfig.thinkingBudgetTokens;
 
     this.client = new Anthropic(
       authType === "oauth"
@@ -99,6 +113,7 @@ export class ClaudeAgent extends BaseAgent {
       metadata,
       builtInTools,
       authType,
+      thinkingBudgetTokens,
       apiKey: config.apiKey,
       temperature: config.temperature,
       topP: config.topP,
@@ -123,6 +138,39 @@ export class ClaudeAgent extends BaseAgent {
       ...this.getToolDefinitions(),
       ...(this.config.builtInTools ?? []),
     ] as ToolUnion[];
+  }
+
+  /**
+   * Build the common `messages.create` params (shared by `execute()` and
+   * `executeStream()`), excluding `stream`. When extended thinking is enabled
+   * (`thinkingBudgetTokens > 0`) the API requires default sampling, so
+   * `temperature`/`top_p`/`top_k` are omitted in favour of the `thinking` block.
+   */
+  protected buildMessageParams() {
+    const messages = anthropicTransformer.toProvider(this.history.getEntries());
+    const thinkingEnabled = (this.config.thinkingBudgetTokens ?? 0) > 0;
+
+    return {
+      model: this.config.model!,
+      system: this.history.getSystemMessage(),
+      max_tokens: this.config.maxTokens!,
+      messages,
+      tools: this.getAllToolDefinitions(),
+      stop_sequences: this.config.stopSequences,
+      metadata: this.config.metadata,
+      ...(thinkingEnabled
+        ? {
+            thinking: {
+              type: "enabled" as const,
+              budget_tokens: this.config.thinkingBudgetTokens!,
+            },
+          }
+        : {
+            temperature: this.config.temperature,
+            top_p: this.config.topP,
+            top_k: this.config.topK,
+          }),
+    };
   }
 
   protected async process(_input: string): Promise<string> {
@@ -171,21 +219,9 @@ export class ClaudeAgent extends BaseAgent {
     this.history.beginExecution();
 
     try {
-      const messages = anthropicTransformer.toProvider(this.history.getEntries());
-      const systemMessage = this.history.getSystemMessage();
-
-      const response = await this.client.messages.create({
-        model: this.config.model!,
-        system: systemMessage,
-        max_tokens: this.config.maxTokens!,
-        messages,
-        tools: this.getAllToolDefinitions(),
-        temperature: this.config.temperature,
-        top_p: this.config.topP,
-        top_k: this.config.topK,
-        stop_sequences: this.config.stopSequences,
-        metadata: this.config.metadata,
-      });
+      const response = (await this.client.messages.create(
+        this.buildMessageParams()
+      )) as Message;
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
       return await this.handleResponse(response);
@@ -345,22 +381,9 @@ export class ClaudeAgent extends BaseAgent {
 
         // Continue conversation with tool results
         try {
-          const messages = anthropicTransformer.toProvider(
-            this.history.getEntries()
-          );
-
-          const newResponse = await this.client.messages.create({
-            model: this.config.model!,
-            system: this.history.getSystemMessage(),
-            max_tokens: this.config.maxTokens!,
-            messages,
-            tools: this.getAllToolDefinitions(),
-            temperature: this.config.temperature,
-            top_p: this.config.topP,
-            top_k: this.config.topK,
-            stop_sequences: this.config.stopSequences,
-            metadata: this.config.metadata,
-          });
+          const newResponse = (await this.client.messages.create(
+            this.buildMessageParams()
+          )) as Message;
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
           return this.handleResponse(newResponse);
@@ -499,6 +522,250 @@ export class ClaudeAgent extends BaseAgent {
     );
 
     return results;
+  }
+
+  /**
+   * Stream a response as an async generator of `StreamChunk` objects.
+   * Yields `{ type: "text" }` for visible output and `{ type: "reasoning" }` for
+   * extended thinking tokens (models with thinking enabled). Tool calls are handled
+   * transparently — the generator continues streaming after each round-trip.
+   *
+   * @example
+   * ```typescript
+   * for await (const chunk of agent.executeStream("Explain recursion")) {
+   *   if (chunk.type === "text") process.stdout.write(chunk.content);
+   *   else process.stderr.write(`[thinking] ${chunk.content}`);
+   * }
+   * ```
+   */
+  async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
+    this.emit(AgentEvent.BEFORE_EXECUTE, input);
+    this.lastTokenUsage = undefined;
+    this.currentToolCallCount = 0;
+
+    const inputPreview =
+      typeof input === "string" ? input : JSON.stringify(input);
+
+    if (vizConfig.isEnabled()) {
+      this.vizEventId = vizReporter.agentStart(
+        this.id,
+        this.name,
+        this.config.model!,
+        "anthropic",
+        inputPreview
+      );
+    }
+
+    if (this.history.transient) {
+      this.history.clear();
+      this.addSystemMessage(this.getSystemMessage());
+    }
+
+    if (typeof input === "string") {
+      this.addTextToHistory("user", input);
+    } else {
+      this.addMessageToHistory("user", input);
+    }
+
+    this.history.setSessionAnchor();
+    this.history.beginExecution();
+
+    try {
+      yield* this.streamTurn();
+    } catch (error: unknown) {
+      if (error instanceof APIError) {
+        const apiError = new ApiError(
+          `Anthropic API error: ${error.message}`,
+          error.status,
+          error
+        );
+        this.emit(AgentEvent.ERROR, apiError);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, error.status === 429);
+          this.vizEventId = undefined;
+        }
+        throw apiError;
+      }
+      // Errors raised inside streamTurn() (e.g. MaxTokensExceededError) are
+      // already emitted and viz-reported at the throw site — preserve their
+      // type rather than re-wrapping them in a generic ExecutionError.
+      if (error instanceof AgentError) {
+        throw error;
+      }
+      const executionError = new ExecutionError(
+        `Anthropic error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+      this.emit(AgentEvent.ERROR, executionError);
+      if (this.vizEventId) {
+        vizReporter.agentError(this.vizEventId, "ExecutionError", executionError.message, false);
+        this.vizEventId = undefined;
+      }
+      throw executionError;
+    } finally {
+      this.history.endExecution();
+    }
+  }
+
+  private async *streamTurn(): AsyncGenerator<StreamChunk> {
+    const stream = await this.client.messages.create({
+      ...this.buildMessageParams(),
+      stream: true,
+    });
+
+    // Accumulate every content block by index so the assistant turn can be
+    // reconstructed in order — critically including `thinking` blocks (with
+    // their signatures), which Anthropic requires to be echoed back on the
+    // follow-up request when a tool was used.
+    type AccBlock =
+      | { kind: "thinking"; thinking: string; signature: string }
+      | { kind: "redacted_thinking"; data: string }
+      | { kind: "text"; text: string }
+      | { kind: "tool_use"; id: string; name: string; inputJson: string };
+
+    const blocks = new Map<number, AccBlock>();
+    let textContent = "";
+    let stopReason: string | null = null;
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    for await (const event of stream) {
+      if (event.type === "message_start") {
+        const e = event as RawMessageStartEvent;
+        inputTokens = e.message.usage.input_tokens;
+        outputTokens = e.message.usage.output_tokens;
+      }
+
+      if (event.type === "message_delta") {
+        const e = event as RawMessageDeltaEvent;
+        stopReason = e.delta.stop_reason ?? stopReason;
+        outputTokens += e.usage?.output_tokens ?? 0;
+      }
+
+      if (event.type === "content_block_start") {
+        const e = event as RawContentBlockStartEvent;
+        const block = e.content_block;
+        if (block.type === "tool_use") {
+          blocks.set(e.index, { kind: "tool_use", id: block.id, name: block.name, inputJson: "" });
+        } else if (block.type === "text") {
+          blocks.set(e.index, { kind: "text", text: "" });
+        } else if (block.type === "thinking") {
+          blocks.set(e.index, { kind: "thinking", thinking: "", signature: "" });
+        } else if (block.type === "redacted_thinking") {
+          blocks.set(e.index, { kind: "redacted_thinking", data: block.data });
+        }
+      }
+
+      if (event.type === "content_block_delta") {
+        const e = event as RawContentBlockDeltaEvent;
+        const delta = e.delta;
+        const acc = blocks.get(e.index);
+        if (delta.type === "text_delta") {
+          textContent += delta.text;
+          if (acc?.kind === "text") acc.text += delta.text;
+          this.emit(AgentEvent.CHUNK, delta.text);
+          yield { type: "text", content: delta.text };
+        } else if (delta.type === "thinking_delta") {
+          if (acc?.kind === "thinking") acc.thinking += delta.thinking;
+          this.emit(AgentEvent.REASONING_CHUNK, delta.thinking);
+          yield { type: "reasoning", content: delta.thinking };
+        } else if (delta.type === "signature_delta") {
+          if (acc?.kind === "thinking") acc.signature += delta.signature;
+        } else if (delta.type === "input_json_delta") {
+          if (acc?.kind === "tool_use") acc.inputJson += delta.partial_json;
+        }
+      }
+    }
+
+    const usage: TokenUsage = {
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      total_tokens: inputTokens + outputTokens,
+    };
+    if (this.lastTokenUsage) {
+      this.lastTokenUsage.input_tokens += usage.input_tokens;
+      this.lastTokenUsage.output_tokens += usage.output_tokens;
+      this.lastTokenUsage.total_tokens += usage.total_tokens;
+    } else {
+      this.lastTokenUsage = { ...usage };
+    }
+
+    if (stopReason === "max_tokens") {
+      const error = new MaxTokensExceededError(
+        "Response exceeded maximum token limit",
+        this.config.maxTokens || 1024
+      );
+      this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
+      this.emit(AgentEvent.ERROR, error);
+      if (this.vizEventId) {
+        vizReporter.agentError(this.vizEventId, "MaxTokensExceededError", error.message, false);
+        this.vizEventId = undefined;
+      }
+      throw error;
+    }
+
+    // Rebuild the assistant turn in stream order (thinking → text → tool_use).
+    const orderedBlocks: ContentBlock[] = Array.from(blocks.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([, b]): ContentBlock => {
+        switch (b.kind) {
+          case "thinking":
+            return { type: "thinking", thinking: b.thinking, signature: b.signature };
+          case "redacted_thinking":
+            return { type: "redacted_thinking", data: b.data };
+          case "tool_use":
+            return {
+              type: "tool_use",
+              id: b.id,
+              name: b.name,
+              input: JSON.parse(b.inputJson || "{}") as Record<string, unknown>,
+            };
+          case "text":
+            return { type: "text", text: b.text, citations: [] };
+        }
+      });
+
+    // Fallback: preserve streamed text even if no text block start was observed.
+    if (textContent && !orderedBlocks.some((b) => b.type === "text")) {
+      orderedBlocks.push({ type: "text", text: textContent, citations: [] });
+    }
+
+    const toolUseBlocks = orderedBlocks.filter(
+      (b): b is ToolUseBlock => b.type === "tool_use"
+    );
+
+    if (stopReason === "tool_use" && toolUseBlocks.length > 0) {
+      this.emit(AgentEvent.TOOL_USE, orderedBlocks);
+      this.currentToolCallCount += toolUseBlocks.length;
+
+      const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
+      this.addToHistory(assistantEntry);
+
+      const toolResults = await this.handleToolUse(orderedBlocks);
+      this.addMessageToHistory("user", toolResults);
+
+      yield* this.streamTurn();
+    } else {
+      const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
+      this.addToHistory(assistantEntry);
+
+      this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
+
+      if (this.vizEventId) {
+        vizReporter.agentComplete(
+          this.vizEventId,
+          {
+            input: this.lastTokenUsage?.input_tokens || 0,
+            output: this.lastTokenUsage?.output_tokens || 0,
+            total: this.lastTokenUsage?.total_tokens || 0,
+          },
+          "end_turn",
+          this.currentToolCallCount > 0,
+          this.currentToolCallCount,
+          textContent
+        );
+        this.vizEventId = undefined;
+      }
+    }
   }
 
   protected parseUsage(input: Usage): TokenUsage {

@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import {
   ChatCompletion,
+  ChatCompletionChunk,
   ChatCompletionMessage,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
@@ -19,6 +20,16 @@ import { History, MessageContent } from "../../history/History";
 import { chatCompletionsTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
+
+/**
+ * A single chunk yielded by `executeStream()`.
+ * - `"text"` — visible output token
+ * - `"reasoning"` — internal reasoning token (DeepSeek-style `reasoning_content`)
+ */
+export type StreamChunk = {
+  type: "text" | "reasoning";
+  content: string;
+};
 
 export type OpenAICompatibleConfig = BaseAgentConfig & {
   /** Base URL of the OpenAI-compatible `/v1` endpoint (required) */
@@ -376,6 +387,238 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
         }
       })
     );
+  }
+
+  /**
+   * Stream a response as an async generator of `StreamChunk` objects.
+   *
+   * Yields `{ type: "text" }` for visible output and `{ type: "reasoning" }` for
+   * internal reasoning tokens (models that expose `reasoning_content`, e.g. DeepSeek R1).
+   * Tool calls are executed transparently — the generator continues streaming after
+   * each tool-call round-trip.
+   *
+   * @example
+   * ```typescript
+   * for await (const chunk of agent.executeStream("Explain recursion")) {
+   *   if (chunk.type === "text") process.stdout.write(chunk.content);
+   * }
+   * ```
+   */
+  async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
+    this.emit(AgentEvent.BEFORE_EXECUTE, input);
+    this.lastTokenUsage = undefined;
+    this.currentToolCallCount = 0;
+
+    const inputPreview =
+      typeof input === "string" ? input : JSON.stringify(input);
+
+    if (vizConfig.isEnabled()) {
+      this.vizEventId = vizReporter.agentStart(
+        this.id,
+        this.name,
+        this.config.model!,
+        this.vendor,
+        inputPreview
+      );
+    }
+
+    if (this.history.transient) {
+      this.history.clear();
+      this.addSystemMessage(this.getSystemMessage());
+    }
+
+    if (typeof input === "string") {
+      this.addTextToHistory("user", input);
+    } else {
+      this.addMessageToHistory("user", input);
+    }
+
+    this.history.setSessionAnchor();
+    this.history.beginExecution();
+
+    try {
+      yield* this.streamTurn();
+    } catch (error: unknown) {
+      if (error instanceof OpenAI.APIError) {
+        const apiError = new ApiError(
+          `${this.getVendorName()} API error: ${error.message}`,
+          error.status,
+          error
+        );
+        this.emit(AgentEvent.ERROR, apiError);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, error.status === 429);
+          this.vizEventId = undefined;
+        }
+        throw apiError;
+      }
+
+      if (error instanceof AgentError) {
+        this.emit(AgentEvent.ERROR, error);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, error.constructor.name, error.message, false);
+          this.vizEventId = undefined;
+        }
+        throw error;
+      }
+
+      const executionError = new ExecutionError(
+        `${this.getVendorName()} error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+      this.emit(AgentEvent.ERROR, executionError);
+      if (this.vizEventId) {
+        vizReporter.agentError(this.vizEventId, "ExecutionError", executionError.message, false);
+        this.vizEventId = undefined;
+      }
+      throw executionError;
+    } finally {
+      this.history.endExecution();
+    }
+  }
+
+  private async *streamTurn(): AsyncGenerator<StreamChunk> {
+    const messages = chatCompletionsTransformer.toProvider(this.history.getEntries());
+    const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
+
+    const stream = await this.client.chat.completions.create({
+      model: this.config.model!,
+      messages,
+      tools,
+      stream: true,
+      stream_options: { include_usage: true },
+      max_tokens: this.config.maxTokens,
+      temperature: this.config.temperature,
+      top_p: this.config.topP,
+      stop: this.config.stopSequences,
+      seed: this.config.seed,
+      presence_penalty: this.config.presencePenalty,
+      frequency_penalty: this.config.frequencyPenalty,
+      ...this.buildExtraRequestParams(),
+    });
+
+    let textContent = "";
+    const toolCallAcc = new Map<number, { id: string; name: string; arguments: string }>();
+    let finishReason: string | null = null;
+
+    for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
+      // Final chunk carrying usage (choices is empty)
+      if (chunk.choices.length === 0) {
+        if (chunk.usage) this.accumulateStreamUsage(chunk.usage);
+        continue;
+      }
+
+      const choice = chunk.choices[0];
+      finishReason = choice.finish_reason ?? finishReason;
+      const delta = choice.delta;
+
+      if (delta.content) {
+        textContent += delta.content;
+        this.emit(AgentEvent.CHUNK, delta.content);
+        yield { type: "text", content: delta.content };
+      }
+
+      // DeepSeek-style reasoning tokens (not in OpenAI SDK types — cast required)
+      const reasoningDelta = (delta as Record<string, unknown>).reasoning_content as string | null | undefined;
+      if (reasoningDelta) {
+        this.emit(AgentEvent.REASONING_CHUNK, reasoningDelta);
+        yield { type: "reasoning", content: reasoningDelta };
+      }
+
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          if (!toolCallAcc.has(tc.index)) {
+            toolCallAcc.set(tc.index, { id: "", name: "", arguments: "" });
+          }
+          const acc = toolCallAcc.get(tc.index)!;
+          if (tc.id) acc.id = tc.id;
+          if (tc.function?.name) acc.name += tc.function.name;
+          if (tc.function?.arguments) acc.arguments += tc.function.arguments;
+        }
+      }
+    }
+
+    if (finishReason === "length") {
+      const error = new MaxTokensExceededError(
+        "Response exceeded maximum token limit",
+        this.config.maxTokens || 1024
+      );
+      this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
+      this.emit(AgentEvent.ERROR, error);
+      if (this.vizEventId) {
+        vizReporter.agentError(this.vizEventId, "MaxTokensExceededError", error.message, false);
+        this.vizEventId = undefined;
+      }
+      throw error;
+    }
+
+    if (finishReason === "tool_calls" && toolCallAcc.size > 0) {
+      const toolCalls = Array.from(toolCallAcc.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([, tc]) => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.name, arguments: tc.arguments },
+        }));
+
+      this.emit(AgentEvent.TOOL_USE, toolCalls);
+      this.currentToolCallCount += toolCalls.length;
+
+      const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
+        role: "assistant",
+        content: textContent || null,
+        tool_calls: toolCalls,
+      });
+      this.addToHistory(assistantEntry);
+
+      const toolResults = await this.handleToolCalls(toolCalls);
+      for (const result of toolResults) {
+        this.addToHistory(chatCompletionsTransformer.toolResultEntry(result.toolCallId, result.content));
+      }
+
+      yield* this.streamTurn();
+    } else {
+      const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
+        role: "assistant",
+        content: textContent || null,
+      });
+      this.addToHistory(assistantEntry);
+
+      this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
+
+      if (this.vizEventId) {
+        vizReporter.agentComplete(
+          this.vizEventId,
+          {
+            input: this.lastTokenUsage?.input_tokens || 0,
+            output: this.lastTokenUsage?.output_tokens || 0,
+            total: this.lastTokenUsage?.total_tokens || 0,
+          },
+          "end_turn",
+          this.currentToolCallCount > 0,
+          this.currentToolCallCount,
+          textContent
+        );
+        this.vizEventId = undefined;
+      }
+    }
+  }
+
+  private accumulateStreamUsage(usage: ChatCompletionChunk["usage"]): void {
+    if (!usage) return;
+    const u: TokenUsage = {
+      input_tokens: usage.prompt_tokens ?? 0,
+      output_tokens: usage.completion_tokens ?? 0,
+      total_tokens: usage.total_tokens ?? 0,
+    };
+    if (this.lastTokenUsage) {
+      this.lastTokenUsage.input_tokens += u.input_tokens;
+      this.lastTokenUsage.output_tokens += u.output_tokens;
+      this.lastTokenUsage.total_tokens += u.total_tokens;
+    } else {
+      this.lastTokenUsage = u;
+    }
   }
 
   protected parseUsage(response: ChatCompletion): TokenUsage {

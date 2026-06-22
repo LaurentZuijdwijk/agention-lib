@@ -11,6 +11,8 @@ import type {
   ToolUseBlockParam,
   ToolResultBlockParam,
   ImageBlockParam,
+  ThinkingBlockParam,
+  RedactedThinkingBlockParam,
   ContentBlock,
 } from "@anthropic-ai/sdk/resources";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
@@ -23,9 +25,11 @@ import {
   text,
   toolUse,
   toolResult,
+  thinking,
   isTextContent,
   isToolUseContent,
   isToolResultContent,
+  isThinkingContent,
   isImageUrlContent,
   isImageBase64Content,
 } from "./types";
@@ -64,6 +68,19 @@ export const anthropicTransformer = {
               content: block.content,
               is_error: block.is_error,
             } as ToolResultBlockParam;
+          }
+          if (isThinkingContent(block)) {
+            if (block.redactedData !== undefined) {
+              return {
+                type: "redacted_thinking",
+                data: block.redactedData,
+              } as RedactedThinkingBlockParam;
+            }
+            return {
+              type: "thinking",
+              thinking: block.thinking,
+              signature: block.signature ?? "",
+            } as ThinkingBlockParam;
           }
           if (isImageUrlContent(block)) {
             return {
@@ -108,7 +125,13 @@ export const anthropicTransformer = {
           block.input as Record<string, unknown>
         );
       }
-      // Handle thinking blocks or other types as text
+      if (block.type === "thinking") {
+        return thinking(block.thinking, block.signature);
+      }
+      if (block.type === "redacted_thinking") {
+        return thinking("", undefined, block.data);
+      }
+      // Unknown / unsupported block — preserve a textual representation
       return text(JSON.stringify(block));
     });
 

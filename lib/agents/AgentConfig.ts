@@ -109,6 +109,16 @@ export interface ClaudeSpecificConfig {
    * implementation detail that can change.
    */
   authType?: "apiKey" | "oauth";
+  /**
+   * Enable extended thinking by setting a thinking token budget. When set (> 0), the
+   * agent requests `thinking: { type: "enabled", budget_tokens }` and surfaces thinking
+   * tokens as `"reasoning"` chunks from `executeStream()`.
+   *
+   * Constraints (enforced by Anthropic): `budget_tokens` must be ≥ 1024 and strictly less
+   * than `maxTokens`. When enabled, `temperature`/`topP`/`topK` are not sent (the API
+   * requires default sampling with thinking).
+   */
+  thinkingBudgetTokens?: number;
 }
 
 /**

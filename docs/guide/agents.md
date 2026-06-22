@@ -415,6 +415,121 @@ const usage = agent.lastTokenUsage;
 console.log(`Input: ${usage?.inputTokens}, Output: ${usage?.outputTokens}`);
 ```
 
+## Streaming
+
+`executeStream()` is available on `ClaudeAgent`, `OpenAiAgent`, and any `OpenAICompatibleAgent` subclass (including `LlamaCppAgent`). It returns an `AsyncGenerator<StreamChunk>` — the same type across all providers:
+
+```typescript
+type StreamChunk = {
+  type: 'text' | 'reasoning';
+  content: string;
+};
+```
+
+`"text"` chunks are visible output tokens. `"reasoning"` chunks are internal thinking tokens produced by models that expose them (DeepSeek R1 via llama.cpp, Claude with extended thinking enabled, OpenAI o-series reasoning summaries).
+
+**Basic usage:**
+
+```typescript
+import { ClaudeAgent } from '@agentionai/agents/claude';
+
+const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+});
+
+for await (const chunk of agent.executeStream('Explain recursion')) {
+  if (chunk.type === 'text') process.stdout.write(chunk.content);
+}
+console.log('\nTokens:', agent.lastTokenUsage);
+```
+
+**Handling reasoning tokens separately:**
+
+```typescript
+for await (const chunk of agent.executeStream('What is 17 * 13?')) {
+  if (chunk.type === 'text') {
+    process.stdout.write(chunk.content);
+  } else {
+    process.stderr.write(`[thinking] ${chunk.content}`);
+  }
+}
+```
+
+**Enabling reasoning.** Reasoning chunks are only produced when the model is configured to emit them — otherwise you get `"text"` chunks only:
+
+```typescript
+// Claude — extended thinking. budgetTokens must be ≥ 1024 and < maxTokens.
+const claude = new ClaudeAgent({
+  id: 'assistant', name: 'Assistant', description: 'You think carefully.',
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  model: 'claude-sonnet-4-5',
+  maxTokens: 8192,
+  thinkingBudgetTokens: 4096,   // turns on thinking + `"reasoning"` chunks
+});
+
+// OpenAI — reasoning models (o-series / gpt-5). Requesting an effort also
+// requests a reasoning summary, which is what streams as `"reasoning"` chunks.
+const openai = new OpenAiAgent({
+  id: 'assistant', name: 'Assistant', description: 'You think carefully.',
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'o4-mini',
+  reasoningEffort: 'medium',
+});
+
+// llama.cpp / OpenAI-compatible — emitted automatically by models that return
+// `reasoning_content` (e.g. DeepSeek R1). No extra config required.
+```
+
+When Claude thinking is enabled, the thinking blocks (and their signatures) are preserved across tool-call round-trips automatically, as Anthropic requires. Note that with thinking on, `temperature`/`topP`/`topK` are not sent — the API mandates default sampling.
+
+**Tool calls are transparent** — the generator pauses to execute tools and then continues streaming the follow-up response. No special handling required:
+
+```typescript
+const agent = new OpenAiAgent({
+  apiKey: process.env.OPENAI_API_KEY,
+  id: 'weather',
+  name: 'Weather Assistant',
+  description: 'A helpful assistant.',
+  tools: [getWeatherTool],
+});
+
+// Tool calls happen mid-stream; the generator resumes automatically
+for await (const chunk of agent.executeStream('Weather in Amsterdam and Paris?')) {
+  if (chunk.type === 'text') process.stdout.write(chunk.content);
+}
+```
+
+**Events emitted during streaming:**
+
+| Event | When |
+|-------|------|
+| `AgentEvent.BEFORE_EXECUTE` | Before first API call |
+| `AgentEvent.CHUNK` | Each text delta |
+| `AgentEvent.REASONING_CHUNK` | Each reasoning delta |
+| `AgentEvent.TOOL_USE` | When tool calls are detected |
+| `AgentEvent.TOOL_ERROR` | When a tool fails |
+| `AgentEvent.DONE` | After the final response completes |
+| `AgentEvent.ERROR` | On any error |
+
+**Provider support:**
+
+| Agent | Streaming | Reasoning chunks |
+|-------|:---------:|:----------------:|
+| `ClaudeAgent` | ✅ | ✅ — set `thinkingBudgetTokens` |
+| `OpenAiAgent` | ✅ | ✅ — set `reasoningEffort` (reasoning models) |
+| `LlamaCppAgent` | ✅ | ✅ (DeepSeek R1 / `reasoning_content`) |
+| `OpenAICompatibleAgent` subclasses | ✅ | ✅ |
+| `OllamaAgent` | ❌ | — |
+| `MistralAgent` | ❌ | — |
+| `GeminiAgent` | ❌ | — |
+
+**`execute()` is unchanged** — streaming is purely additive, no breaking changes.
+
+**Full example:** `examples/streaming.ts`
+
 ## Multimodal / Vision
 
 All four providers accept images in a single `execute()` call. Instead of passing a string, pass a `MessageContent[]` array that mixes text and image blocks:

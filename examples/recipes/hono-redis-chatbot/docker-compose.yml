@@ -1,0 +1,32 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    # Reads ANTHROPIC_API_KEY (and anything else) from your local .env file.
+    env_file:
+      - .env
+    environment:
+      # Override REDIS_URL so it points at the `redis` service below, not
+      # localhost. This takes precedence over any REDIS_URL in .env.
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # Persist history to a named volume so sessions survive restarts.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:

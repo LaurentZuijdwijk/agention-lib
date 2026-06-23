@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agention Chat</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --user: #2563eb;
+        --bot: #232834;
+        --text: #e6e8ec;
+        --muted: #8a90a0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.5 system-ui, sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--panel);
+        border-bottom: 1px solid #000;
+      }
+      header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+      header .session { color: var(--muted); font-size: 12px; }
+      header button {
+        margin-left: auto;
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid #333;
+        border-radius: 6px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+      header button:hover { color: var(--text); border-color: #555; }
+      #log {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .msg {
+        max-width: 70ch;
+        padding: 10px 14px;
+        border-radius: 14px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .msg.user { align-self: flex-end; background: var(--user); }
+      .msg.bot { align-self: flex-start; background: var(--bot); }
+      .msg.thinking {
+        align-self: flex-start;
+        background: transparent;
+        color: var(--muted);
+        font-style: italic;
+        font-size: 13px;
+        padding: 2px 14px;
+      }
+      form {
+        display: flex;
+        gap: 8px;
+        padding: 12px 16px;
+        background: var(--panel);
+        border-top: 1px solid #000;
+      }
+      #input {
+        flex: 1;
+        resize: none;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font: inherit;
+      }
+      #send {
+        background: var(--user);
+        color: #fff;
+        border: 0;
+        border-radius: 8px;
+        padding: 0 18px;
+        font: inherit;
+        cursor: pointer;
+      }
+      #send:disabled { opacity: 0.5; cursor: default; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Agention Chat</h1>
+      <span class="session" id="session"></span>
+      <button id="reset" title="Clear this conversation">Reset</button>
+    </header>
+
+    <div id="log"></div>
+
+    <form id="form">
+      <textarea
+        id="input"
+        rows="1"
+        placeholder="Ask something… (try: weather in Lisbon)"
+        autofocus
+      ></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+
+    <script>
+      // Stable per-browser session id → maps to a Redis key on the server.
+      const sessionId =
+        localStorage.getItem("chat-session") ||
+        (crypto.randomUUID
+          ? crypto.randomUUID()
+          : String(Date.now()) + Math.random().toString(16).slice(2));
+      localStorage.setItem("chat-session", sessionId);
+
+      const log = document.getElementById("log");
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+      const sendBtn = document.getElementById("send");
+      document.getElementById("session").textContent = "session: " + sessionId;
+
+      function addMessage(role, text = "") {
+        const el = document.createElement("div");
+        el.className = "msg " + role;
+        el.textContent = text;
+        log.appendChild(el);
+        log.scrollTop = log.scrollHeight;
+        return el;
+      }
+
+      // Render any existing transcript stored in Redis for this session.
+      async function loadHistory() {
+        try {
+          const res = await fetch("/chat/" + sessionId);
+          const { entries } = await res.json();
+          for (const entry of entries || []) {
+            if (entry.role !== "user" && entry.role !== "assistant") continue;
+            const text = (entry.content || [])
+              .filter((b) => b.type === "text")
+              .map((b) => b.text)
+              .join("");
+            if (text.trim()) addMessage(entry.role === "user" ? "user" : "bot", text);
+          }
+        } catch (_) {
+          /* fresh session — nothing to load */
+        }
+      }
+
+      // POST the message and consume the Server-Sent Events stream via fetch.
+      // (Native EventSource only supports GET, so we parse SSE frames by hand.)
+      async function send(message) {
+        addMessage("user", message);
+        let thinkingEl = null;
+        const botEl = addMessage("bot", "");
+        botEl.textContent = "…";
+        let answer = "";
+
+        const res = await fetch("/chat/" + sessionId + "/stream", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // SSE frames are separated by a blank line.
+          const frames = buffer.split("\n\n");
+          buffer = frames.pop() ?? "";
+
+          for (const frame of frames) {
+            let event = "message";
+            const dataLines = [];
+            for (const line of frame.split("\n")) {
+              if (line.startsWith("event:")) event = line.slice(6).trim();
+              else if (line.startsWith("data:")) dataLines.push(line.slice(5));
+            }
+            // Multiple data: lines are rejoined with newlines (SSE spec).
+            const data = dataLines.join("\n").replace(/^ /, "");
+
+            if (event === "reasoning") {
+              if (!thinkingEl) thinkingEl = addMessage("thinking", "💭 ");
+              thinkingEl.textContent += data;
+            } else if (event === "done") {
+              /* stream finished */
+            } else {
+              answer += data;
+              botEl.textContent = answer;
+            }
+            log.scrollTop = log.scrollHeight;
+          }
+        }
+        if (!answer) botEl.textContent = "(no response)";
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = "";
+        sendBtn.disabled = true;
+        try {
+          await send(message);
+        } catch (err) {
+          addMessage("bot", "⚠️ " + (err?.message || err));
+        } finally {
+          sendBtn.disabled = false;
+          input.focus();
+        }
+      });
+
+      // Enter sends, Shift+Enter inserts a newline.
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          form.requestSubmit();
+        }
+      });
+
+      document.getElementById("reset").addEventListener("click", async () => {
+        await fetch("/chat/" + sessionId, { method: "DELETE" });
+        log.innerHTML = "";
+        input.focus();
+      });
+
+      loadHistory();
+    </script>
+  </body>
+</html>

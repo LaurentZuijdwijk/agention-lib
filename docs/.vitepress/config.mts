@@ -70,6 +70,7 @@ export default defineConfig({
         {
           text: "Resources",
           items: [
+            { text: "Recipes", link: "/guide/recipes" },
             { text: "Examples", link: "/guide/examples" },
             { text: "FAQ", link: "/guide/faq" },
           ],

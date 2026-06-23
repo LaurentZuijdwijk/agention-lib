@@ -2,6 +2,8 @@
 
 Real-world examples demonstrating Agention's capabilities. All examples are available in the `examples/` directory of the repository.
 
+> Looking for complete, copy-pasteable starter projects (a Hono chatbot, a terminal research agent)? See the [Recipes](/guide/recipes) page.
+
 ## Weather Assistant
 
 A simple agent with tools that fetches weather data for any location.

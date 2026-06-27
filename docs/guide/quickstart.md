@@ -31,12 +31,11 @@ Create `index.ts`:
 import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
   apiKey: process.env.ANTHROPIC_API_KEY,
   model: 'claude-sonnet-4-5',
-  id: "assistant",
-  name: "Assistant",
-  description: "You are a helpful assistant.",
-  tools: [],
 });
 
 async function main() {
@@ -57,9 +56,16 @@ ANTHROPIC_API_KEY=your-key npx ts-node index.ts
 
 Tools let agents perform actions. Let's add a weather tool:
 
+First, install the Gemini SDK:
+
+```bash
+npm install @google/generative-ai
+```
+
+Then create your agent with a tool:
+
 ```typescript
-import { GeminiAgent } from '@agentionai/agents/gemini';
-import { Tool } from '@agentionai/agents/core';
+import { GeminiAgent, Tool } from '@agentionai/agents/gemini';
 
 // Define a weather tool
 const weatherTool = new Tool({
@@ -86,10 +92,11 @@ const weatherTool = new Tool({
 });
 
 const agent = new GeminiAgent({
+  id: 'weather-agent',
+  name: 'Weather Agent',
+  description: 'You are a weather assistant. Use the weather tool to answer questions.',
   apiKey: process.env.GEMINI_API_KEY,
   model: 'gemini-flash-lite-latest',
-  name: "Weather agent",
-  description: 'You are a weather assistant. Use the weather tool to answer questions',
   tools: [weatherTool],
 });
 
@@ -107,24 +114,30 @@ The agent will automatically use the tool when needed.
 
 Use pipelines to create multi-step workflows:
 
+Install the OpenAI SDK:
+
+```bash
+npm install openai
+```
+
 ```typescript
 import { ClaudeAgent } from '@agentionai/agents/claude';
 import { OpenAiAgent } from '@agentionai/agents/openai';
 import { Pipeline } from '@agentionai/agents/core';
 
 const researcher = new OpenAiAgent({
-  apiKey: process.env.OPENAI_API_KEY,
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the given topic and provide key facts.',
+  apiKey: process.env.OPENAI_API_KEY!,
   model: 'gpt-4o',
 });
 
 const writer = new ClaudeAgent({
-  apiKey: process.env.ANTHROPIC_API_KEY,
   id: 'writer',
   name: 'Writer',
   description: 'Write a short blog post based on the research provided.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 });
 
@@ -140,6 +153,7 @@ main();
 
 ## Next Steps
 
+- [Context Management](/guide/context-management) - Keep the context window lean automatically
 - [Agents](/guide/agents) - Configure agents for different providers
 - [Tools](/guide/tools) - Build more complex tools
 - [Graph Pipelines](/guide/graph-pipelines) - Advanced workflow patterns

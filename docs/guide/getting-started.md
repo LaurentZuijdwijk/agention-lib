@@ -31,10 +31,11 @@ Agention is for developers who:
 
 ## Key Features
 
+- **Composable Context Management** - Mask stale tool results at read time (lossless, free) and compress old turns with rolling summarization
 - **Multi-Provider Agents** - Built-in support for Claude, OpenAI, Gemini, Mistral, and local models via Ollama and llama.cpp
-- **Tool System** - Define tools with JSON Schema, agents use them automatically
+- **Tool System** - Define tools with JSON Schema; wrap any agent as a tool for delegation
 - **Graph Pipelines** - Orchestrate complex workflows with sequential, parallel, and voting patterns
-- **Conversation History** - Provider-agnostic history management
+- **Conversation History** - Provider-agnostic history management with plugins
 - **Metrics & Observability** - Track tokens, timing, and pipeline execution
 - **Evaluation** - Score agents and pipelines against datasets with `@agentionai/eval`
 
@@ -84,14 +85,13 @@ export MISTRAL_API_KEY=your-key-here
 ## Your First Agent
 
 ```typescript
-// Import only Claude - no other agent SDKs required!
 import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
-  apiKey: process.env.ANTHROPIC_API_KEY,  // Required: Your API key
   id: 'assistant',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 });
 
@@ -135,6 +135,7 @@ import { OpenAiAgent } from '@agentionai/agents/openai';
 ## Next Steps
 
 - [Quickstart](/guide/quickstart) - Build a working example in 5 minutes
+- [Context Management](/guide/context-management) - Keep the context window lean automatically
 - [Agents](/guide/agents) - Learn about agent configuration and providers
 - [Tools](/guide/tools) - Add capabilities to your agents
 - [Graph Pipelines](/guide/graph-pipelines) - Build multi-agent workflows

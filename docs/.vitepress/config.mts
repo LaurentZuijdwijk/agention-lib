@@ -44,10 +44,10 @@ export default defineConfig({
           items: [
             { text: "Agents", link: "/guide/agents" },
             { text: "Tools", link: "/guide/tools" },
+            { text: "Context Management", link: "/guide/context-management" },
+            { text: "History Management", link: "/guide/history" },
             { text: "Multimodal / Vision", link: "/guide/multimodal" },
             { text: "MCP", link: "/guide/mcp" },
-            { text: "History Management", link: "/guide/history" },
-            { text: "Context Management", link: "/guide/context-management" },
             { text: "Graph Pipelines", link: "/guide/graph-pipelines" },
           ],
         },

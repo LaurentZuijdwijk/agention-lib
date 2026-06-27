@@ -6,7 +6,7 @@
 
 A comprehensive TypeScript toolkit for building LLM-powered agents with RAG, and multi-agent workflows. No hidden state machines, no forced abstractions—just typed agents, composable graphs, and complete control in a complete toolkit.
 
-**[Documentation](https://docs.agention.ai/)** • **[Examples](https://docs.agention.ai/guide/examples)** • **[GitHub](https://github.com/laurentzuijdwijk/agention-lib)**
+**[Documentation](https://docs.agention.ai/)** • **[Examples](https://docs.agention.ai/guide/examples)** • **[GitHub](https://github.com/laurentzuijdwijk/agention-lib)** • **[npm](https://www.npmjs.com/package/@agentionai/agents)**
 
 ## Quick Start
 
@@ -42,10 +42,11 @@ export ANTHROPIC_API_KEY=your-key-here
 import { ClaudeAgent } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
-  apiKey: process.env.ANTHROPIC_API_KEY,  // Or pass directly (not recommended for production)
-  model: 'claude-sonnet-4-5',
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  id: 'assistant',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
+  model: 'claude-sonnet-4-5',
 });
 
 const response = await agent.execute('What can you help me with?');
@@ -75,6 +76,7 @@ import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 ## Features
 
 - **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral, plus local models via Ollama and llama.cpp—same interface. Switch models with one line.
+- **Composable Context Management** - Tool result masking (lossless, free) + rolling summarization (auto-firing) + sub-agent delegation (token isolation by architecture).
 - **Streaming** - `executeStream()` on Claude, OpenAI, and all OpenAI-compatible agents. Yields `{ type: "text" | "reasoning" }` chunks; tool calls handled transparently.
 - **Built-In Tools** - Use provider-defined server-side tools (e.g. Anthropic's web search, bash, text editor) alongside your own.
 - **Composable, Not Magical** - Agents are objects. Pipelines are arrays. No hidden state, no surprises.
@@ -111,14 +113,49 @@ const weatherTool = new Tool({
 
 const agent = new GeminiAgent({
   apiKey: process.env.GEMINI_API_KEY,
-  model: 'gemini-flash-lite-latest',
+  id: 'weather-agent',
   name: 'Weather Agent',
   description: 'You are a weather assistant.',
+  model: 'gemini-flash-lite-latest',
   tools: [weatherTool],
 });
 
 const response = await agent.execute("What's the weather in Paris?");
 ```
+
+### Context Management
+
+Every agent conversation grows — tool results pile up, turns accumulate, tokens compound. Agention's history plugins keep the context window lean automatically, without manual bookkeeping.
+
+```typescript
+import { toolResultMaskingPlugin, compressionPlugin } from '@agentionai/agents/history/plugins';
+import { History } from '@agentionai/agents/history';
+
+// Mask old tool results at read time — sync, free, lossless
+const maskingPlugin = toolResultMaskingPlugin({ keepRecentResults: 2 });
+
+// Compress old turns into a rolling summary — auto-fires past a token budget
+const history = new History([], { maxTokens: 50000 })
+  .use(maskingPlugin)
+  .use(compressionPlugin(summaryAgent, { autoReduceWhen: { maxTokens: 8000 } }));
+
+const agent = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'Research topics thoroughly.',
+  model: 'claude-sonnet-4-6',
+  tools: [searchTool, maskingPlugin.retrieveTool],
+}, history);
+```
+
+| Strategy | Cost | Data loss | Trigger |
+|---|---|---|---|
+| `toolResultMaskingPlugin` | Zero — sync, no LLM calls | None — full content always retrievable | Every `getEntries()` call |
+| `compressionPlugin` | LLM tokens (use a cheap model) | Yes — detail traded for brevity | `autoReduceWhen` threshold or manual `history.reduce()` |
+| `Tool.fromAgent()` | None — structural choice | None in main context (sub-agent history is independent) | Automatic — just wrap an agent as a tool |
+
+[Context Management guide →](https://docs.agention.ai/guide/context-management) · [History API →](https://docs.agention.ai/guide/history)
 
 ### Local Models (Ollama / llama.cpp / OpenAI-compatible servers)
 
@@ -172,8 +209,7 @@ class VLLMAgent extends OpenAICompatibleAgent {
 Use a provider's own server-side tools (executed by the provider, not locally) alongside your custom tools:
 
 ```typescript
-import { ClaudeAgent } from '@agentionai/agents/claude';
-import { webSearchTool } from '@agentionai/agents/claude';
+import { ClaudeAgent, webSearchTool } from '@agentionai/agents/claude';
 
 const agent = new ClaudeAgent({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -280,9 +316,10 @@ import * as fs from 'fs';
 
 const agent = new ClaudeAgent({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  model: 'claude-opus-4-6',
+  id: 'vision-agent',
   name: 'VisionAgent',
   description: 'You analyze images.',
+  model: 'claude-opus-4-6',
 });
 
 // Remote image by URL
@@ -318,15 +355,15 @@ JSON Schema + handler pattern. Unique capability: wrap any agent as a tool for d
 
 [Learn more →](https://docs.agention.ai/guide/tools)
 
+### Context Management
+Tool result masking (lossless, free) + rolling summarization (auto-firing) + sub-agent delegation (token isolation by architecture). Composable plugins keep the context window lean automatically.
+
+[Learn more →](https://docs.agention.ai/guide/context-management) · [History API →](https://docs.agention.ai/guide/history)
+
 ### Multimodal / Vision
 Unified `MessageContent[]` interface for images across all providers. URL and base64 images, mix text and images freely in a single call.
 
 [Learn more →](https://docs.agention.ai/guide/multimodal)
-
-### History
-Provider-agnostic, persistent (Redis, file, custom), shareable across agents of different providers.
-
-[Learn more →](https://docs.agention.ai/guide/history)
 
 ### Graph Pipelines
 Compose sequential, parallel, voting, routing, and nested graphs. Mix models and providers freely.
@@ -346,10 +383,11 @@ Per-call and per-node token counts, duration metrics, full execution visibility.
 ## Documentation
 
 - **[Getting Started](https://docs.agention.ai/guide/getting-started)** - Installation and first agent
-- **[Quick Start](https://docs.agention.ai/guide/quickstart)** - Build a weather assistant in 5 minutes
+- **[Context Management](https://docs.agention.ai/guide/context-management)** - Token budgets, masking, and compression
 - **[Agents](https://docs.agention.ai/guide/agents)** - Agent configuration and providers
 - **[Tools](https://docs.agention.ai/guide/tools)** - Adding capabilities and agent delegation
 - **[Multimodal / Vision](https://docs.agention.ai/guide/multimodal)** - Sending images across all providers
+- **[History](https://docs.agention.ai/guide/history)** - Conversation persistence and plugins
 - **[Graph Pipelines](https://docs.agention.ai/guide/graph-pipelines)** - Multi-agent workflows
 - **[Vector Stores](https://docs.agention.ai/guide/vector-stores)** - RAG and semantic search
 - **[Examples](https://docs.agention.ai/guide/examples)** - Real-world implementations

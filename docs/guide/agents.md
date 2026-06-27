@@ -57,6 +57,7 @@ const agent = new ClaudeAgent({
   id: 'assistant',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 });
 
@@ -71,6 +72,7 @@ const agent = new ClaudeAgent({
   id: 'my-agent',                // Unique identifier
   name: 'My Agent',              // Display name for logging/metrics
   description: 'You are...',     // Sets agent behavior (becomes system prompt)
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 
   // Optional
@@ -135,6 +137,7 @@ const agent = new ClaudeAgent({
   id: 'assistant',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 }, history);
 
@@ -181,6 +184,7 @@ const claude = new ClaudeAgent({
   id: 'claude',
   name: 'Claude',
   description: 'You are a helpful assistant.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 });
 
@@ -188,6 +192,7 @@ const openai = new OpenAiAgent({
   id: 'openai',
   name: 'OpenAI',
   description: 'You are a helpful assistant.',
+  apiKey: process.env.OPENAI_API_KEY!,
   model: 'gpt-4o',
 });
 
@@ -195,6 +200,7 @@ const mistral = new MistralAgent({
   id: 'mistral',
   name: 'Mistral',
   description: 'You are a helpful assistant.',
+  apiKey: process.env.MISTRAL_API_KEY!,
   model: 'mistral-large-latest',
 });
 
@@ -381,6 +387,7 @@ const agent = new VLLMAgent({
   id: 'vllm',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
+  apiKey: '',  // Local server — no API key needed
 });
 
 const response = await agent.execute('What is 2 + 2?');
@@ -412,7 +419,7 @@ Track token usage for cost monitoring:
 await agent.execute('Tell me a story');
 
 const usage = agent.lastTokenUsage;
-console.log(`Input: ${usage?.inputTokens}, Output: ${usage?.outputTokens}`);
+console.log(`Input: ${usage?.input_tokens}, Output: ${usage?.output_tokens}`);
 ```
 
 ## Streaming
@@ -542,6 +549,7 @@ const agent = new ClaudeAgent({
   id: 'vision',
   name: 'VisionAgent',
   description: 'You analyze images.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-opus-4-6',
 });
 
@@ -592,6 +600,7 @@ const reasoner = new ClaudeAgent({
   name: 'Analytical Reasoner',
   description: `You are an analytical reasoning specialist. Break down complex 
 questions into parts, identify assumptions, and evaluate different approaches.`,
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-haiku-4-5', // Fast, efficient model for analysis
   maxTokens: 2048,
 });
@@ -607,6 +616,7 @@ const mainAgent = new ClaudeAgent({
   id: 'coordinator',
   name: 'Coordinator',
   description: 'You coordinate analysis and provide clear answers.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
   tools: [reasoningTool],
 });
@@ -676,10 +686,10 @@ agent.on(AgentEvent.ERROR, (error) => {
 The `BEFORE_EXECUTE` event payload includes a `preventDefault()` method (via `AgentEvent`) that you can call to cancel the execution:
 
 ```typescript
-agent.on(AgentEvent.BEFORE_EXECUTE, (event) => {
-  if (shouldBlock(event)) {
-    event.preventDefault(); // Throws instead of calling the LLM
-  }
+agent.on(AgentEvent.BEFORE_EXECUTE, (input) => {
+  console.log('About to execute with input:', input);
+  // Note: BEFORE_EXECUTE emits the raw input, not an AgentEvent instance.
+  // To cancel execution, throw an error from a wrapper or use a guard before calling execute().
 });
 ```
 
@@ -709,9 +719,9 @@ All agents implement the `GraphNode` interface, making them compatible with pipe
 
 ```typescript
 interface GraphNode<TInput, TOutput> {
-  name: string;
-  nodeType: GraphNodeType;
-  execute(input: TInput): Promise<ExecutionResult<TOutput>>;
+  name?: string;
+  nodeType?: GraphNodeType;
+  execute(input: TInput): Promise<TOutput>;
 }
 ```
 

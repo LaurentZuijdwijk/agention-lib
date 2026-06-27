@@ -56,6 +56,7 @@ const weatherTool = new Tool({
 const weatherAgent = new MistralAgent({
   name: 'Weather Agent',
   description: 'Get weather for a location. Use geocoding first, then weather.',
+  apiKey: process.env.MISTRAL_API_KEY!,
   tools: [geoCodingTool, weatherTool],
   model: 'mistral-large-latest',
 });
@@ -82,6 +83,7 @@ import { AgentGraph } from '@agentionai/agents/core';
 const researchAssistant = new OpenAiAgent({
   name: 'PubmedResearchAssistant',
   description: 'Search PubMed and summarize findings',
+  apiKey: process.env.OPENAI_API_KEY!,
   tools: [pubmedSearchTool, pubmedAbstractTool],
   model: 'gpt-4o-mini',
 });
@@ -90,6 +92,7 @@ const researchAssistant = new OpenAiAgent({
 const planningAgent = new ClaudeAgent({
   name: 'Research Planner',
   description: 'Create a research plan for the given topic',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
 });
 
@@ -97,6 +100,7 @@ const planningAgent = new ClaudeAgent({
 const mainResearcher = new ClaudeAgent({
   name: 'Medical Researcher',
   description: 'Conduct deep research using the assistant',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   agents: [researchAssistant],  // Assistant available as a tool
   model: 'claude-sonnet-4-20250514',
 });
@@ -130,24 +134,28 @@ import { AgentGraph } from '@agentionai/agents/core';
 const uppercaseAgent = new ClaudeAgent({
   name: 'Uppercase',
   description: 'Convert input to uppercase',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   maxTokens: 100,
 });
 
 const excitedAgent = new ClaudeAgent({
   name: 'Excited',
   description: 'Add excitement with exclamation marks',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   maxTokens: 100,
 });
 
 const calmAgent = new ClaudeAgent({
   name: 'Calm',
   description: 'Make text calmer and relaxed',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   maxTokens: 100,
 });
 
 const judgeAgent = new ClaudeAgent({
   name: 'Judge',
   description: 'Pick the better version',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   maxTokens: 20,
 });
 
@@ -157,7 +165,7 @@ await sequential.execute('hello world');
 // "hello world" → "HELLO WORLD" → "HELLO WORLD!!!"
 
 // Parallel: get multiple perspectives
-const parallel = AgentGraph.parallel(excitedAgent, calmAgent);
+const parallel = AgentGraph.parallel({}, excitedAgent, calmAgent);
 const [excited, calm] = await parallel.execute('The sun is shining');
 
 // Map: process array items
@@ -174,7 +182,7 @@ await voting.execute({
 
 // Pipeline: combine everything
 const pipeline = AgentGraph.pipeline(
-  AgentGraph.parallel(excitedAgent, calmAgent),
+  AgentGraph.parallel({}, excitedAgent, calmAgent),
   // Transform for voting
   { execute: async (results) => ({ originalInput: 'Pick best', solutions: results }) },
   voting

@@ -14,6 +14,7 @@ const researcher = new ClaudeAgent({
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the topic and list key facts.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 });
 
@@ -21,6 +22,7 @@ const writer = new ClaudeAgent({
   id: 'writer',
   name: 'Writer',
   description: 'Write a blog post from the research provided.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 });
 
@@ -59,6 +61,7 @@ const summarizer = new ClaudeAgent({
   id: 'summarizer',
   name: 'Summarizer',
   description: 'Summarize this article in 2 sentences.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-5',
 });
 
@@ -109,6 +112,7 @@ const planningAgent = new ClaudeAgent({
   id: 'planner',
   name: 'Planning Agent',
   description: 'Create a detailed execution plan with clear steps.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createPlanningTools(planStore),
 });
@@ -118,6 +122,7 @@ const workerAgent = new ClaudeAgent({
   id: 'worker',
   name: 'Worker Agent',
   description: 'Execute a single step and store results in context.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createContextTools(contextStore),
 });
@@ -155,6 +160,7 @@ const planner = AgentGraph.planExecutor(planStore, planningAgent, workerAgent, {
 });
 
 const summarizer = new ClaudeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   description: 'Create a summary from the plan results.',
   model: 'claude-sonnet-4-20250514',
 });
@@ -179,6 +185,7 @@ const researcher = new ClaudeAgent({
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the topic and store findings in context.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createContextTools(contextStore),
 });
@@ -187,6 +194,7 @@ const summarizer = new ClaudeAgent({
   id: 'summarizer',
   name: 'Summarizer',
   description: 'Get findings from context and create a summary.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createContextTools(contextStore),
 });
@@ -216,6 +224,7 @@ const agent = new ClaudeAgent({
   id: 'planner',
   name: 'Planning Agent',
   description: 'Create a plan, then work through each step.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createPlanningTools(planStore),
 });
@@ -242,6 +251,7 @@ const planStore = AgentGraph.createPlanStore();
 const planner = new ClaudeAgent({
   id: 'planner',
   description: 'Create a research plan.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createPlanningTools(planStore),
 });
@@ -249,6 +259,7 @@ const planner = new ClaudeAgent({
 const researcher = new ClaudeAgent({
   id: 'researcher',
   description: 'Execute research steps and store findings in context.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: AgentGraph.createContextTools(contextStore),
 });
@@ -277,6 +288,7 @@ const researcher = new OpenAiAgent({
   id: 'researcher',
   name: 'Researcher',
   description: 'Research the topic thoroughly using available tools.',
+  apiKey: process.env.OPENAI_API_KEY!,
   model: 'gpt-4o',
   tools: [webSearchTool, pubmedSearchTool, arxivSearchTool],
 });
@@ -286,6 +298,7 @@ const analyst = new ClaudeAgent({
   id: 'analyst',
   name: 'Analyst',
   description: 'Analyze the research and extract insights.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
   tools: [calculatorTool, chartGeneratorTool],
 });
@@ -295,6 +308,7 @@ const writer = new ClaudeAgent({
   id: 'writer',
   name: 'Writer',
   description: 'Write a compelling report based on the analysis.',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
   model: 'claude-sonnet-4-20250514',
 });
 

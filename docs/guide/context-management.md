@@ -24,6 +24,7 @@ Large tool results are only fresh for a turn or two. After that they waste token
 | Cost | Zero — sync, no LLM calls |
 | Data loss | None — full content always retrievable |
 | Trigger | Every `getEntries()` call, automatically |
+| Cache | Masking mutates the prompt content seen by the LLM, which **breaks prompt caching** on providers that support it (e.g. Anthropic). Each time a result is newly masked, the changed prefix prevents a cache hit on subsequent API calls. This is a trade-off: you save tokens but may lose caching savings on multi-turn conversations. |
 
 ### Rolling Summarization — async, costs tokens
 
@@ -55,6 +56,8 @@ Use cheaper, faster models for sub-agents doing bulk work. The main agent sees o
 
 ## Quick Setup
 
+A runnable version of the example below is at [`examples/history-compression-example.ts`](https://github.com/laurentzuijdwijk/agention-lib/blob/master/examples/history-compression-example.ts).
+
 ### Masking only
 
 Best for agents that call many tools with large results and whose conversation turns are short.
@@ -73,9 +76,17 @@ const maskingPlugin = toolResultMaskingPlugin({
 const history = new History([], { maxTokens: 20000 });
 history.use(maskingPlugin);
 
-const agent = new ClaudeAgent({
-  tools: [searchTool, calculatorTool, maskingPlugin.retrieveTool],
-}, history);
+const agent = new ClaudeAgent(
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+    tools: [searchTool, calculatorTool, maskingPlugin.retrieveTool],
+  },
+  history
+);
 ```
 
 ### Summarization only
@@ -101,7 +112,16 @@ const history = new History()
     autoReduceWhen: { maxTokens: 6000 }, // compress automatically when over budget
   }));
 
-const agent = new ClaudeAgent({ model: 'claude-sonnet-4-6' }, history);
+const agent = new ClaudeAgent(
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+  },
+  history
+);
 // Summarization fires automatically — no manual reduce() needed
 ```
 
@@ -120,12 +140,17 @@ const researchHistory = new History([], { maxTokens: 30000 })
   .use(compressionPlugin(haiku, { autoReduceWhen: { maxTokens: 5000 } }));
 
 // Cheap, fast model handles all the expensive bulk work
-const researchAgent = new ClaudeAgent({
-  id: 'researcher',
-  model: 'claude-haiku-4-5-20251001',
-  description: 'Research a topic thoroughly and return a concise summary.',
-  tools: [webSearchTool, fileReaderTool],
-}, researchHistory);
+const researchAgent = new ClaudeAgent(
+  {
+    id: 'researcher',
+    name: 'Researcher',
+    description: 'Research a topic thoroughly and return a concise summary.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-haiku-4-5-20251001',
+    tools: [webSearchTool, fileReaderTool],
+  },
+  researchHistory
+);
 
 // Wrap as a tool — main agent sees only the final summary string
 const researchTool = Tool.fromAgent(
@@ -134,12 +159,17 @@ const researchTool = Tool.fromAgent(
 );
 
 // Main agent stays lean: no search results, no intermediate turns
-const mainAgent = new ClaudeAgent({
-  id: 'coordinator',
-  model: 'claude-sonnet-4-6',
-  description: 'Coordinate research and produce final reports.',
-  tools: [researchTool],
-}, mainHistory);
+const mainAgent = new ClaudeAgent(
+  {
+    id: 'coordinator',
+    name: 'Coordinator',
+    description: 'Coordinate research and produce final reports.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+    tools: [researchTool],
+  },
+  mainHistory
+);
 ```
 
 When the main agent calls `researchTool`, the sub-agent may make 10 searches, read 5 files, and have a 20-turn internal dialogue — all of that stays in `researchHistory`, invisible to the main agent. The main agent receives only the sub-agent's final synthesized answer.
@@ -152,15 +182,22 @@ import { AgentGraph } from '@agentionai/agents/core';
 function makeResearcher(topic: string) {
   const history = new History()
     .use(toolResultMaskingPlugin({ keepRecentResults: 1 }));
-  return new ClaudeAgent({
-    id: `researcher-${topic}`,
-    model: 'claude-haiku-4-5-20251001',
-    tools: [webSearchTool],
-  }, history);
+  return new ClaudeAgent(
+    {
+      id: `researcher-${topic}`,
+      name: `Researcher ${topic}`,
+      description: 'Research a topic and return findings.',
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+      model: 'claude-haiku-4-5-20251001',
+      tools: [webSearchTool],
+    },
+    history
+  );
 }
 
 // Each parallel branch has its own isolated context
 const researchers = AgentGraph.parallel(
+  {},
   makeResearcher('quantum-computing'),
   makeResearcher('machine-learning'),
 );
@@ -182,9 +219,10 @@ const maskingPlugin = toolResultMaskingPlugin({
 
 const summaryAgent = new ClaudeAgent({
   id: 'summarizer',
-  model: 'claude-haiku-4-5-20251001',
+  name: 'Summarizer',
   description: 'Summarize conversation history concisely.',
   apiKey: process.env.ANTHROPIC_API_KEY!,
+  model: 'claude-haiku-4-5-20251001',
 });
 
 const history = new History([], { maxTokens: 50000 })
@@ -198,9 +236,17 @@ history.on('pluginError', (error, _plugin, hook) => {
   console.error(`[${hook}]`, error.message);
 });
 
-const agent = new ClaudeAgent({
-  tools: [searchTool, calculatorTool, maskingPlugin.retrieveTool],
-}, history);
+const agent = new ClaudeAgent(
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+    tools: [searchTool, calculatorTool, maskingPlugin.retrieveTool],
+  },
+  history
+);
 
 // Run the conversation — both strategies fire automatically
 await agent.execute('Research the latest developments in quantum computing.');

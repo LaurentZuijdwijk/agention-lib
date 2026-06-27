@@ -10,6 +10,8 @@ The history system normalizes conversation data into a shared format that can be
 - Persisted to various storage backends (memory, Redis, custom)
 - Extended with plugins for context management and token budgeting
 
+For the full context management guide — tool result masking, rolling summarization, and sub-agent delegation — see [Context Management](/guide/context-management). A runnable example is at [`examples/history-compression-example.ts`](https://github.com/laurentzuijdwijk/agention-lib/blob/master/examples/history-compression-example.ts).
+
 ## Basic Usage
 
 ### In-Memory History
@@ -42,12 +44,24 @@ const sharedHistory = new History();
 
 // Both agents use the same conversation history
 const claudeAgent = new ClaudeAgent(
-  { model: 'claude-sonnet-4-6' },
+  {
+    id: 'claude-agent',
+    name: 'Claude Agent',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+  },
   sharedHistory
 );
 
 const openAiAgent = new OpenAiAgent(
-  { model: 'gpt-4o' },
+  {
+    id: 'openai-agent',
+    name: 'OpenAI Agent',
+    description: 'A helpful assistant.',
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4o',
+  },
   sharedHistory
 );
 
@@ -215,7 +229,13 @@ await history.load('conversation:user123');
 
 // Use with agent
 const agent = new ClaudeAgent(
-  { model: 'claude-sonnet-4-6' },
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+  },
   history
 );
 
@@ -239,7 +259,16 @@ history.on('entry', async () => {
   await history.save(conversationKey);
 });
 
-const agent = new ClaudeAgent({ model: 'claude-sonnet-4-6' }, history);
+const agent = new ClaudeAgent(
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+  },
+  history
+);
 await agent.execute('Hello!'); // Automatically saved
 ```
 
@@ -315,7 +344,16 @@ class FileHistory extends History {
 const history = new FileHistory('./conversations');
 await history.load('user123');
 
-const agent = new ClaudeAgent({ model: 'claude-sonnet-4-6' }, history);
+const agent = new ClaudeAgent(
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+  },
+  history
+);
 await agent.execute('Hello!');
 
 await history.save('user123');
@@ -414,9 +452,17 @@ const maskingPlugin = toolResultMaskingPlugin({
 const history = new History().use(maskingPlugin);
 
 // Wire the retrieve tool so the agent can fetch masked results on demand
-const agent = new ClaudeAgent({
-  tools: [maskingPlugin.retrieveTool, ...otherTools],
-}, history);
+const agent = new ClaudeAgent(
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+    tools: [maskingPlugin.retrieveTool, ...otherTools],
+  },
+  history
+);
 ```
 
 When the agent needs an old result it calls `retrieve_tool_result(tool_call_id)` and gets the full content back from history storage.
@@ -438,6 +484,7 @@ The plugin's `transform` hook runs every time `history.getEntries()` is called. 
 - **Lossless** — stored entries are never mutated
 - **Free** — no LLM, no async, just a string replacement
 - **Transparent** — `history.getToolResult(id)` and `maskingPlugin.retrieveTool` always return the original content
+- **Cache-breaking** — masking mutates the prompt content the LLM sees. On providers with prompt caching (e.g. Anthropic), a newly-masked result changes the prefix and prevents a cache hit on the next API call. You trade token savings for potentially losing caching savings on multi-turn conversations.
 
 ```
 [turn 1] tool_use: web_search(query="...")
@@ -524,9 +571,17 @@ history.on('pluginError', (error, _plugin, hook) => {
   console.error(`[${hook}]`, error.message);
 });
 
-const agent = new ClaudeAgent({
-  tools: [maskingPlugin.retrieveTool, searchTool, calculatorTool],
-}, history);
+const agent = new ClaudeAgent(
+  {
+    id: 'assistant',
+    name: 'Assistant',
+    description: 'A helpful assistant.',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-sonnet-4-6',
+    tools: [maskingPlugin.retrieveTool, searchTool, calculatorTool],
+  },
+  history
+);
 
 // ... run your conversation — compression fires automatically ...
 

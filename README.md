@@ -418,6 +418,10 @@ Check out the [examples](https://github.com/laurentzuijdwijk/agention-lib/tree/m
 - RAG applications with vector search
 - Document ingestion and chunking
 
+## Built with Agention
+
+- **[Marshall](https://marshall.agention.ai/)** — a coding agent for open weights. Runs a planner/coder/reviewer loop entirely on local hardware via llama.cpp or Ollama, no API key, account, or cloud required — with approval-gated file writes and shell commands, and support for mixing local and paid models across roles.
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.

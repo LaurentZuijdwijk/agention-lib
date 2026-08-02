@@ -251,3 +251,7 @@ npm install openai             # For OpenAI/GPT
 - [Graph Pipelines](/guide/graph-pipelines) — Multi-agent workflows
 - [Vector Stores](/guide/vector-stores) — RAG and semantic search
 - [Examples](/guide/examples) — Real-world implementations
+
+## Built with Agention
+
+- **[Marshall](https://marshall.agention.ai/)** — a coding agent for open weights. Runs a planner/coder/reviewer loop entirely on local hardware via llama.cpp or Ollama, no API key, account, or cloud required — with approval-gated file writes and shell commands, and support for mixing local and paid models across roles.

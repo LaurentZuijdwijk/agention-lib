@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-06-23
+
+### Fixed
+- `OpenAICompatibleAgent.executeStream()` now recognises OpenRouter's `delta.reasoning`
+  field in addition to the DeepSeek/llama.cpp `delta.reasoning_content` spelling, so
+  reasoning models served through OpenRouter (e.g. via `LlamaCppAgent` pointed at the
+  OpenRouter endpoint) emit `AgentEvent.REASONING_CHUNK` events and yield
+  `{ type: "reasoning" }` chunks instead of silently dropping the chain-of-thought.
+  When both fields are present, `reasoning` takes precedence.
+
 ## [1.0.0] - 2026-06-22
 
 First stable release. The public API across agents, tools, history, and the graph

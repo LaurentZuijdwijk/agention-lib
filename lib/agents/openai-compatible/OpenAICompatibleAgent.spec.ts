@@ -524,6 +524,57 @@ describe("OpenAICompatibleAgent", () => {
       expect(spy).toHaveBeenCalledWith(AgentEvent.REASONING_CHUNK, "Let me think...");
     });
 
+    it("handles OpenRouter-style delta.reasoning chunks without leaking into text or history", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          { choices: [{ finish_reason: null, delta: { reasoning: "Thinking step." } }] },
+          { choices: [{ finish_reason: null, delta: { content: "Final answer." } }] },
+          { choices: [{ finish_reason: "stop", delta: {} }] },
+          { choices: [] },
+        ])
+      );
+
+      const spy = jest.spyOn(agent, "emit");
+      const chunks = await collectStream(agent.executeStream("Hi"));
+
+      expect(chunks).toEqual([
+        { type: "reasoning", content: "Thinking step." },
+        { type: "text", content: "Final answer." },
+      ]);
+      expect(spy).toHaveBeenCalledWith(AgentEvent.REASONING_CHUNK, "Thinking step.");
+
+      // Reasoning must not leak into text chunks
+      const textChunks = chunks.filter((c) => c.type === "text");
+      expect(textChunks).toEqual([{ type: "text", content: "Final answer." }]);
+      expect(spy).not.toHaveBeenCalledWith(AgentEvent.CHUNK, "Thinking step.");
+
+      // Reasoning must not leak into the assistant history entry
+      const entries = agent["history"].getEntries();
+      const assistantEntry = entries[entries.length - 1];
+      expect(assistantEntry.role).toBe("assistant");
+      expect(JSON.stringify(assistantEntry.content)).not.toContain("Thinking step.");
+      expect(JSON.stringify(assistantEntry.content)).toContain("Final answer.");
+    });
+
+    it("prefers delta.reasoning over delta.reasoning_content when both are present", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          {
+            choices: [{
+              finish_reason: null,
+              delta: { reasoning: "OpenRouter", reasoning_content: "DeepSeek" },
+            }],
+          },
+          { choices: [{ finish_reason: "stop", delta: {} }] },
+          { choices: [] },
+        ])
+      );
+
+      const chunks = await collectStream(agent.executeStream("Hi"));
+
+      expect(chunks).toEqual([{ type: "reasoning", content: "OpenRouter" }]);
+    });
+
     it("handles tool calls: executes tools and continues streaming", async () => {
       const toolCallStream = makeStream([
         {

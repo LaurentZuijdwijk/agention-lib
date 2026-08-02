@@ -24,7 +24,7 @@ import { vizConfig } from "../../viz/VizConfig";
 /**
  * A single chunk yielded by `executeStream()`.
  * - `"text"` — visible output token
- * - `"reasoning"` — internal reasoning token (DeepSeek-style `reasoning_content`)
+ * - `"reasoning"` — internal reasoning token (`reasoning` on OpenRouter, `reasoning_content` on DeepSeek/llama.cpp)
  */
 export type StreamChunk = {
   type: "text" | "reasoning";
@@ -519,8 +519,12 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
         yield { type: "text", content: delta.content };
       }
 
-      // DeepSeek-style reasoning tokens (not in OpenAI SDK types — cast required)
-      const reasoningDelta = (delta as Record<string, unknown>).reasoning_content as string | null | undefined;
+      // Reasoning tokens (not in OpenAI SDK types — cast required). Servers
+      // disagree on the field name: OpenRouter sends `delta.reasoning`, while
+      // DeepSeek/llama.cpp send `delta.reasoning_content`. Prefer `reasoning`;
+      // never concatenate — that would duplicate the text if both were sent.
+      const deltaExtras = delta as Record<string, unknown>;
+      const reasoningDelta = (deltaExtras.reasoning ?? deltaExtras.reasoning_content) as string | null | undefined;
       if (reasoningDelta) {
         this.emit(AgentEvent.REASONING_CHUNK, reasoningDelta);
         yield { type: "reasoning", content: reasoningDelta };

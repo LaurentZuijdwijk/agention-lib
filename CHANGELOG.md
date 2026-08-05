@@ -12,25 +12,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are optional; `fromStdio`/`fromUrl`/`connect`/`getTools`/`disconnect` are
   unchanged.
   - Cancellation and per-call timeouts via `callOptions`, `setCallOptions()`,
-    and the new public `callTool()`.
+    and the new public `callTool()`. Transport-level failures (timeouts,
+    aborts) now throw `MCPCallError` with the original error on `.cause`.
   - Tool-level failures (`isError: true`) now throw `MCPToolError` instead of
-    being returned as if they'd succeeded.
+    being returned as if they'd succeeded, unless `throwOnToolError: false`
+    is set, in which case the rendered error content is returned instead.
   - Non-text content (image, audio, resource blocks) is rendered instead of
-    silently dropped.
+    silently dropped, with a `formatResult` hook for hosts that want to
+    handle raw content blocks themselves (e.g. for multimodal messages).
   - Automatic reconnection with exponential backoff; `MCPClient` is now an
     `EventEmitter` (`connected`/`disconnected`/`reconnecting`/`reconnected`/
     `toolsChanged`/`error`) with `getState()`/`isConnected()`.
   - `tools/list_changed` notifications trigger an automatic refresh; `Tool`
     identity is preserved across refreshes for unchanged definitions.
   - `authProvider` is now structurally typed instead of `unknown`.
-- `reasoningEffort` on `OpenAiAgent` is now typed per model — e.g.
-  `reasoningEffort: "none"` is a compile error on `gpt-5-nano` (which takes
-  `minimal` instead). Values are drawn from a verified support table
-  (`OPENAI_REASONING_SUPPORT` in `lib/agents/model-types.ts`) covering the
-  o-series, gpt-5.x, and `-pro` model families; models outside the table fall
-  back to the full effort range so newer models are never blocked.
-- `OpenAIModel` refreshed to include the current `gpt-5.1`–`gpt-5.6` model
-  families (previously stopped at `o3-mini`).
+- `reasoningEffort` on `OpenAiAgent` widened from `"low" | "medium" | "high"`
+  to the full range OpenAI documents (`none`/`minimal`/`low`/`medium`/`high`/
+  `xhigh`/`max`), and is now typed per model — e.g. `reasoningEffort: "none"`
+  is a compile error on `gpt-5-nano` (which takes `minimal` instead). Values
+  are drawn from a verified support table (`OPENAI_REASONING_SUPPORT` in
+  `lib/agents/model-types.ts`) covering the o-series, gpt-5.x, and `-pro`
+  model families; models outside the table fall back to the full effort
+  range so newer models are never blocked.
+- `OpenAIModel` refreshed with the previously-missing `gpt-5.1` through
+  `gpt-5.6` families (incl. `-pro` variants and the `gpt-5.6-sol`/`-terra`/
+  `-luna` split), plus `o1-pro`, `o3`, `o4-mini`, `gpt-4.1-mini`, and
+  `gpt-4.1-nano`.
 
 ### Fixed
 - Reasoning produced by OpenAI-compatible models (llama.cpp, DeepSeek,

@@ -5,6 +5,47 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-05
+
+### Added
+- `MCPClient` hardened for long-lived, production use (`lib/mcp/`). All additions
+  are optional; `fromStdio`/`fromUrl`/`connect`/`getTools`/`disconnect` are
+  unchanged.
+  - Cancellation and per-call timeouts via `callOptions`, `setCallOptions()`,
+    and the new public `callTool()`.
+  - Tool-level failures (`isError: true`) now throw `MCPToolError` instead of
+    being returned as if they'd succeeded.
+  - Non-text content (image, audio, resource blocks) is rendered instead of
+    silently dropped.
+  - Automatic reconnection with exponential backoff; `MCPClient` is now an
+    `EventEmitter` (`connected`/`disconnected`/`reconnecting`/`reconnected`/
+    `toolsChanged`/`error`) with `getState()`/`isConnected()`.
+  - `tools/list_changed` notifications trigger an automatic refresh; `Tool`
+    identity is preserved across refreshes for unchanged definitions.
+  - `authProvider` is now structurally typed instead of `unknown`.
+- `reasoningEffort` on `OpenAiAgent` is now typed per model — e.g.
+  `reasoningEffort: "none"` is a compile error on `gpt-5-nano` (which takes
+  `minimal` instead). Values are drawn from a verified support table
+  (`OPENAI_REASONING_SUPPORT` in `lib/agents/model-types.ts`) covering the
+  o-series, gpt-5.x, and `-pro` model families; models outside the table fall
+  back to the full effort range so newer models are never blocked.
+- `OpenAIModel` refreshed to include the current `gpt-5.1`–`gpt-5.6` model
+  families (previously stopped at `o3-mini`).
+
+### Fixed
+- Reasoning produced by OpenAI-compatible models (llama.cpp, DeepSeek,
+  OpenRouter) is now preserved in history and replayed on the next request.
+  Previously it was streamed to the caller but dropped before the next API
+  call, which caused DeepSeek's thinking mode to reject multi-turn
+  tool-calling conversations with `400: The reasoning_content in the
+  thinking mode must be passed back to the API`.
+- `OpenAiAgent`'s `disableReasoning` flag did nothing in `execute()` — a
+  conditional spread was immediately overwritten by an unconditional
+  `reasoning` key on the next line. It also previously sent `reasoning: {
+  effort: null }`, which is not an "off" switch (the API treats `null` as
+  *unset* and falls back to the model's own default); it now resolves to the
+  lowest effort the configured model actually accepts.
+
 ## [1.0.2] - 2026-08-02
 
 ### Changed

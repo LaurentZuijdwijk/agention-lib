@@ -1,6 +1,7 @@
 import { Tool } from "../tools/Tool";
 import { BuiltInTool } from "../tools/BuiltInTool";
 import { BaseAgent } from "./BaseAgent";
+import type { ReasoningEffort } from "./model-types";
 
 /** Supported LLM vendors */
 export type AgentVendor =
@@ -122,12 +123,28 @@ export interface ClaudeSpecificConfig {
 }
 
 /**
+ * How much the model should think before answering, for OpenAI reasoning models.
+ *
+ * Which values a given model accepts is **model-dependent**; see
+ * {@link ReasoningEffortFor} for the per-model set and
+ * {@link OPENAI_REASONING_SUPPORT} for the verified matrix.
+ */
+export type { ReasoningEffort, ReasoningEffortFor } from "./model-types";
+
+/**
  * Vendor-specific configuration for OpenAI
  */
 export interface OpenAISpecificConfig {
   disableParallelToolUse?: boolean;
+  /**
+   * Ask for the least reasoning the configured model supports.
+   *
+   * Resolved per model family — there is no single "off" value. Has no effect on
+   * models that do not support `reasoning.effort` at all. Takes precedence over
+   * {@link OpenAISpecificConfig.reasoningEffort}.
+   */
   disableReasoning?: boolean;
-  reasoningEffort?: "low" | "medium" | "high";
+  reasoningEffort?: ReasoningEffort;
   seed?: number;
   user?: string;
 }

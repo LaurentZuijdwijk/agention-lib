@@ -85,7 +85,10 @@ type HistoryEntry = {
 type MessageContent =
   | TextContent
   | ToolUseContent
-  | ToolResultContent;
+  | ToolResultContent
+  | ThinkingContent
+  | ImageUrlContent      // see the Multimodal guide
+  | ImageBase64Content;
 ```
 
 ### Content Types
@@ -108,12 +111,28 @@ const toolResult = {
   tool_use_id: 'call_123',
   content: '22°C, sunny'
 };
+
+// Model reasoning — stored separately from the visible answer
+const thinkingContent = {
+  type: 'thinking',
+  thinking: 'The user wants Paris weather, so I should call get_weather.',
+  signature: 'Erd...'   // Anthropic only; must be replayed verbatim
+};
 ```
+
+**Thinking blocks are captured automatically** when a reasoning model produces them — Claude's extended thinking, and `reasoning` / `reasoning_content` on the OpenAI-compatible path. You rarely construct them yourself.
+
+They exist because several providers *require* the reasoning to be replayed on the next request once a tool call has happened: Anthropic validates the block signature, and DeepSeek's thinking mode returns `400 The reasoning_content in the thinking mode must be passed back to the API` without it. Keeping reasoning in the normalized history is what makes that round-trip work.
+
+Two consequences worth knowing:
+
+- **Thinking is dropped when serialising to a provider that can't accept it.** Only the Anthropic and OpenAI-compatible transformers emit it; the rest filter it out rather than erroring, so sharing one history across providers is safe but lossy.
+- **Thinking counts toward `maxTokens` trimming.** It is stored content, so a large thinking budget consumes history budget while being invisible in the agent's text output — worth accounting for when tuning `maxHistoryTokens`.
 
 ### Helper Functions
 
 ```typescript
-import { text, toolUse, toolResult, textMessage } from '@agentionai/agents/history';
+import { text, toolUse, toolResult, thinking, textMessage } from '@agentionai/agents/history';
 
 // Create content blocks
 history.addEntry({

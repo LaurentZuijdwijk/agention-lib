@@ -123,11 +123,10 @@ export type LlamaCppModel =
  * @see https://platform.openai.com/docs/models
  */
 export type OpenAIModel =
-  | "gpt-5.2"
-  | "gpt-5"
+  | OpenAIReasoningModel
   | "gpt-4.1"
-  | "gpt-5-mini"
-  | "gpt-5-nano"
+  | "gpt-4.1-mini"
+  | "gpt-4.1-nano"
   | "gpt-4o"
   | "gpt-4o-mini"
   | "gpt-4o-2024-11-20"
@@ -144,9 +143,99 @@ export type OpenAIModel =
   | "gpt-3.5-turbo"
   | "gpt-3.5-turbo-0125"
   | "gpt-3.5-turbo-1106"
-  | "o1"
   | "o1-preview"
   | "o1-mini"
-  | "o3-mini"
   // Allow custom strings for new models while preserving autocomplete
   | (string & {});
+
+// =============================================================================
+// OpenAI reasoning effort support
+// =============================================================================
+
+/**
+ * Every value the Responses API's `reasoning.effort` parameter defines.
+ *
+ * Which subset a given model accepts is model-dependent — see
+ * {@link OPENAI_REASONING_SUPPORT} and {@link ReasoningEffortFor}.
+ */
+export type ReasoningEffort =
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
+
+/**
+ * Which reasoning efforts each OpenAI model accepts.
+ *
+ * There is no universal set and no universal "off" value: the families reject
+ * each other's minimum (`none` is rejected before `gpt-5.1`, `minimal` is
+ * rejected from `gpt-5.1` on, o-series takes neither), and `pro` variants drop
+ * the lower end. `effort: null` is not an off switch either — it means *unset*,
+ * so the model applies its own default.
+ *
+ * Each group's `efforts` are ordered lowest-first, so `efforts[0]` is the least
+ * reasoning that family will do.
+ *
+ * Every row was verified against the live Responses API on 2026-08-05. Models not
+ * listed here — non-reasoning models, and families released after this table was
+ * written — accept no `reasoning.effort` guess, so callers fall back to the full
+ * {@link ReasoningEffort} union and the runtime helper omits the parameter.
+ */
+export const OPENAI_REASONING_SUPPORT = [
+  { models: ["gpt-5-pro"], efforts: ["high"] },
+  { models: ["gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro"], efforts: ["medium", "high", "xhigh"] },
+  { models: ["o1", "o1-pro", "o3", "o3-mini", "o4-mini"], efforts: ["low", "medium", "high"] },
+  { models: ["gpt-5", "gpt-5-mini", "gpt-5-nano"], efforts: ["minimal", "low", "medium", "high"] },
+  { models: ["gpt-5.1"], efforts: ["none", "low", "medium", "high"] },
+  {
+    models: ["gpt-5.2", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.5"],
+    efforts: ["none", "low", "medium", "high", "xhigh"],
+  },
+  {
+    models: ["gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
+    efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+  },
+] as const;
+
+type ReasoningGroup = (typeof OPENAI_REASONING_SUPPORT)[number];
+
+/** Every OpenAI model known to accept `reasoning.effort`. */
+export type OpenAIReasoningModel = ReasoningGroup["models"][number];
+
+/**
+ * Strip a dated snapshot suffix (`gpt-5-nano-2025-08-07` → `gpt-5-nano`) so
+ * pinned model ids resolve to the same support set as their alias. Snapshots
+ * always start `-20`, which keeps `gpt-5-mini` from looking like a snapshot of
+ * `gpt-5`.
+ */
+type BaseModel<M extends string> = M extends `${infer Base}-20${string}` ? Base : M;
+
+type EffortsOf<M extends string, G = ReasoningGroup> = G extends {
+  models: readonly (infer Models)[];
+  efforts: readonly (infer Efforts)[];
+}
+  ? BaseModel<M> extends Models
+    ? Efforts
+    : never
+  : never;
+
+/**
+ * The reasoning efforts a given model accepts.
+ *
+ * Resolves to the exact set for every model in {@link OPENAI_REASONING_SUPPORT},
+ * and to the full {@link ReasoningEffort} union for anything else — an unknown or
+ * newer model should not be blocked by a table that has gone stale.
+ *
+ * @example
+ * ```typescript
+ * type A = ReasoningEffortFor<"gpt-5-nano">;  // "minimal" | "low" | "medium" | "high"
+ * type B = ReasoningEffortFor<"gpt-5.6-sol">; // adds "none", "xhigh", "max"; no "minimal"
+ * type C = ReasoningEffortFor<"gpt-5-pro">;   // "high"
+ * ```
+ */
+export type ReasoningEffortFor<M extends string> = [EffortsOf<M>] extends [never]
+  ? ReasoningEffort
+  : EffortsOf<M>;

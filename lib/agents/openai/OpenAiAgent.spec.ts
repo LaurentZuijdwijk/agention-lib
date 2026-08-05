@@ -1,6 +1,7 @@
 // @ts-nocheck
 import OpenAI from "openai";
-import { OpenAiAgent } from "./OpenAiAgent";
+import { OpenAiAgent, lowestReasoningEffort } from "./OpenAiAgent";
+import { OPENAI_REASONING_SUPPORT } from "../model-types";
 import { AgentEvent } from "../AgentEvent";
 import {
   ApiError,
@@ -287,6 +288,234 @@ describe("OpenAiAgent", () => {
         output_tokens: 25,
         total_tokens: 40,
       });
+    });
+  });
+
+  // Each family rejects the others' minimum, so the mapping is the heart of the
+  // fix. Every row was verified against the live Responses API on 2026-08-05.
+  describe("lowestReasoningEffort", () => {
+    it.each([
+      ["o1", "low"],
+      ["o1-pro", "low"],
+      ["o3", "low"],
+      ["o3-mini", "low"],
+      ["o4-mini", "low"],
+      ["gpt-5", "minimal"],
+      ["gpt-5-mini", "minimal"],
+      ["gpt-5-nano", "minimal"],
+      // pro variants drop the low end rather than adding to it
+      ["gpt-5-pro", "high"],
+      ["gpt-5.2-pro", "medium"],
+      ["gpt-5.4-pro", "medium"],
+      ["gpt-5.5-pro", "medium"],
+      ["gpt-5.1", "none"],
+      ["gpt-5.2", "none"],
+      ["gpt-5.4", "none"],
+      ["gpt-5.4-mini", "none"],
+      ["gpt-5.4-nano", "none"],
+      ["gpt-5.5", "none"],
+      ["gpt-5.6", "none"],
+      ["gpt-5.6-sol", "none"],
+      ["gpt-5.6-terra", "none"],
+      ["gpt-5.6-luna", "none"],
+      // Dated snapshots resolve like their alias
+      ["gpt-5-nano-2025-08-07", "minimal"],
+      ["gpt-5.6-sol-2026-06-23", "none"],
+    ])("maps %s to %s", (model, expected) => {
+      expect(lowestReasoningEffort(model)).toBe(expected);
+    });
+
+    it.each([
+      ["gpt-4.1-mini"],
+      ["gpt-4o"],
+      // Chat variants carry a reasoning-model name but reject the parameter
+      ["gpt-5.2-chat-latest"],
+      // Codex variants are not reachable on the Responses API with this key, so
+      // their support set is unverified — omitting beats guessing
+      ["gpt-5-codex"],
+      ["gpt-5.1-codex-max"],
+      // Unknown/future families: omitting is safer than guessing a rejected value
+      ["gpt-6"],
+      [undefined],
+    ])("returns undefined for %s", (model) => {
+      expect(lowestReasoningEffort(model)).toBeUndefined();
+    });
+
+    it("keeps every group's efforts ordered lowest-first", () => {
+      const rank = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+      for (const { models, efforts } of OPENAI_REASONING_SUPPORT) {
+        const ranks = efforts.map((e) => rank.indexOf(e));
+        expect({ models, ranks }).toEqual({
+          models,
+          ranks: [...ranks].sort((a, b) => a - b),
+        });
+      }
+    });
+  });
+
+  describe("reasoning parameters", () => {
+    const textResponse = {
+      output: [{ type: "message", status: "completed", content: "ok" }],
+      output_text: "ok",
+      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    };
+
+    /** The `reasoning` field of the Nth call to responses.create (1-indexed). */
+    const reasoningOfCall = (n = 1) => {
+      const params = mockClient.responses.create.mock.calls[n - 1][0];
+      return "reasoning" in params ? params.reasoning : undefined;
+    };
+
+    const makeAgent = (config: object) =>
+      new OpenAiAgent({
+        apiKey: "test-api-key",
+        id: "1",
+        name: "TestAgent",
+        description: "Test Description",
+        ...config,
+      });
+
+    it("omits reasoning entirely when neither option is set", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await agent.execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty("reasoning");
+    });
+
+    // Regression: execute() used to spread the disable case and then overwrite it
+    // with an unconditional `reasoning` key on the next line, so disableReasoning
+    // silently did nothing on the very path its own error message recommends it for.
+    it("sends the model's lowest effort in execute() when disableReasoning is set", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await makeAgent({ disableReasoning: true, model: "gpt-5-nano" }).execute("hi");
+
+      expect(reasoningOfCall()).toEqual({ effort: "minimal" });
+    });
+
+    // effort: null means "unset", so the model applies its own default (medium on
+    // every family before gpt-5.1) — it never disabled anything.
+    it("never sends effort: null", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      for (const model of ["gpt-5-nano", "gpt-5.6-sol", "o4-mini", "gpt-4.1-mini"]) {
+        mockClient.responses.create.mockClear();
+        await makeAgent({ disableReasoning: true, model }).execute("hi");
+        expect(reasoningOfCall()?.effort ?? "omitted").not.toBeNull();
+      }
+    });
+
+    it("omits reasoning when disableReasoning is set on a non-reasoning model", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      // gpt-4.1-mini rejects `reasoning.effort` outright — sending one would 400
+      await makeAgent({ disableReasoning: true, model: "gpt-4.1-mini" }).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty("reasoning");
+    });
+
+    it("passes through the widened effort range", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await makeAgent({ reasoningEffort: "xhigh", model: "gpt-5.6-sol" }).execute("hi");
+
+      expect(reasoningOfCall()).toEqual({ effort: "xhigh" });
+    });
+
+    it("sends the configured effort in execute()", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await makeAgent({ reasoningEffort: "high" }).execute("hi");
+
+      expect(reasoningOfCall()).toEqual({ effort: "high" });
+    });
+
+    it("lets disableReasoning win over reasoningEffort", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await makeAgent({
+        disableReasoning: true,
+        reasoningEffort: "high",
+        model: "gpt-5.6-sol",
+      }).execute("hi");
+
+      expect(reasoningOfCall()).toEqual({ effort: "none" });
+    });
+
+    it("applies the same rules on the tool-continuation request", async () => {
+      const toolCallResponse = {
+        output: [
+          { type: "function_call", call_id: "call_1", name: "noop", arguments: "{}" },
+        ],
+        usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+      };
+
+      mockClient.responses.create
+        .mockResolvedValueOnce(toolCallResponse)
+        .mockResolvedValueOnce(textResponse);
+
+      const toolAgent = makeAgent({ disableReasoning: true, model: "gpt-5-nano" });
+      toolAgent["tools"].set("noop", {
+        execute: jest.fn().mockResolvedValue("done"),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "noop",
+          description: "noop",
+          input_schema: { type: "object", properties: {} },
+        }),
+      } as any);
+
+      await toolAgent.execute("hi");
+
+      expect(mockClient.responses.create).toHaveBeenCalledTimes(2);
+      expect(reasoningOfCall(2)).toEqual({ effort: "minimal" });
+    });
+
+    it("adds summary: auto only when streaming with an effort", async () => {
+      mockClient.responses.create.mockResolvedValue(
+        (async function* () {
+          yield { type: "response.output_text.delta", delta: "hi" };
+          yield {
+            type: "response.completed",
+            response: {
+              output: [],
+              output_text: "hi",
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            },
+          };
+        })()
+      );
+
+      const streamAgent = makeAgent({ reasoningEffort: "medium" });
+      for await (const _chunk of streamAgent.executeStream("hi")) {
+        /* drain */
+      }
+
+      expect(reasoningOfCall()).toEqual({ effort: "medium", summary: "auto" });
+    });
+
+    it("still requests a summary when streaming with reasoning disabled", async () => {
+      mockClient.responses.create.mockResolvedValue(
+        (async function* () {
+          yield { type: "response.output_text.delta", delta: "hi" };
+          yield {
+            type: "response.completed",
+            response: {
+              output: [],
+              output_text: "hi",
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            },
+          };
+        })()
+      );
+
+      const streamAgent = makeAgent({ disableReasoning: true, model: "gpt-5.6-sol" });
+      for await (const _chunk of streamAgent.executeStream("hi")) {
+        /* drain */
+      }
+
+      expect(reasoningOfCall()).toEqual({ effort: "none", summary: "auto" });
     });
   });
 

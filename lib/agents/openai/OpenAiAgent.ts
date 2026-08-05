@@ -20,20 +20,65 @@ import {
 } from "openai/resources/responses/responses";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
-import { OpenAIModel } from "../model-types";
+import type { Reasoning } from "openai/resources/shared";
+import {
+  OPENAI_REASONING_SUPPORT,
+  OpenAIModel,
+  ReasoningEffort,
+  ReasoningEffortFor,
+} from "../model-types";
 import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
 
-type AgentConfig = BaseAgentConfig & {
+type AgentConfig<M extends OpenAIModel = OpenAIModel> = BaseAgentConfig & {
   apiKey: string;
-  model?: OpenAIModel;
+  model?: M;
   maxTokens?: number;
   // Backward compatibility: vendor-specific at top level (deprecated)
   disableParallelToolUse?: boolean;
-  /** Disable extended thinking/reasoning for models that support it (like gpt-5-nano) */
+  /**
+   * Ask for the least reasoning the configured model supports (e.g. `minimal` on
+   * `gpt-5-nano`, `none` on `gpt-5.6`). Takes precedence over `reasoningEffort`.
+   * No effect on models without reasoning support.
+   */
   disableReasoning?: boolean;
-  reasoningEffort?: "low" | "medium" | "high";
+  /**
+   * How hard the model should think. Narrowed to the values the configured
+   * `model` actually accepts — `reasoningEffort: "none"` is a type error on
+   * `gpt-5-nano`, which takes `minimal` instead.
+   */
+  reasoningEffort?: ReasoningEffortFor<M>;
   user?: string;
 };
+
+/**
+ * Lowest `reasoning.effort` the given model accepts, used to resolve
+ * `disableReasoning`. Returns `undefined` when the model has no reasoning to turn
+ * off, in which case the caller omits `reasoning` entirely rather than risk a 400
+ * — non-reasoning models such as `gpt-4.1-mini` reject the parameter outright.
+ *
+ * There is no single "off" value, and `effort: null` is not one either: it means
+ * *unset*, so the model falls back to its own default (`medium` on every family
+ * released before `gpt-5.1`).
+ *
+ * Reads {@link OPENAI_REASONING_SUPPORT}, the same table {@link ReasoningEffortFor}
+ * is derived from, so the compile-time and runtime views cannot disagree. Models
+ * missing from it — including newer families — return `undefined`; set
+ * `reasoningEffort` explicitly to override.
+ */
+export function lowestReasoningEffort(
+  model: string | undefined
+): ReasoningEffort | undefined {
+  if (!model) return undefined;
+
+  // Snapshot ids (`gpt-5-nano-2025-08-07`) share their alias's support set.
+  const base = model.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
+
+  const group = OPENAI_REASONING_SUPPORT.find((entry) =>
+    (entry.models as readonly string[]).includes(base)
+  );
+
+  return group?.efforts[0];
+}
 
 /**
  * Agent for OpenAI models using the Responses API.
@@ -50,8 +95,14 @@ type AgentConfig = BaseAgentConfig & {
  * const response = await agent.execute("Hello!");
  * ```
  */
-export class OpenAiAgent extends BaseAgent {
+export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent {
   private client: OpenAI;
+  /**
+   * Resolved runtime config. Deliberately not narrowed by `M` — the constructor
+   * fills in defaults and merges `vendorConfig`, whose values are not
+   * model-scoped. Narrowing happens on the constructor's parameter, where the
+   * caller's model is known.
+   */
   protected config: Partial<AgentConfig>;
 
   /** Token usage from the last execution (for metrics tracking) */
@@ -63,7 +114,7 @@ export class OpenAiAgent extends BaseAgent {
   /** Count of tool calls in current execution */
   private currentToolCallCount: number = 0;
 
-  constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
+  constructor(config: Omit<AgentConfig<M>, "vendor">, history?: History) {
     super({ ...config, vendor: "openai" }, history);
 
     this.client = new OpenAI({
@@ -120,6 +171,39 @@ export class OpenAiAgent extends BaseAgent {
         strict: true,
       };
     });
+  }
+
+  /**
+   * Build the `reasoning` field for a Responses API request, as an object to
+   * spread into the request params.
+   *
+   * `disableReasoning` takes precedence over `reasoningEffort` and resolves to the
+   * lowest effort the configured model accepts (see {@link lowestReasoningEffort}).
+   * The field is omitted entirely when neither option applies — `reasoning: {}` is
+   * not the same as omitting it, and non-reasoning models reject the parameter.
+   *
+   * All three request sites go through here: they were copies of the same
+   * expression, and one drifted into overwriting the disable case with an
+   * unconditional `reasoning` key.
+   *
+   * @param summary Pass `"auto"` for streaming requests — the Responses API only
+   * emits `response.reasoning_summary_text.delta` events when it is set.
+   */
+  private buildReasoningParams(summary?: "auto"): { reasoning?: Reasoning } {
+    const effort = this.config.disableReasoning
+      ? lowestReasoningEffort(this.config.model)
+      : this.config.reasoningEffort;
+
+    if (!effort) return {};
+
+    return {
+      reasoning: {
+        // The Responses API accepts "max" (verified on gpt-5.6), but the installed
+        // SDK's ReasoningEffort union predates it — cast at this one boundary.
+        effort: effort as Reasoning["effort"],
+        ...(summary ? { summary } : {}),
+      },
+    };
   }
 
   protected async process(_input: string): Promise<string> {
@@ -179,8 +263,7 @@ export class OpenAiAgent extends BaseAgent {
         top_p: this.config.topP,
         // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
         user: this.config.user,
-        ...(this.config.disableReasoning && { reasoning: { effort: null } }),
-        reasoning: { effort: this.config.reasoningEffort },
+        ...this.buildReasoningParams(),
       });
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
@@ -380,13 +463,7 @@ export class OpenAiAgent extends BaseAgent {
             top_p: this.config.topP,
             // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
             user: this.config.user,
-            ...(this.config.disableReasoning && {
-              reasoning: { effort: null },
-            }),
-            ...(this.config.reasoningEffort &&
-              !this.config.disableReasoning && {
-                reasoning: { effort: this.config.reasoningEffort },
-              }),
+            ...this.buildReasoningParams(),
           });
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
@@ -639,12 +716,7 @@ export class OpenAiAgent extends BaseAgent {
       temperature: this.config.temperature,
       top_p: this.config.topP,
       user: this.config.user,
-      ...(this.config.disableReasoning && { reasoning: { effort: null } }),
-      ...(this.config.reasoningEffort && !this.config.disableReasoning && {
-        // `summary: "auto"` is required for the Responses API to stream
-        // `response.reasoning_summary_text.delta` events.
-        reasoning: { effort: this.config.reasoningEffort, summary: "auto" },
-      }),
+      ...this.buildReasoningParams("auto"),
     }) as AsyncIterable<ResponseStreamEvent>;
 
     let completedEvent: ResponseCompletedEvent | null = null;

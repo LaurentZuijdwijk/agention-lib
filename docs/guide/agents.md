@@ -477,20 +477,66 @@ const claude = new ClaudeAgent({
   thinkingBudgetTokens: 4096,   // turns on thinking + `"reasoning"` chunks
 });
 
-// OpenAI — reasoning models (o-series / gpt-5). Requesting an effort also
+// OpenAI — reasoning models (o-series / gpt-5.x). Requesting an effort also
 // requests a reasoning summary, which is what streams as `"reasoning"` chunks.
+// Accepted values depend on the model — see "Reasoning effort" below.
 const openai = new OpenAiAgent({
   id: 'assistant', name: 'Assistant', description: 'You think carefully.',
   apiKey: process.env.OPENAI_API_KEY,
-  model: 'o4-mini',
+  model: 'gpt-5.6-luna',
   reasoningEffort: 'medium',
 });
 
 // llama.cpp / OpenAI-compatible — emitted automatically by models that return
-// `reasoning_content` (e.g. DeepSeek R1). No extra config required.
+// `reasoning` (OpenRouter) or `reasoning_content` (DeepSeek, llama.cpp).
+// No extra config required.
 ```
 
-When Claude thinking is enabled, the thinking blocks (and their signatures) are preserved across tool-call round-trips automatically, as Anthropic requires. Note that with thinking on, `temperature`/`topP`/`topK` are not sent — the API mandates default sampling.
+**Reasoning is preserved across tool calls.** Providers that require the assistant turn's reasoning to be replayed on the next request get it automatically — Claude's thinking blocks (with their signatures), and `reasoning_content` on the OpenAI-compatible path. The latter matters for DeepSeek's thinking mode, which rejects a multi-turn tool-calling conversation whose reasoning was dropped:
+
+```
+400 The reasoning_content in the thinking mode must be passed back to the API
+```
+
+Nothing to configure. The field is only sent when the model actually produced reasoning, so non-reasoning models are unaffected.
+
+Note that with Claude thinking on, `temperature`/`topP`/`topK` are not sent — the API mandates default sampling.
+
+#### Reasoning effort (OpenAI)
+
+`reasoningEffort` is typed against the model you configured, because **which values a model accepts is model-dependent** — the families reject each other's minimum:
+
+```typescript
+new OpenAiAgent({ ...base, model: 'gpt-5-nano',  reasoningEffort: 'minimal' }); // ✅
+new OpenAiAgent({ ...base, model: 'gpt-5-nano',  reasoningEffort: 'none' });    // ❌ compile error
+new OpenAiAgent({ ...base, model: 'gpt-5.6-sol', reasoningEffort: 'none' });    // ✅
+new OpenAiAgent({ ...base, model: 'gpt-5.6-sol', reasoningEffort: 'minimal' }); // ❌ 5.6 dropped it
+```
+
+| Model | Accepted efforts |
+|-------|------------------|
+| `o1`, `o1-pro`, `o3`, `o3-mini`, `o4-mini` | `low` `medium` `high` |
+| `gpt-5`, `gpt-5-mini`, `gpt-5-nano` | `minimal` `low` `medium` `high` |
+| `gpt-5-pro` | `high` only |
+| `gpt-5.1` | `none` `low` `medium` `high` |
+| `gpt-5.2`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.5` | + `xhigh` |
+| `gpt-5.6`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | + `max` |
+| `gpt-5.2-pro`, `gpt-5.4-pro`, `gpt-5.5-pro` | `medium` `high` `xhigh` |
+
+Models not in the table — non-reasoning models, and anything newer than this release — accept the full range, so a stale table never blocks a new model. Dated snapshots (`gpt-5-nano-2025-08-07`) resolve like their alias.
+
+**Turning reasoning off.** There is no universal "off" value, so `disableReasoning` resolves to the lowest effort your model accepts:
+
+```typescript
+const agent = new OpenAiAgent({
+  id: 'fast', name: 'Fast', description: 'Answers directly.',
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'gpt-5.6-luna',
+  disableReasoning: true,   // → effort: 'none'  (would be 'minimal' on gpt-5-nano)
+});
+```
+
+It takes precedence over `reasoningEffort`, and is a no-op on models without reasoning support — the parameter is omitted rather than sent, since models like `gpt-4.1-mini` reject it outright. Note that `o`-series models cannot disable reasoning at all; `low` is the floor.
 
 **Tool calls are transparent** — the generator pauses to execute tools and then continues streaming the follow-up response. No special handling required:
 

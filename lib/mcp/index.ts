@@ -58,7 +58,49 @@
  *   authProvider: myOAuthProvider,
  * });
  * ```
+ *
+ * @example Cancellation, timeouts and a connection that drops
+ * ```typescript
+ * import { MCPClient, MCPClientEvent } from "@agentionai/agents";
+ *
+ * const turn = new AbortController();
+ * const mcp = MCPClient.fromUrl("https://my-mcp-server.com/mcp", {
+ *   callOptions: () => ({ signal: turn.signal, timeout: 20_000 }),
+ *   reconnect: { enabled: true, maxRetries: 10 },
+ * });
+ *
+ * mcp.on(MCPClientEvent.DISCONNECTED, ({ willReconnect }) => {
+ *   console.warn("MCP connection lost", { willReconnect });
+ * });
+ * mcp.on(MCPClientEvent.TOOLS_CHANGED, ({ tools }) => agent.addTools(tools));
+ * ```
  */
 
-export { MCPClient } from "./MCPClient";
-export type { MCPStdioConfig, MCPHttpConfig, MCPClientOptions } from "./types";
+export { MCPClient, MCPClientEvent } from "./MCPClient";
+export { MCPError, MCPCallError, MCPNotConnectedError, MCPToolError } from "./errors";
+export { renderContentBlock, renderToolResult } from "./content";
+export type {
+  MCPStdioConfig,
+  MCPHttpConfig,
+  MCPClientOptions,
+  MCPOAuthClientProvider,
+  MCPCallOptionsSource,
+  MCPToolCallOptions,
+  MCPToolCallContext,
+  MCPToolResultFormatter,
+  MCPReconnectOptions,
+  MCPConnectionState,
+  MCPProgress,
+  MCPCallToolResult,
+  MCPContentBlock,
+  MCPTextContent,
+  MCPImageContent,
+  MCPAudioContent,
+  MCPEmbeddedResourceContent,
+  MCPResourceLinkContent,
+  MCPClientEventMap,
+  MCPConnectedEvent,
+  MCPDisconnectedEvent,
+  MCPReconnectingEvent,
+  MCPToolsChangedEvent,
+} from "./types";

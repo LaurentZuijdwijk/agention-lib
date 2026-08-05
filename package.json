@@ -113,6 +113,7 @@
     "@google/generative-ai": "^0.24.1",
     "@lancedb/lancedb": "^0.23.0",
     "@mistralai/mistralai": "^1.13.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^18.15.11",
     "apache-arrow": "^18.1.0",

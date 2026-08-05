@@ -795,6 +795,7 @@ export const chatCompletionsTransformer = {
       const textBlocks = entry.content.filter(isTextContent);
       const toolUseBlocks = entry.content.filter(isToolUseContent);
       const toolResultBlocks = entry.content.filter(isToolResultContent);
+      const thinkingBlocks = entry.content.filter(isThinkingContent);
       const imageUrlBlocks = entry.content.filter(isImageUrlContent);
       const imageBase64Blocks = entry.content.filter(isImageBase64Content);
       const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
@@ -809,6 +810,22 @@ export const chatCompletionsTransformer = {
           role: "assistant",
           content: textBlocks.map((c) => c.text).join("\n") || null,
         };
+
+        // DeepSeek's thinking mode rejects a conversation whose assistant turns
+        // dropped their reasoning ("The reasoning_content in the thinking mode
+        // must be passed back to the API"), so it has to survive the round trip.
+        // `reasoning_content` is DeepSeek's field name and an accepted alias for
+        // `reasoning` on OpenRouter. Only set it when there is something to send:
+        // servers that reject unknown fields must not start seeing it, and
+        // redacted-only blocks (Anthropic) carry no text to replay.
+        const reasoning = thinkingBlocks
+          .map((block) => block.thinking)
+          .filter((thought) => thought.length > 0)
+          .join("\n");
+        if (reasoning) {
+          msg.reasoning_content = reasoning;
+        }
+
         if (toolUseBlocks.length > 0) {
           msg.tool_calls = toolUseBlocks.map((block) => ({
             id: block.id,
@@ -867,6 +884,16 @@ export const chatCompletionsTransformer = {
   fromProviderMessage(message: ChatCompletionResponseMessage): HistoryEntry {
     const content: MessageContent[] = [];
 
+    // Reasoning first, matching the order the model produced it in. Servers
+    // disagree on the field name — OpenRouter sends `reasoning`, DeepSeek and
+    // llama.cpp send `reasoning_content` — so accept either, preferring
+    // `reasoning` as the streaming path does. Stored as the neutral thinking
+    // block the history layer already round-trips for Anthropic.
+    const reasoning = message.reasoning ?? message.reasoning_content;
+    if (typeof reasoning === "string" && reasoning) {
+      content.push(thinking(reasoning));
+    }
+
     if (typeof message.content === "string" && message.content) {
       content.push(text(message.content));
     }
@@ -921,6 +948,12 @@ type ChatCompletionMessage =
       role: "assistant";
       content: string | null;
       tool_calls?: ChatCompletionToolCallParam[];
+      /**
+       * Reasoning replayed from a previous turn. Required by DeepSeek's thinking
+       * mode; accepted by OpenRouter as an alias for `reasoning`. Omitted
+       * entirely when the turn carried no reasoning.
+       */
+      reasoning_content?: string;
     }
   | { role: "tool"; tool_call_id: string; content: string };
 
@@ -934,4 +967,8 @@ type ChatCompletionResponseMessage = {
       arguments: string;
     };
   }>;
+  /** Reasoning tokens as sent by OpenRouter. Not part of the OpenAI schema. */
+  reasoning?: string | null;
+  /** Reasoning tokens as sent by DeepSeek and llama.cpp. */
+  reasoning_content?: string | null;
 };

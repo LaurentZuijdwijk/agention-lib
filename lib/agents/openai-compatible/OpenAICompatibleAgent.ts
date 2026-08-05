@@ -499,6 +499,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     });
 
     let textContent = "";
+    let reasoningContent = "";
     const toolCallAcc = new Map<number, { id: string; name: string; arguments: string }>();
     let finishReason: string | null = null;
 
@@ -526,6 +527,10 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
       const deltaExtras = delta as Record<string, unknown>;
       const reasoningDelta = (deltaExtras.reasoning ?? deltaExtras.reasoning_content) as string | null | undefined;
       if (reasoningDelta) {
+        // Accumulated as well as yielded: DeepSeek's thinking mode requires the
+        // assistant turn's reasoning to be replayed on the next request, so it
+        // has to reach history rather than only the caller.
+        reasoningContent += reasoningDelta;
         this.emit(AgentEvent.REASONING_CHUNK, reasoningDelta);
         yield { type: "reasoning", content: reasoningDelta };
       }
@@ -573,6 +578,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
         role: "assistant",
         content: textContent || null,
         tool_calls: toolCalls,
+        reasoning_content: reasoningContent || null,
       });
       this.addToHistory(assistantEntry);
 
@@ -586,6 +592,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
       const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
         role: "assistant",
         content: textContent || null,
+        reasoning_content: reasoningContent || null,
       });
       this.addToHistory(assistantEntry);
 

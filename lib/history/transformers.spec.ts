@@ -8,7 +8,7 @@ import {
   geminiTransformer,
   chatCompletionsTransformer,
 } from "./transformers";
-import { imageUrl, imageBase64, text, toolUse, toolResult } from "./types";
+import { imageUrl, imageBase64, text, thinking, toolUse, toolResult } from "./types";
 import type { HistoryEntry } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -245,6 +245,40 @@ describe("chatCompletionsTransformer — toProvider", () => {
     });
   });
 
+  it("emits thinking blocks as reasoning_content on the assistant message", () => {
+    const messages = chatCompletionsTransformer.toProvider([
+      {
+        role: "assistant",
+        content: [
+          thinking("Paris is in France."),
+          text("Let me check the weather."),
+          toolUse("call_1", "get_weather", { city: "Paris" }),
+        ],
+      },
+    ]) as any[];
+
+    expect(messages[0].reasoning_content).toBe("Paris is in France.");
+    expect(messages[0].content).toBe("Let me check the weather.");
+    expect(messages[0].tool_calls).toHaveLength(1);
+  });
+
+  it("omits reasoning_content when the assistant entry has no thinking block", () => {
+    const messages = chatCompletionsTransformer.toProvider([
+      { role: "assistant", content: [text("No reasoning here.")] },
+    ]) as any[];
+
+    expect(messages[0]).not.toHaveProperty("reasoning_content");
+  });
+
+  it("omits reasoning_content for a redacted-only thinking block", () => {
+    // Anthropic redacted blocks carry an opaque payload and no replayable text
+    const messages = chatCompletionsTransformer.toProvider([
+      { role: "assistant", content: [thinking("", undefined, "redacted-payload"), text("Hi")] },
+    ]) as any[];
+
+    expect(messages[0]).not.toHaveProperty("reasoning_content");
+  });
+
   it("uses null content when an assistant tool-call message has no text", () => {
     const messages = chatCompletionsTransformer.toProvider([
       {
@@ -315,6 +349,61 @@ describe("chatCompletionsTransformer — fromProviderMessage", () => {
       text("Checking the weather for you."),
       toolUse("call_1", "get_weather", {}),
     ]);
+  });
+
+  it("stores DeepSeek/llama.cpp reasoning_content as a thinking block", () => {
+    const entry = chatCompletionsTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "42.",
+      reasoning_content: "Six times seven.",
+    });
+
+    expect(entry.content).toEqual([thinking("Six times seven."), text("42.")]);
+  });
+
+  it("stores OpenRouter reasoning as a thinking block", () => {
+    const entry = chatCompletionsTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "42.",
+      reasoning: "Six times seven.",
+    });
+
+    expect(entry.content).toEqual([thinking("Six times seven."), text("42.")]);
+  });
+
+  it("prefers reasoning over reasoning_content when both are present", () => {
+    const entry = chatCompletionsTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "42.",
+      reasoning: "OpenRouter",
+      reasoning_content: "DeepSeek",
+    });
+
+    expect(entry.content).toEqual([thinking("OpenRouter"), text("42.")]);
+  });
+
+  it("adds no thinking block when the response carries no reasoning", () => {
+    const entry = chatCompletionsTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "42.",
+      reasoning_content: null,
+    });
+
+    expect(entry.content).toEqual([text("42.")]);
+  });
+
+  it("round-trips reasoning back out as reasoning_content", () => {
+    const entry = chatCompletionsTransformer.fromProviderMessage({
+      role: "assistant",
+      content: null,
+      reasoning_content: "I need the weather tool.",
+      tool_calls: [{ id: "call_1", function: { name: "get_weather", arguments: "{}" } }],
+    });
+
+    const [message] = chatCompletionsTransformer.toProvider([entry]) as any[];
+
+    expect(message.reasoning_content).toBe("I need the weather tool.");
+    expect(message.tool_calls).toHaveLength(1);
   });
 });
 

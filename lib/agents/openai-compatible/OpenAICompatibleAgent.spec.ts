@@ -319,6 +319,53 @@ describe("OpenAICompatibleAgent", () => {
       });
     });
 
+    it("replays non-streamed reasoning_content on the follow-up request", async () => {
+      const toolCallResponse = {
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: {
+              role: "assistant",
+              content: null,
+              reasoning_content: "The user wants Paris weather.",
+              tool_calls: [
+                {
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "get_weather", arguments: '{"city":"Paris"}' },
+                },
+              ],
+            },
+          },
+        ],
+      };
+      const finalResponse = {
+        choices: [
+          { finish_reason: "stop", message: { role: "assistant", content: "It's sunny in Paris." } },
+        ],
+      };
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(toolCallResponse)
+        .mockResolvedValueOnce(finalResponse);
+
+      agent["tools"].set("get_weather", {
+        execute: jest.fn().mockResolvedValue({ tempC: 22 }),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "get_weather",
+          description: "Look up the weather",
+          input_schema: { type: "object", properties: { city: { type: "string" } } },
+        }),
+      } as any);
+
+      await agent.execute("What's the weather in Paris?");
+
+      const followUp = mockClient.chat.completions.create.mock.calls[1][0];
+      const assistantMessage = followUp.messages.find((m: any) => m.role === "assistant");
+
+      expect(assistantMessage.reasoning_content).toBe("The user wants Paris weather.");
+    });
+
     it("returns a tool-not-found error message for unknown tools", async () => {
       const toolCallResponse = {
         choices: [
@@ -524,7 +571,7 @@ describe("OpenAICompatibleAgent", () => {
       expect(spy).toHaveBeenCalledWith(AgentEvent.REASONING_CHUNK, "Let me think...");
     });
 
-    it("handles OpenRouter-style delta.reasoning chunks without leaking into text or history", async () => {
+    it("handles OpenRouter-style delta.reasoning chunks without leaking into text", async () => {
       mockClient.chat.completions.create.mockResolvedValue(
         makeStream([
           { choices: [{ finish_reason: null, delta: { reasoning: "Thinking step." } }] },
@@ -548,12 +595,14 @@ describe("OpenAICompatibleAgent", () => {
       expect(textChunks).toEqual([{ type: "text", content: "Final answer." }]);
       expect(spy).not.toHaveBeenCalledWith(AgentEvent.CHUNK, "Thinking step.");
 
-      // Reasoning must not leak into the assistant history entry
+      // Reasoning is kept in history as a thinking block, separate from the text
       const entries = agent["history"].getEntries();
       const assistantEntry = entries[entries.length - 1];
       expect(assistantEntry.role).toBe("assistant");
-      expect(JSON.stringify(assistantEntry.content)).not.toContain("Thinking step.");
-      expect(JSON.stringify(assistantEntry.content)).toContain("Final answer.");
+      expect(assistantEntry.content).toEqual([
+        { type: "thinking", thinking: "Thinking step." },
+        { type: "text", text: "Final answer." },
+      ]);
     });
 
     it("prefers delta.reasoning over delta.reasoning_content when both are present", async () => {
@@ -623,6 +672,125 @@ describe("OpenAICompatibleAgent", () => {
         "1", "TestAgent", { city: "Paris" }, "call_1", undefined, "llamacpp"
       );
       expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(2);
+    });
+
+    // DeepSeek's thinking mode rejects a follow-up request whose assistant turn
+    // dropped its reasoning, which only bites once an agent loop makes a second
+    // request — hence the round-trip assertions on the *next* call's messages.
+    it("replays streamed reasoning as reasoning_content on the follow-up tool-call request", async () => {
+      const toolCallStream = makeStream([
+        { choices: [{ finish_reason: null, delta: { reasoning_content: "I should check the weather." } }] },
+        {
+          choices: [{
+            finish_reason: null,
+            delta: {
+              tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } }],
+            },
+          }],
+        },
+        { choices: [{ finish_reason: "tool_calls", delta: {} }] },
+        { choices: [] },
+      ]);
+
+      const finalStream = makeStream([
+        { choices: [{ finish_reason: "stop", delta: { content: "Sunny in Paris." } }] },
+        { choices: [] },
+      ]);
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(toolCallStream)
+        .mockResolvedValueOnce(finalStream);
+
+      const mockTool = {
+        execute: jest.fn().mockResolvedValue({ tempC: 22 }),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "get_weather",
+          description: "Weather",
+          input_schema: { type: "object", properties: {} },
+        }),
+      };
+      agent["tools"].set("get_weather", mockTool as any);
+
+      await collectStream(agent.executeStream("Weather in Paris?"));
+
+      expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(2);
+      const followUp = mockClient.chat.completions.create.mock.calls[1][0];
+      const assistantMessage = followUp.messages.find((m: any) => m.role === "assistant");
+
+      expect(assistantMessage.reasoning_content).toBe("I should check the weather.");
+      expect(assistantMessage.tool_calls).toHaveLength(1);
+    });
+
+    it("replays reasoning assembled from multiple deltas", async () => {
+      const toolCallStream = makeStream([
+        { choices: [{ finish_reason: null, delta: { reasoning: "First " } }] },
+        { choices: [{ finish_reason: null, delta: { reasoning: "then second." } }] },
+        {
+          choices: [{
+            finish_reason: null,
+            delta: {
+              tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "noop", arguments: "{}" } }],
+            },
+          }],
+        },
+        { choices: [{ finish_reason: "tool_calls", delta: {} }] },
+        { choices: [] },
+      ]);
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(toolCallStream)
+        .mockResolvedValueOnce(makeStream([{ choices: [{ finish_reason: "stop", delta: { content: "done" } }] }]));
+
+      agent["tools"].set("noop", {
+        execute: jest.fn().mockResolvedValue("ok"),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "noop",
+          description: "noop",
+          input_schema: { type: "object", properties: {} },
+        }),
+      } as any);
+
+      await collectStream(agent.executeStream("go"));
+
+      const followUp = mockClient.chat.completions.create.mock.calls[1][0];
+      const assistantMessage = followUp.messages.find((m: any) => m.role === "assistant");
+
+      expect(assistantMessage.reasoning_content).toBe("First then second.");
+    });
+
+    it("omits reasoning_content entirely when the model produced no reasoning", async () => {
+      const toolCallStream = makeStream([
+        {
+          choices: [{
+            finish_reason: null,
+            delta: {
+              tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "noop", arguments: "{}" } }],
+            },
+          }],
+        },
+        { choices: [{ finish_reason: "tool_calls", delta: {} }] },
+        { choices: [] },
+      ]);
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(toolCallStream)
+        .mockResolvedValueOnce(makeStream([{ choices: [{ finish_reason: "stop", delta: { content: "done" } }] }]));
+
+      agent["tools"].set("noop", {
+        execute: jest.fn().mockResolvedValue("ok"),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "noop",
+          description: "noop",
+          input_schema: { type: "object", properties: {} },
+        }),
+      } as any);
+
+      await collectStream(agent.executeStream("go"));
+
+      const followUp = mockClient.chat.completions.create.mock.calls[1][0];
+      const assistantMessage = followUp.messages.find((m: any) => m.role === "assistant");
+
+      expect(assistantMessage).not.toHaveProperty("reasoning_content");
     });
 
     it("emits BEFORE_EXECUTE and DONE events", async () => {

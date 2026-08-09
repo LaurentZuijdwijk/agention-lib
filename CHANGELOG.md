@@ -5,6 +5,47 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-09
+
+### Added
+- **Reasoning tokens and timing in `TokenUsage`** — `agent.lastTokenUsage` now carries,
+  alongside the existing token counts:
+  - `reasoning_tokens` — reported separately by OpenAI (`output_tokens_details` /
+    `completion_tokens_details`) and Gemini (`thoughtsTokenCount`). Always a subset of
+    `output_tokens`, never an addition to it. Anthropic and Mistral report no separate
+    count, so the field stays absent there.
+  - `timeToFirstTokenMs` — request send to first token (prompt upload plus processing).
+  - `generationMs` — time generating the response after the first token.
+  - `totalMs` — total wall-clock time in provider API calls.
+  - `inputTokensPerSecond` / `outputTokensPerSecond` — throughput derived from the above.
+
+  Durations are measured locally around each API call. Streaming (`executeStream()`)
+  splits first-token from generation time; an unstreamed call only yields `totalMs`, and
+  `outputTokensPerSecond` then falls back to an end-to-end rate. Providers that report
+  their own timings take precedence — Ollama's nanosecond `total_duration` /
+  `load_duration` / `prompt_eval_duration` / `eval_duration`, and llama.cpp's `timings`
+  object (`prompt_ms` / `predicted_ms`). Across a tool-use loop, counts and durations are
+  summed and the rates recomputed from those totals. Fields that stay unknown are omitted
+  rather than set to `undefined`.
+- `examples/usage-metrics.ts` — prints the full metric set for an unstreamed call, a
+  streamed call, and a tool loop against a local llama.cpp server.
+
+### Changed
+- `lastTokenUsage` now lives on `BaseAgent` instead of being redeclared on each agent,
+  along with new protected helpers (`accumulateUsage()`, `startTurnTimer()`,
+  `markFirstToken()`, `resetTokenUsage()`) that replace the accumulation block previously
+  duplicated across all six agents. Custom agents extending `BaseAgent` should drop their
+  own `lastTokenUsage` declaration and call `accumulateUsage()`.
+- **Gemini token counts** — `output_tokens` now includes thought tokens. Gemini excludes
+  them from `candidatesTokenCount` but counts them in `totalTokenCount`, so
+  `input_tokens + output_tokens` previously did not equal `total_tokens` for thinking
+  models. Code reading `output_tokens` from a Gemini thinking model will see a larger
+  number than before; `reasoning_tokens` reports the thoughts on their own.
+
+### Note
+- Graph metrics (`MetricsTokenUsage`) and visualizer payloads (`VizTokenUsage`) still
+  carry token counts only; the new fields are agent-level for now.
+
 ## [1.1.0] - 2026-08-05
 
 ### Added
@@ -52,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   effort: null }`, which is not an "off" switch (the API treats `null` as
   *unset* and falls back to the model's own default); it now resolves to the
   lowest effort the configured model actually accepts.
+
 
 ## [1.0.2] - 2026-08-02
 

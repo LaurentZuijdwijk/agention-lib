@@ -74,9 +74,6 @@ export class ClaudeAgent extends BaseAgent {
   private client: Anthropic;
   protected config: Partial<AgentConfig>;
 
-  /** Token usage from the last execution (for metrics tracking) */
-  public lastTokenUsage?: TokenUsage;
-
   /** Current visualization event ID for tracking */
   private vizEventId?: string;
 
@@ -180,7 +177,7 @@ export class ClaudeAgent extends BaseAgent {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     // Normalise input to a display string for viz reporting
@@ -218,6 +215,7 @@ export class ClaudeAgent extends BaseAgent {
     this.history.beginExecution();
 
     try {
+      this.startTurnTimer();
       const response = (await this.client.messages.create(
         this.buildMessageParams()
       )) as Message;
@@ -272,16 +270,8 @@ export class ClaudeAgent extends BaseAgent {
   }
 
   protected async handleResponse(response: Message): Promise<string> {
-    const usage = this.parseUsage(response.usage);
-
     // Store token usage for metrics tracking
-    if (this.lastTokenUsage) {
-      this.lastTokenUsage.input_tokens += usage.input_tokens;
-      this.lastTokenUsage.output_tokens += usage.output_tokens;
-      this.lastTokenUsage.total_tokens += usage.total_tokens;
-    } else {
-      this.lastTokenUsage = { ...usage };
-    }
+    const usage = this.accumulateUsage(this.parseUsage(response.usage));
 
     if (response.stop_reason === "max_tokens") {
       const error = new MaxTokensExceededError(
@@ -380,6 +370,7 @@ export class ClaudeAgent extends BaseAgent {
 
         // Continue conversation with tool results
         try {
+          this.startTurnTimer();
           const newResponse = (await this.client.messages.create(
             this.buildMessageParams()
           )) as Message;
@@ -539,7 +530,7 @@ export class ClaudeAgent extends BaseAgent {
    */
   async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -606,6 +597,7 @@ export class ClaudeAgent extends BaseAgent {
   }
 
   private async *streamTurn(): AsyncGenerator<StreamChunk> {
+    this.startTurnTimer();
     const stream = await this.client.messages.create({
       ...this.buildMessageParams(),
       stream: true,
@@ -655,6 +647,9 @@ export class ClaudeAgent extends BaseAgent {
       }
 
       if (event.type === "content_block_delta") {
+        // First generated content of the turn — thinking counts, since it is
+        // generation time either way.
+        this.markFirstToken();
         const e = event as RawContentBlockDeltaEvent;
         const delta = e.delta;
         const acc = blocks.get(e.index);
@@ -675,18 +670,11 @@ export class ClaudeAgent extends BaseAgent {
       }
     }
 
-    const usage: TokenUsage = {
+    this.accumulateUsage({
       input_tokens: inputTokens,
       output_tokens: outputTokens,
       total_tokens: inputTokens + outputTokens,
-    };
-    if (this.lastTokenUsage) {
-      this.lastTokenUsage.input_tokens += usage.input_tokens;
-      this.lastTokenUsage.output_tokens += usage.output_tokens;
-      this.lastTokenUsage.total_tokens += usage.total_tokens;
-    } else {
-      this.lastTokenUsage = { ...usage };
-    }
+    });
 
     if (stopReason === "max_tokens") {
       const error = new MaxTokensExceededError(

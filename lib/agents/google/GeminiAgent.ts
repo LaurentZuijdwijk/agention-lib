@@ -54,9 +54,6 @@ export class GeminiAgent extends BaseAgent {
   private generativeModel: GenerativeModel;
   protected config: Partial<AgentConfig>;
 
-  /** Token usage from the last execution (for metrics tracking) */
-  public lastTokenUsage?: TokenUsage;
-
   /** Current visualization event ID for tracking */
   private vizEventId?: string;
 
@@ -233,7 +230,7 @@ export class GeminiAgent extends BaseAgent {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -273,6 +270,8 @@ export class GeminiAgent extends BaseAgent {
       const contents = geminiTransformer.toProvider(this.history.getEntries());
       const systemMessage = this.history.getSystemMessage();
       const tools = this.getToolDefinitionsForGemini();
+
+      this.startTurnTimer();
 
       const response = await this.generativeModel.generateContent({
         contents,
@@ -347,14 +346,7 @@ export class GeminiAgent extends BaseAgent {
 
     // Parse and track usage
     if (result.usageMetadata) {
-      const usage = this.parseUsage(result.usageMetadata);
-      if (this.lastTokenUsage) {
-        this.lastTokenUsage.input_tokens += usage.input_tokens;
-        this.lastTokenUsage.output_tokens += usage.output_tokens;
-        this.lastTokenUsage.total_tokens += usage.total_tokens;
-      } else {
-        this.lastTokenUsage = { ...usage };
-      }
+      this.accumulateUsage(this.parseUsage(result.usageMetadata));
     }
 
     // Check for finish reason
@@ -453,6 +445,8 @@ export class GeminiAgent extends BaseAgent {
         const newContents = geminiTransformer.toProvider(this.history.getEntries());
         const systemMessage = this.history.getSystemMessage();
         const tools = this.getToolDefinitionsForGemini();
+
+        this.startTurnTimer();
 
         const newResponse = await this.generativeModel.generateContent({
           contents: newContents,
@@ -597,11 +591,19 @@ export class GeminiAgent extends BaseAgent {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
     totalTokenCount?: number;
+    thoughtsTokenCount?: number;
   }): TokenUsage {
+    // Gemini excludes thought tokens from `candidatesTokenCount` but includes
+    // them in `totalTokenCount`. Fold them into `output_tokens` so
+    // input + output === total holds, matching how other providers report.
+    // `thoughtsTokenCount` is sent by thinking models but is not declared on
+    // the legacy SDK's `UsageMetadata`, hence the widened parameter type.
+    const thoughts = input.thoughtsTokenCount;
     return {
       input_tokens: input.promptTokenCount || 0,
-      output_tokens: input.candidatesTokenCount || 0,
+      output_tokens: (input.candidatesTokenCount || 0) + (thoughts || 0),
       total_tokens: input.totalTokenCount || 0,
+      reasoning_tokens: thoughts,
     };
   }
 }

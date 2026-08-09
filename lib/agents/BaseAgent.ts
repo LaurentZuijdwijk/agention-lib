@@ -26,10 +26,52 @@ export interface BaseAgentConfig extends CommonAgentConfig {
   vendorConfig?: VendorSpecificConfig;
 }
 
+/**
+ * Token counts and timing for one or more provider API calls.
+ *
+ * Counts are always present. Timing fields are optional because their
+ * availability depends on the provider and on whether the call was streamed:
+ *
+ * - `totalMs` is always measured (wall clock around the API call).
+ * - `timeToFirstTokenMs` / `generationMs` require either a streamed response
+ *   (measured locally) or a provider that reports its own timings
+ *   (Ollama, llama.cpp).
+ *
+ * When usage from several calls is folded together (a tool-use loop, for
+ * example) the counts and durations are summed and the rates recomputed from
+ * those totals.
+ */
 export type TokenUsage = {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
+  /**
+   * Reasoning/thinking tokens, where the provider reports them separately
+   * (OpenAI, Gemini). These are a subset of `output_tokens`, not an addition
+   * to them. Undefined when the provider does not break them out — Anthropic,
+   * for instance, folds thinking tokens into `output_tokens`.
+   */
+  reasoning_tokens?: number;
+  /**
+   * Milliseconds from sending the request to the first token of the response —
+   * prompt upload plus prompt processing.
+   */
+  timeToFirstTokenMs?: number;
+  /** Milliseconds spent generating the response after the first token. */
+  generationMs?: number;
+  /** Total wall-clock milliseconds spent in provider API calls. */
+  totalMs?: number;
+  /**
+   * Prompt processing throughput: `input_tokens` over `timeToFirstTokenMs`.
+   * Undefined when the time to first token is unknown.
+   */
+  inputTokensPerSecond?: number;
+  /**
+   * Generation throughput: `output_tokens` over `generationMs`. Falls back to
+   * `totalMs` when the first-token time is unknown (an unstreamed call), in
+   * which case it is an end-to-end rate rather than a pure generation rate.
+   */
+  outputTokensPerSecond?: number;
 };
 
 /**
@@ -54,6 +96,19 @@ export abstract class BaseAgent<
 
   /** The model identifier for this agent */
   protected model: string;
+
+  /**
+   * Token counts and timings for the most recent `execute()` call, summed
+   * across every provider API call it made (including tool-use follow-ups).
+   * Reset at the start of each execution.
+   */
+  public lastTokenUsage?: TokenUsage;
+
+  /** Start of the API call currently in flight, set by `startTurnTimer()`. */
+  private turnStartedAt?: number;
+
+  /** First-token timestamp of the call in flight, set by `markFirstToken()`. */
+  private turnFirstTokenAt?: number;
 
   /**
    * An Agent is the primary LLM entity.
@@ -199,4 +254,133 @@ export abstract class BaseAgent<
   }
 
   protected abstract parseUsage(input: unknown): TokenUsage;
+
+  /**
+   * Clear accumulated usage. Called at the start of every `execute()` /
+   * `executeStream()` so `lastTokenUsage` describes a single execution.
+   */
+  protected resetTokenUsage(): void {
+    this.lastTokenUsage = undefined;
+    this.turnStartedAt = undefined;
+    this.turnFirstTokenAt = undefined;
+  }
+
+  /**
+   * Mark the moment a provider API call is sent. Call this immediately before
+   * every request so the usage folded in afterwards can be timed.
+   */
+  protected startTurnTimer(): void {
+    this.turnStartedAt = Date.now();
+    this.turnFirstTokenAt = undefined;
+  }
+
+  /**
+   * Mark the arrival of the first token of a streamed response. Subsequent
+   * calls within the same turn are ignored, so it is safe to call on every
+   * chunk.
+   */
+  protected markFirstToken(): void {
+    if (
+      this.turnStartedAt !== undefined &&
+      this.turnFirstTokenAt === undefined
+    ) {
+      this.turnFirstTokenAt = Date.now();
+    }
+  }
+
+  /**
+   * Fold one API call's usage into `lastTokenUsage`, filling in any timings
+   * the provider did not report from the local turn timer.
+   *
+   * @returns the usage for this single call, with timings and rates filled in —
+   *          `lastTokenUsage` holds the running total across calls.
+   */
+  protected accumulateUsage(usage: TokenUsage): TokenUsage {
+    const timed = this.applyTurnTiming(usage);
+    const previous = this.lastTokenUsage;
+
+    const merged: TokenUsage = previous
+      ? {
+          input_tokens: previous.input_tokens + timed.input_tokens,
+          output_tokens: previous.output_tokens + timed.output_tokens,
+          total_tokens: previous.total_tokens + timed.total_tokens,
+          reasoning_tokens: sumOptional(
+            previous.reasoning_tokens,
+            timed.reasoning_tokens
+          ),
+          timeToFirstTokenMs: sumOptional(
+            previous.timeToFirstTokenMs,
+            timed.timeToFirstTokenMs
+          ),
+          generationMs: sumOptional(previous.generationMs, timed.generationMs),
+          totalMs: sumOptional(previous.totalMs, timed.totalMs),
+        }
+      : { ...timed };
+
+    this.lastTokenUsage = withThroughput(merged);
+    this.turnStartedAt = undefined;
+    this.turnFirstTokenAt = undefined;
+
+    return withThroughput(timed);
+  }
+
+  /**
+   * Add locally measured timings to a provider-parsed usage object. Timings the
+   * provider reported itself (Ollama, llama.cpp) are kept as-is — they exclude
+   * network overhead and are more accurate than anything measured here.
+   */
+  private applyTurnTiming(usage: TokenUsage): TokenUsage {
+    if (this.turnStartedAt === undefined) return usage;
+
+    const now = Date.now();
+    const timed = { ...usage };
+
+    timed.totalMs ??= now - this.turnStartedAt;
+
+    if (this.turnFirstTokenAt !== undefined) {
+      timed.timeToFirstTokenMs ??= this.turnFirstTokenAt - this.turnStartedAt;
+      timed.generationMs ??= now - this.turnFirstTokenAt;
+    }
+
+    return timed;
+  }
+}
+
+/**
+ * Add two values that may each be undefined, returning undefined only when
+ * neither side has a value (so "not reported" never reads as zero).
+ */
+function sumOptional(a?: number, b?: number): number | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return a + b;
+}
+
+/**
+ * Derive tokens-per-second rates from the counts and durations on a usage
+ * object. Recomputed from totals rather than averaged, so folding several calls
+ * together stays correct.
+ *
+ * Fields that stayed unknown are dropped rather than left as explicit
+ * `undefined`, keeping serialized usage free of empty keys.
+ */
+function withThroughput(usage: TokenUsage): TokenUsage {
+  const result = { ...usage };
+
+  if (result.timeToFirstTokenMs) {
+    result.inputTokensPerSecond =
+      result.input_tokens / (result.timeToFirstTokenMs / 1000);
+  }
+
+  const outputWindowMs = result.generationMs || result.totalMs;
+  if (outputWindowMs) {
+    result.outputTokensPerSecond =
+      result.output_tokens / (outputWindowMs / 1000);
+  }
+
+  for (const key of Object.keys(result) as (keyof TokenUsage)[]) {
+    if (result[key] === undefined) delete result[key];
+  }
+
+  return result;
 }

@@ -52,7 +52,6 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   protected client: OpenAI;
   protected config: Partial<OpenAICompatibleConfig>;
 
-  public lastTokenUsage?: TokenUsage;
   private vizEventId?: string;
   private currentToolCallCount: number = 0;
 
@@ -127,7 +126,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
 
   async execute(input: string | MessageContent[]): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -222,6 +221,8 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     );
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
 
+    this.startTurnTimer();
+
     return this.client.chat.completions.create({
       model: this.config.model!,
       messages,
@@ -239,15 +240,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   }
 
   protected async handleResponse(response: ChatCompletion): Promise<string> {
-    const usage = this.parseUsage(response);
-
-    if (this.lastTokenUsage) {
-      this.lastTokenUsage.input_tokens += usage.input_tokens;
-      this.lastTokenUsage.output_tokens += usage.output_tokens;
-      this.lastTokenUsage.total_tokens += usage.total_tokens;
-    } else {
-      this.lastTokenUsage = { ...usage };
-    }
+    const usage = this.accumulateUsage(this.parseUsage(response));
 
     const choice = response.choices[0];
     const message = choice.message;
@@ -406,7 +399,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
    */
   async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -482,6 +475,8 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     const messages = chatCompletionsTransformer.toProvider(this.history.getEntries());
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
 
+    this.startTurnTimer();
+
     const stream = await this.client.chat.completions.create({
       model: this.config.model!,
       messages,
@@ -515,6 +510,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
       const delta = choice.delta;
 
       if (delta.content) {
+        this.markFirstToken();
         textContent += delta.content;
         this.emit(AgentEvent.CHUNK, delta.content);
         yield { type: "text", content: delta.content };
@@ -527,6 +523,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
       const deltaExtras = delta as Record<string, unknown>;
       const reasoningDelta = (deltaExtras.reasoning ?? deltaExtras.reasoning_content) as string | null | undefined;
       if (reasoningDelta) {
+        this.markFirstToken();
         // Accumulated as well as yielded: DeepSeek's thinking mode requires the
         // assistant turn's reasoning to be replayed on the next request, so it
         // has to reach history rather than only the caller.
@@ -618,18 +615,12 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
 
   private accumulateStreamUsage(usage: ChatCompletionChunk["usage"]): void {
     if (!usage) return;
-    const u: TokenUsage = {
+    this.accumulateUsage({
       input_tokens: usage.prompt_tokens ?? 0,
       output_tokens: usage.completion_tokens ?? 0,
       total_tokens: usage.total_tokens ?? 0,
-    };
-    if (this.lastTokenUsage) {
-      this.lastTokenUsage.input_tokens += u.input_tokens;
-      this.lastTokenUsage.output_tokens += u.output_tokens;
-      this.lastTokenUsage.total_tokens += u.total_tokens;
-    } else {
-      this.lastTokenUsage = u;
-    }
+      reasoning_tokens: extractReasoningTokens(usage),
+    });
   }
 
   protected parseUsage(response: ChatCompletion): TokenUsage {
@@ -638,6 +629,42 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
       input_tokens: usage?.prompt_tokens ?? 0,
       output_tokens: usage?.completion_tokens ?? 0,
       total_tokens: usage?.total_tokens ?? 0,
+      reasoning_tokens: extractReasoningTokens(usage),
+      ...extractServerTimings(response),
     };
   }
+}
+
+/**
+ * Reasoning token count from `completion_tokens_details`, which reasoning
+ * models (and OpenAI-compatible proxies fronting them) fill in.
+ */
+function extractReasoningTokens(usage: unknown): number | undefined {
+  const details = (usage as { completion_tokens_details?: unknown })
+    ?.completion_tokens_details as { reasoning_tokens?: number } | undefined;
+  return details?.reasoning_tokens;
+}
+
+/**
+ * Timings reported by llama.cpp's `llama-server`, which adds a non-standard
+ * `timings` object to its chat completion responses. Absent on every other
+ * OpenAI-compatible server, in which case the durations are measured locally.
+ */
+function extractServerTimings(response: unknown): Partial<TokenUsage> {
+  const timings = (response as { timings?: unknown })?.timings as
+    | { prompt_ms?: number; predicted_ms?: number }
+    | undefined;
+  if (!timings) return {};
+
+  const { prompt_ms, predicted_ms } = timings;
+  const totalMs =
+    prompt_ms === undefined && predicted_ms === undefined
+      ? undefined
+      : (prompt_ms ?? 0) + (predicted_ms ?? 0);
+
+  return {
+    timeToFirstTokenMs: prompt_ms,
+    generationMs: predicted_ms,
+    totalMs,
+  };
 }

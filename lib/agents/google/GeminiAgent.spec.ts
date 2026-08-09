@@ -173,10 +173,41 @@ describe("GeminiAgent", () => {
 
       await agent["handleResponse"](mockResponse, []);
 
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 10,
         output_tokens: 100,
         total_tokens: 110,
+      });
+    });
+
+    it("should fold thought tokens into output tokens", async () => {
+      // Gemini keeps thoughts out of candidatesTokenCount but inside
+      // totalTokenCount, so output_tokens has to absorb them for
+      // input + output === total to hold.
+      const mockResponse = {
+        response: {
+          candidates: [
+            {
+              content: { parts: [{ text: "Test response" }] },
+              finishReason: "STOP",
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 10,
+            candidatesTokenCount: 100,
+            thoughtsTokenCount: 40,
+            totalTokenCount: 150,
+          },
+        },
+      };
+
+      await agent["handleResponse"](mockResponse, []);
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        input_tokens: 10,
+        output_tokens: 140,
+        total_tokens: 150,
+        reasoning_tokens: 40,
       });
     });
 

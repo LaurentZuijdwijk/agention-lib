@@ -70,9 +70,6 @@ type OllamaOptions = {
 export class OllamaAgent extends BaseAgent {
   protected config: Partial<AgentConfig>;
 
-  /** Token usage from the last execution (for metrics tracking) */
-  public lastTokenUsage?: TokenUsage;
-
   /** Current visualization event ID */
   private vizEventId?: string;
 
@@ -167,7 +164,7 @@ export class OllamaAgent extends BaseAgent {
 
   async execute(input: string | MessageContent[]): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -258,6 +255,7 @@ export class OllamaAgent extends BaseAgent {
     const messages = ollamaTransformer.toProvider(this.history.getEntries());
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
     const options = this.buildOptions();
+    this.startTurnTimer();
     return client.chat({
       model: this.config.model!,
       messages,
@@ -271,15 +269,7 @@ export class OllamaAgent extends BaseAgent {
   protected async handleResponse(response: unknown): Promise<string> {
     const ollamaResponse = response as OllamaResponse;
 
-    const usage = this.parseUsage(ollamaResponse);
-
-    if (this.lastTokenUsage) {
-      this.lastTokenUsage.input_tokens += usage.input_tokens;
-      this.lastTokenUsage.output_tokens += usage.output_tokens;
-      this.lastTokenUsage.total_tokens += usage.total_tokens;
-    } else {
-      this.lastTokenUsage = { ...usage };
-    }
+    const usage = this.accumulateUsage(this.parseUsage(ollamaResponse));
 
     if (ollamaResponse.done_reason === "length") {
       const error = new MaxTokensExceededError(
@@ -432,11 +422,24 @@ export class OllamaAgent extends BaseAgent {
 
   protected parseUsage(input: unknown): TokenUsage {
     const response = input as OllamaResponse;
+
+    // Ollama reports its own timings in nanoseconds. Time to first token is
+    // model load plus prompt evaluation — everything before generation starts.
+    const toMs = (ns?: number): number | undefined =>
+      ns === undefined ? undefined : ns / 1_000_000;
+    const timeToFirstTokenMs =
+      response.prompt_eval_duration === undefined
+        ? undefined
+        : toMs((response.load_duration ?? 0) + response.prompt_eval_duration);
+
     return {
       input_tokens: response.prompt_eval_count ?? 0,
       output_tokens: response.eval_count ?? 0,
       total_tokens:
         (response.prompt_eval_count ?? 0) + (response.eval_count ?? 0),
+      timeToFirstTokenMs,
+      generationMs: toMs(response.eval_duration),
+      totalMs: toMs(response.total_duration),
     };
   }
 }
@@ -460,6 +463,14 @@ type OllamaResponse = {
   done_reason?: string;
   eval_count?: number;
   prompt_eval_count?: number;
+  /** Nanoseconds spent on the whole request. */
+  total_duration?: number;
+  /** Nanoseconds spent loading the model into memory. */
+  load_duration?: number;
+  /** Nanoseconds spent evaluating the prompt. */
+  prompt_eval_duration?: number;
+  /** Nanoseconds spent generating the response. */
+  eval_duration?: number;
 };
 
 /**

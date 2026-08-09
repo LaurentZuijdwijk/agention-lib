@@ -186,7 +186,7 @@ describe("OpenAICompatibleAgent", () => {
 
       await agent.execute("Hi");
 
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 10,
         output_tokens: 5,
         total_tokens: 15,
@@ -205,7 +205,7 @@ describe("OpenAICompatibleAgent", () => {
       });
       await agent.execute("second");
 
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 1,
         output_tokens: 1,
         total_tokens: 2,
@@ -312,7 +312,7 @@ describe("OpenAICompatibleAgent", () => {
         "llamacpp" // this.vendor
       );
       expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(2);
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 45,
         output_tokens: 18,
         total_tokens: 63,
@@ -544,10 +544,69 @@ describe("OpenAICompatibleAgent", () => {
 
       await collectStream(agent.executeStream("Hi"));
 
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 10,
         output_tokens: 5,
         total_tokens: 15,
+      });
+    });
+
+    it("times the stream, splitting first token from generation", async () => {
+      let now = 1000;
+      jest.spyOn(Date, "now").mockImplementation(() => now);
+
+      mockClient.chat.completions.create.mockImplementation(async () => {
+        now += 300; // request round trip, before any token arrives
+        return makeStream([
+          { choices: [{ finish_reason: null, delta: { content: "ok" } }] },
+          { choices: [{ finish_reason: "stop", delta: { content: "!" } }] },
+          {
+            choices: [],
+            usage: { prompt_tokens: 30, completion_tokens: 10, total_tokens: 40 },
+          },
+        ]);
+      });
+
+      const stream = agent.executeStream("Hi");
+      // Advance the clock between chunks so generation takes measurable time.
+      for await (const _chunk of stream) {
+        now += 100;
+      }
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        input_tokens: 30,
+        output_tokens: 10,
+        timeToFirstTokenMs: 300,
+        generationMs: 200,
+        totalMs: 500,
+        inputTokensPerSecond: 100,
+        outputTokensPerSecond: 50,
+      });
+
+      jest.restoreAllMocks();
+    });
+
+    it("records reasoning tokens from completion_tokens_details", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          { choices: [{ finish_reason: "stop", delta: { content: "ok" } }] },
+          {
+            choices: [],
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 50,
+              total_tokens: 60,
+              completion_tokens_details: { reasoning_tokens: 42 },
+            },
+          },
+        ])
+      );
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        output_tokens: 50,
+        reasoning_tokens: 42,
       });
     });
 

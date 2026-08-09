@@ -170,7 +170,7 @@ describe("OpenAiAgent", () => {
       expect(historyAddSpy).toHaveBeenCalled();
 
       // Verify token usage tracking
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 10,
         output_tokens: 20,
         total_tokens: 30,
@@ -276,14 +276,14 @@ describe("OpenAiAgent", () => {
         .mockResolvedValueOnce(mockResponse2);
 
       await agent.execute("first input");
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 10,
         output_tokens: 20,
         total_tokens: 30,
       });
 
       await agent.execute("second input");
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 15,
         output_tokens: 25,
         total_tokens: 40,
@@ -540,10 +540,36 @@ describe("OpenAiAgent", () => {
       const result = await agent["handleResponse"](textResponse);
 
       expect(result).toBe("Text response");
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 5,
         output_tokens: 10,
         total_tokens: 15,
+      });
+    });
+
+    it("should track reasoning tokens reported by reasoning models", async () => {
+      const reasoningResponse = {
+        output: [
+          { type: "reasoning", summary: [] },
+          { type: "message", status: "completed", content: "42" },
+        ],
+        output_text: "42",
+        usage: {
+          input_tokens: 5,
+          output_tokens: 100,
+          total_tokens: 105,
+          output_tokens_details: { reasoning_tokens: 80 },
+        },
+      };
+
+      await agent["handleResponse"](reasoningResponse);
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        input_tokens: 5,
+        // Reasoning tokens are counted inside output_tokens, not added to it
+        output_tokens: 100,
+        total_tokens: 105,
+        reasoning_tokens: 80,
       });
     });
   });

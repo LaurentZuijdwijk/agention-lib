@@ -174,10 +174,45 @@ describe("LlamaCppAgent", () => {
       );
       expect(eventSpy).toHaveBeenCalledWith(AgentEvent.BEFORE_EXECUTE, "Hi");
       expect(eventSpy).toHaveBeenCalledWith(AgentEvent.DONE, mockResponse.choices[0].message, expect.anything());
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 10,
         output_tokens: 5,
         total_tokens: 15,
+      });
+    });
+
+    it("should use llama-server's own timings when the response carries them", async () => {
+      // Shape taken from a real llama-server /v1/chat/completions response.
+      mockClient.chat.completions.create.mockResolvedValue({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { role: "assistant", content: "Hey there friend" },
+          },
+        ],
+        usage: { prompt_tokens: 17, completion_tokens: 64, total_tokens: 81 },
+        timings: {
+          cache_n: 0,
+          prompt_n: 17,
+          prompt_ms: 400,
+          prompt_per_second: 42.5,
+          predicted_n: 64,
+          predicted_ms: 1000,
+          predicted_per_second: 64,
+        },
+      });
+
+      await agent.execute("Hi");
+
+      expect(agent.lastTokenUsage).toEqual({
+        input_tokens: 17,
+        output_tokens: 64,
+        total_tokens: 81,
+        timeToFirstTokenMs: 400,
+        generationMs: 1000,
+        totalMs: 1400,
+        inputTokensPerSecond: 42.5,
+        outputTokensPerSecond: 64,
       });
     });
 
@@ -239,7 +274,7 @@ describe("LlamaCppAgent", () => {
       expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(2);
 
       // Token usage accumulates across both calls
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 45,
         output_tokens: 18,
         total_tokens: 63,

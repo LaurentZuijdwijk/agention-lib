@@ -340,7 +340,7 @@ describe("ClaudeAgent", () => {
         { type: "text", content: " world" },
       ]);
       expect(spy).toHaveBeenCalledWith("chunk", "Hello");
-      expect(agent.lastTokenUsage).toEqual({
+      expect(agent.lastTokenUsage).toMatchObject({
         input_tokens: 8,
         output_tokens: 3,
         total_tokens: 11,

@@ -105,9 +105,6 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
    */
   protected config: Partial<AgentConfig>;
 
-  /** Token usage from the last execution (for metrics tracking) */
-  public lastTokenUsage?: TokenUsage;
-
   /** Current visualization event ID for tracking */
   private vizEventId?: string;
 
@@ -214,7 +211,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -253,6 +250,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     try {
       const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
 
+      this.startTurnTimer();
       const response = await this.client.responses.create({
         model: this.config.model!,
         max_output_tokens: this.config.maxTokens,
@@ -336,15 +334,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     // Track token usage if available
     if (response.usage) {
-      const usage = this.parseUsage(response.usage);
-
-      if (this.lastTokenUsage) {
-        this.lastTokenUsage.input_tokens += usage.input_tokens;
-        this.lastTokenUsage.output_tokens += usage.output_tokens;
-        this.lastTokenUsage.total_tokens += usage.total_tokens;
-      } else {
-        this.lastTokenUsage = { ...usage };
-      }
+      this.accumulateUsage(this.parseUsage(response.usage));
     }
 
     const toolCalls = response.output.filter(
@@ -453,6 +443,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
             this.history.getEntries()
           );
 
+          this.startTurnTimer();
           const newResponse = await this.client.responses.create({
             model: this.config.model!,
             max_output_tokens: this.config.maxTokens,
@@ -634,7 +625,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
    */
   async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -706,6 +697,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
   private async *streamTurn(): AsyncGenerator<StreamChunk> {
     const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
 
+    this.startTurnTimer();
     const stream = await this.client.responses.create({
       model: this.config.model!,
       max_output_tokens: this.config.maxTokens,
@@ -723,24 +715,19 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     for await (const event of stream) {
       if (event.type === "response.output_text.delta") {
+        this.markFirstToken();
         this.emit(AgentEvent.CHUNK, event.delta);
         yield { type: "text", content: event.delta };
       }
       if (event.type === "response.reasoning_summary_text.delta") {
+        this.markFirstToken();
         this.emit(AgentEvent.REASONING_CHUNK, event.delta);
         yield { type: "reasoning", content: event.delta };
       }
       if (event.type === "response.completed") {
         completedEvent = event;
         if (event.response.usage) {
-          const usage = this.parseUsage(event.response.usage);
-          if (this.lastTokenUsage) {
-            this.lastTokenUsage.input_tokens += usage.input_tokens;
-            this.lastTokenUsage.output_tokens += usage.output_tokens;
-            this.lastTokenUsage.total_tokens += usage.total_tokens;
-          } else {
-            this.lastTokenUsage = { ...usage };
-          }
+          this.accumulateUsage(this.parseUsage(event.response.usage));
         }
       }
       if (event.type === "response.incomplete") {
@@ -813,6 +800,8 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       input_tokens: input.input_tokens,
       output_tokens: input.output_tokens,
       total_tokens: input.total_tokens,
+      // Reasoning tokens are already counted inside `output_tokens`.
+      reasoning_tokens: input.output_tokens_details?.reasoning_tokens,
     };
   }
 }

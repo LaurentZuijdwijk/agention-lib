@@ -53,9 +53,6 @@ export class MistralAgent extends BaseAgent {
   private client: Mistral;
   protected config: Partial<AgentConfig>;
 
-  /** Token usage from the last execution (for metrics tracking) */
-  public lastTokenUsage?: TokenUsage;
-
   /** Current visualization event ID for tracking */
   private vizEventId?: string;
 
@@ -117,7 +114,7 @@ export class MistralAgent extends BaseAgent {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
-    this.lastTokenUsage = undefined;
+    this.resetTokenUsage();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -155,6 +152,7 @@ export class MistralAgent extends BaseAgent {
 
     try {
       const messages = mistralTransformer.toProvider(this.history.getEntries());
+      this.startTurnTimer();
       const response = await this.client.chat.complete({
         model: this.config.model!,
         messages: messages as Parameters<
@@ -229,16 +227,8 @@ export class MistralAgent extends BaseAgent {
     }
 
     const choice = response.choices[0];
-    const usage = this.parseUsage(response.usage);
-
     // Track token usage
-    if (this.lastTokenUsage) {
-      this.lastTokenUsage.input_tokens += usage.input_tokens;
-      this.lastTokenUsage.output_tokens += usage.output_tokens;
-      this.lastTokenUsage.total_tokens += usage.total_tokens;
-    } else {
-      this.lastTokenUsage = { ...usage };
-    }
+    const usage = this.accumulateUsage(this.parseUsage(response.usage));
 
     if (choice.finishReason === "length") {
       const error = new MaxTokensExceededError(
@@ -335,6 +325,8 @@ export class MistralAgent extends BaseAgent {
         // Continue conversation
         try {
           const messages = mistralTransformer.toProvider(this.history.getEntries());
+
+          this.startTurnTimer();
 
           const newResponse = await this.client.chat.complete({
             model: this.config.model!,

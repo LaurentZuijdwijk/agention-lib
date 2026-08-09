@@ -20,7 +20,7 @@ export default defineConfig({
       `window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-L248LRLBS9');`,
+      gtag('config', 'G-L248LRLBS9', { site_name: 'docs' });`,
     ],
   ],
 

@@ -5,6 +5,50 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-10
+
+### Fixed
+- **Streamed token usage was lost on OpenRouter.** `OpenAICompatibleAgent.executeStream()`
+  only read `chunk.usage` from a chunk with an empty `choices` array — OpenAI's layout,
+  where usage arrives on its own final chunk. OpenRouter attaches usage to the last
+  *content* chunk (the one carrying `finish_reason`), so it was dropped and
+  `lastTokenUsage` came back `undefined` for every streamed call. Usage is now read from
+  whichever chunk carries it, and folded in once at end of stream. `execute()` was never
+  affected.
+- Streamed usage is also recorded before the `finish_reason === "length"` throw, so a turn
+  that hits the token limit still reports the tokens it was billed for. Reasoning models
+  exhaust small budgets easily, and a truncated turn previously reported nothing.
+
+### Changed
+- **`ClaudeAgent` default model is now `claude-haiku-4-5`** (was
+  `claude-3-5-haiku-latest`, which 404s). Any `ClaudeAgent` built without an explicit
+  `model` previously failed outright.
+- **`GeminiAgent` default model is now `gemini-flash-latest`** (was `gemini-2.0-flash`).
+  Be aware this is a *thinking* model where the old default was not — the same prompt
+  reports roughly 10x the output tokens (584 of 645 were thoughts in testing). That is
+  real billed usage, not a measurement change. It reconciles only because of the
+  `thoughtsTokenCount` fold-in from 1.2.0. `gemini-flash-latest` is also a rolling alias,
+  so the default follows Google's current flash generation; pin `gemini-3.6-flash` if you
+  want it fixed.
+- Model unions in `lib/agents/model-types.ts` refreshed against each provider's live
+  models endpoint. `ClaudeModel` gains the Claude 5 family and 4.8. `GeminiModel` gains
+  the 3.x line and the 2.5 family. `MistralModel` gains current snapshots plus
+  `magistral` (reasoning), `mistral-medium` and `devstral`.
+
+### Removed
+- Model ids that no longer exist at any provider: `gemini-3.0-pro`, `gemini-3.0-flash`
+  (the real ids are `gemini-3-pro-preview` / `gemini-3-flash-preview`),
+  `gemini-2.0-flash-exp`, `ministral-8b-2410`, `ministral-3b-2410`, `codestral-2405`,
+  `mistral-moderation-2411`. Technically breaking if you typed one literally, though they
+  already fail at runtime — the type was lying rather than protecting you.
+
+### Note
+- `outputTokensPerSecond` documentation now names where it is exact and where it
+  over-reports. It is accurate wherever thinking is streamed (verified on Anthropic
+  extended thinking and DeepSeek); on OpenAI's Responses API the thinking finishes before
+  the first visible token, so it lands in `timeToFirstTokenMs` while its tokens still
+  count toward `output_tokens`.
+
 ## [1.2.0] - 2026-08-09
 
 ### Added

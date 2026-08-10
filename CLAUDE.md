@@ -144,6 +144,11 @@ These are derived from context engineering research (lost-in-the-middle, U-shape
 3. **PDF parsing** - Add tools for PDF document processing
 4. **Vector DB integration** - Add tools for vector database operations
 5. **Graph visualization** - Visual representation of pipeline structure and metrics
+6. **`listModels()` on the hosted agents** - `OllamaAgent` and `OpenAICompatibleAgent` have it;
+   `ClaudeAgent`, `OpenAiAgent`, `GeminiAgent` and `MistralAgent` do not. All four expose a
+   models endpoint (`/v1/models` for Anthropic and OpenAI and Mistral, `/v1beta/models` for
+   Gemini), so a common `listModels()` would let the hardcoded unions in `model-types.ts` be
+   checked against reality rather than hand-maintained.
 
 ### Documentation
 - [ ] Expand main README with architecture overview

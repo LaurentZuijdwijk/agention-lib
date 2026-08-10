@@ -86,9 +86,10 @@ export class GeminiAgent extends BaseAgent {
     };
 
     // Initialize the model
-    this.generativeModel = this.client.getGenerativeModel({
-      model: this.config.model!,
-    });
+    this.generativeModel = this.client.getGenerativeModel(
+      { model: this.config.model! },
+      config.defaultHeaders ? { customHeaders: config.defaultHeaders } : undefined
+    );
 
     // Add system message to history (skips if already exists with same content)
     this.addSystemMessage(this.getSystemMessage());

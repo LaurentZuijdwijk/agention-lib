@@ -54,6 +54,18 @@ describe("OpenAICompatibleAgent", () => {
   // ---------------------------------------------------------------------------
 
   describe("constructor", () => {
+    it("passes defaultHeaders through to the OpenAI client", () => {
+      new TestAgent({
+        defaultHeaders: { "HTTP-Referer": "https://myapp.example" },
+      });
+
+      expect(OpenAI).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          defaultHeaders: { "HTTP-Referer": "https://myapp.example" },
+        })
+      );
+    });
+
     it("initialises the OpenAI client with the provided baseURL and apiKey", () => {
       new TestAgent({ apiKey: "sk-test", baseURL: "http://my-server/v1" });
 

@@ -34,12 +34,30 @@ describe("GeminiAgent", () => {
   });
 
   describe("constructor", () => {
+    it("should pass defaultHeaders as customHeaders request options", () => {
+      new GeminiAgent({
+        id: "h",
+        name: "H",
+        description: "d",
+        apiKey: "test-api-key",
+        defaultHeaders: { "X-Trace-Id": "abc123" },
+      });
+
+      // Gemini has no client-level header option; they ride on requestOptions
+      expect(mockClient.getGenerativeModel).toHaveBeenLastCalledWith(
+        expect.anything(),
+        { customHeaders: { "X-Trace-Id": "abc123" } }
+      );
+    });
+
     it("should initialize with default values", () => {
       expect(agent).toBeInstanceOf(GeminiAgent);
       expect(GoogleGenerativeAI).toHaveBeenCalledWith("test-api-key");
-      expect(mockClient.getGenerativeModel).toHaveBeenCalledWith({
-        model: "gemini-flash-latest",
-      });
+      expect(mockClient.getGenerativeModel).toHaveBeenCalledWith(
+        { model: "gemini-flash-latest" },
+        // No defaultHeaders configured, so no requestOptions are passed
+        undefined
+      );
       expect(agent["config"]).toEqual({
         apiKey: "test-api-key",
         model: "gemini-flash-latest",

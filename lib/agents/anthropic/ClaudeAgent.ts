@@ -98,8 +98,8 @@ export class ClaudeAgent extends BaseAgent {
 
     this.client = new Anthropic(
       authType === "oauth"
-        ? { authToken: config.apiKey }
-        : { apiKey: config.apiKey }
+        ? { authToken: config.apiKey, defaultHeaders: config.defaultHeaders }
+        : { apiKey: config.apiKey, defaultHeaders: config.defaultHeaders }
     );
 
     this.config = {

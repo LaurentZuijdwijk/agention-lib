@@ -38,6 +38,22 @@ describe("OpenAiAgent", () => {
   });
 
   describe("constructor", () => {
+    it("should pass defaultHeaders to the OpenAI client", () => {
+      new OpenAiAgent({
+        id: "h",
+        name: "H",
+        description: "d",
+        apiKey: "test-api-key",
+        defaultHeaders: { "X-Trace-Id": "abc123" },
+      });
+
+      expect(OpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          defaultHeaders: { "X-Trace-Id": "abc123" },
+        })
+      );
+    });
+
     it("should initialize with default values", () => {
       expect(agent).toBeInstanceOf(OpenAiAgent);
       expect(OpenAI).toHaveBeenCalledWith({ apiKey: "test-api-key" });

@@ -1,4 +1,5 @@
 import { Mistral } from "@mistralai/mistralai";
+import { HTTPClient } from "@mistralai/mistralai/lib/http";
 
 import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
@@ -49,6 +50,25 @@ type AgentConfig = BaseAgentConfig & {
  * const response = await agent.execute("Hello!");
  * ```
  */
+/**
+ * Build a `beforeRequest` hook that adds custom headers to every request.
+ *
+ * The Mistral SDK has no `defaultHeaders` option like the Anthropic and OpenAI
+ * clients, so headers are injected at the HTTP layer instead. They overwrite
+ * headers the SDK already set, so that `defaultHeaders` means the same thing on
+ * every provider — see `CommonAgentConfig.defaultHeaders`. Verified against the
+ * OpenAI SDK on the wire: its `defaultHeaders` win over the client's own auth.
+ */
+export function defaultHeadersHook(
+  headers: Record<string, string>
+): (request: Request) => void {
+  return (request: Request) => {
+    for (const [name, value] of Object.entries(headers)) {
+      request.headers.set(name, value);
+    }
+  };
+}
+
 export class MistralAgent extends BaseAgent {
   private client: Mistral;
   protected config: Partial<AgentConfig>;
@@ -61,8 +81,16 @@ export class MistralAgent extends BaseAgent {
 
   constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
     super({ ...config, vendor: "mistral" }, history);
+    const httpClient = new HTTPClient();
+    if (config.defaultHeaders) {
+      httpClient.addHook(
+        "beforeRequest",
+        defaultHeadersHook(config.defaultHeaders)
+      );
+    }
     this.client = new Mistral({
       apiKey: config.apiKey,
+      httpClient,
     });
 
     // Merge flat config (deprecated) with nested vendorConfig

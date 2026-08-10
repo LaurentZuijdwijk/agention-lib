@@ -64,6 +64,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     this.client = new OpenAI({
       apiKey: config.apiKey || "not-needed",
       baseURL: config.baseURL,
+      defaultHeaders: config.defaultHeaders,
     });
 
     this.config = {

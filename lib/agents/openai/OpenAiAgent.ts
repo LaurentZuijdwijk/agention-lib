@@ -116,6 +116,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     this.client = new OpenAI({
       apiKey: config.apiKey,
+      defaultHeaders: config.defaultHeaders,
     });
 
     // Merge flat config (deprecated) with nested vendorConfig

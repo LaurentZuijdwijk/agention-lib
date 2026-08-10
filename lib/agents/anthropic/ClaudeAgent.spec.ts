@@ -34,6 +34,23 @@ describe("ClaudeAgent", () => {
   });
 
   describe("constructor", () => {
+    it("should pass defaultHeaders to the Anthropic client", () => {
+      new ClaudeAgent({
+        id: "h",
+        name: "H",
+        description: "d",
+        apiKey: "test-api-key",
+        defaultHeaders: { "X-Trace-Id": "abc123" },
+      });
+
+      expect(Anthropic).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "test-api-key",
+          defaultHeaders: { "X-Trace-Id": "abc123" },
+        })
+      );
+    });
+
     it("should initialize with default values", () => {
       expect(agent).toBeInstanceOf(ClaudeAgent);
       expect(Anthropic).toHaveBeenCalledWith({ apiKey: "test-api-key" });

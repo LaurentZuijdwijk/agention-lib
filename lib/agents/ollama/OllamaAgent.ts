@@ -88,6 +88,7 @@ export class OllamaAgent extends BaseAgent {
     this.config = {
       model: config.model || "llama3.2",
       host,
+      defaultHeaders: config.defaultHeaders,
       maxTokens: config.maxTokens,
       temperature: config.temperature,
       topP: config.topP,
@@ -115,7 +116,10 @@ export class OllamaAgent extends BaseAgent {
         if (!OllamaClass) {
           throw new Error("Could not find Ollama class in ollama package");
         }
-        this._client = new OllamaClass({ host: this.config.host });
+        this._client = new OllamaClass({
+          host: this.config.host,
+          headers: this.config.defaultHeaders,
+        });
       } catch (err) {
         throw new ExecutionError(
           `Failed to load 'ollama' package. Install it with: npm install ollama\n${

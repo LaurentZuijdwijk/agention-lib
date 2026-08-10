@@ -28,6 +28,28 @@ export interface CommonAgentConfig {
   /** API key for authenticating with the LLM provider */
   apiKey: string;
 
+  /**
+   * Extra HTTP headers sent with every request to the provider.
+   *
+   * Useful for gateway and proxy attribution, tracing, or corporate egress
+   * requirements. OpenRouter, for example, uses `HTTP-Referer` and `X-Title`
+   * to attribute traffic to your app:
+   *
+   * ```typescript
+   * defaultHeaders: {
+   *   "HTTP-Referer": "https://myapp.example",
+   *   "X-Title": "My App",
+   * }
+   * ```
+   *
+   * These override headers the agent would otherwise set, including
+   * `Authorization` / `x-api-key`. That follows the Anthropic and OpenAI SDKs'
+   * own `defaultHeaders` behaviour and is deliberate — it lets a gateway swap
+   * in its own auth scheme. The flip side is that setting an auth header here
+   * replaces `apiKey`, so do it only when that is what you mean.
+   */
+  defaultHeaders?: Record<string, string>;
+
   /** Enable debug logging for troubleshooting (default: false) */
   debug?: boolean;
 

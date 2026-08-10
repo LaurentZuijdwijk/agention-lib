@@ -586,6 +586,59 @@ describe("OpenAICompatibleAgent", () => {
       jest.restoreAllMocks();
     });
 
+    it("accumulates usage attached to the final content chunk (OpenRouter)", async () => {
+      // OpenRouter does not send a separate choice-less usage chunk — it hangs
+      // usage off the last content chunk, alongside finish_reason. Shape taken
+      // from a real openrouter.ai/api/v1 stream.
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          { choices: [{ finish_reason: null, delta: { content: "Hi" } }] },
+          {
+            choices: [
+              { index: 0, delta: { content: "", role: "assistant" }, finish_reason: "stop" },
+            ],
+            usage: {
+              prompt_tokens: 14,
+              completion_tokens: 7,
+              total_tokens: 21,
+              completion_tokens_details: { reasoning_tokens: 0 },
+            },
+          },
+        ])
+      );
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        input_tokens: 14,
+        output_tokens: 7,
+        total_tokens: 21,
+      });
+    });
+
+    it("counts usage once when a provider sends it on both chunk shapes", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          {
+            choices: [{ finish_reason: "stop", delta: { content: "ok" } }],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          },
+          {
+            choices: [],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          },
+        ])
+      );
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        input_tokens: 10,
+        output_tokens: 5,
+        total_tokens: 15,
+      });
+    });
+
     it("records reasoning tokens from completion_tokens_details", async () => {
       mockClient.chat.completions.create.mockResolvedValue(
         makeStream([

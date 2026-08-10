@@ -497,13 +497,17 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     let reasoningContent = "";
     const toolCallAcc = new Map<number, { id: string; name: string; arguments: string }>();
     let finishReason: string | null = null;
+    let streamUsage: ChatCompletionChunk["usage"] | undefined;
 
     for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
-      // Final chunk carrying usage (choices is empty)
-      if (chunk.choices.length === 0) {
-        if (chunk.usage) this.accumulateStreamUsage(chunk.usage);
-        continue;
-      }
+      // Usage can ride on any chunk: OpenAI sends it on a final choice-less
+      // chunk, OpenRouter attaches it to the last content chunk (the one
+      // carrying finish_reason). Keep the most recent and fold it in once the
+      // stream ends — it is a running total for the turn, not a delta, so
+      // taking the last one covers both layouts without double-counting.
+      if (chunk.usage) streamUsage = chunk.usage;
+
+      if (chunk.choices.length === 0) continue;
 
       const choice = chunk.choices[0];
       finishReason = choice.finish_reason ?? finishReason;
@@ -544,6 +548,10 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
         }
       }
     }
+
+    // Before any early return below, so a turn that hits the token limit or
+    // continues into a tool call still reports what it spent.
+    if (streamUsage) this.accumulateStreamUsage(streamUsage);
 
     if (finishReason === "length") {
       const error = new MaxTokensExceededError(

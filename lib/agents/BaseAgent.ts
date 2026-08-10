@@ -70,6 +70,14 @@ export type TokenUsage = {
    * Generation throughput: `output_tokens` over `generationMs`. Falls back to
    * `totalMs` when the first-token time is unknown (an unstreamed call), in
    * which case it is an end-to-end rate rather than a pure generation rate.
+   *
+   * Accurate wherever thinking is streamed, because the first thinking chunk
+   * starts the generation window — verified on Anthropic extended thinking and
+   * on DeepSeek via OpenRouter. It over-reports on OpenAI's Responses API,
+   * which does not stream raw reasoning: there the thinking finishes before the
+   * first visible token, so it lands inside `timeToFirstTokenMs` while its
+   * tokens still count toward `output_tokens`. For the visible-output rate on
+   * that path, divide `output_tokens - reasoning_tokens` by `generationMs`.
    */
   outputTokensPerSecond?: number;
 };

@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-08-10
+
+### Added
+- **Custom HTTP headers on every agent** — new `defaultHeaders` on
+  `CommonAgentConfig`, sent with every request to the provider:
+
+  ```typescript
+  new ClaudeAgent({
+    // ...
+    defaultHeaders: {
+      "HTTP-Referer": "https://myapp.example",
+      "X-Title": "My App",
+    },
+  });
+  ```
+
+  Useful for gateway attribution (OpenRouter uses `HTTP-Referer` / `X-Title` to attribute
+  traffic to your app), trace ids, and corporate egress requirements. Supported on
+  `ClaudeAgent`, `OpenAiAgent`, `OpenAICompatibleAgent` (and so `LlamaCppAgent`),
+  `GeminiAgent`, `MistralAgent` and `OllamaAgent` — wired to whatever each SDK provides,
+  since no two expose it the same way.
+
+  **These override headers the agent would otherwise set, including `Authorization` /
+  `x-api-key`.** That matches the Anthropic and OpenAI SDKs' own `defaultHeaders`
+  behaviour, and is what lets you point an agent at a gateway using a different auth
+  scheme — but it does mean setting an auth header here replaces `apiKey`.
+
 ## [1.3.0] - 2026-08-10
 
 ### Fixed

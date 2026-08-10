@@ -103,7 +103,7 @@ export class ClaudeAgent extends BaseAgent {
     );
 
     this.config = {
-      model: config.model || "claude-3-5-haiku-latest",
+      model: config.model || "claude-haiku-4-5",
       maxTokens: config.maxTokens || 1024,
       disableParallelToolUse,
       metadata,

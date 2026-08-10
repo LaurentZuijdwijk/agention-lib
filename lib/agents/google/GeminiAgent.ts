@@ -73,7 +73,7 @@ export class GeminiAgent extends BaseAgent {
     const responseSchema = config.responseSchema ?? vendorConfig.responseSchema;
 
     this.config = {
-      model: config.model || "gemini-2.0-flash",
+      model: config.model || "gemini-flash-latest",
       maxTokens: config.maxTokens || 1024,
       apiKey: config.apiKey,
       temperature: config.temperature,

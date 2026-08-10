@@ -10,6 +10,12 @@
  * @see https://docs.anthropic.com/en/docs/about-claude/models
  */
 export type ClaudeModel =
+  // Claude 5
+  | "claude-opus-5"
+  | "claude-sonnet-5"
+  | "claude-fable-5"
+  // Claude 4.8
+  | "claude-opus-4-8"
   // Claude 4.7
   | "claude-opus-4-7"
   // Claude 4.6
@@ -17,7 +23,9 @@ export type ClaudeModel =
   | "claude-sonnet-4-6"
   // Claude 4.5
   | "claude-opus-4-5"
+  | "claude-opus-4-5-20251101"
   | "claude-sonnet-4-5"
+  | "claude-sonnet-4-5-20250929"
   | "claude-haiku-4-5"
   | "claude-haiku-4-5-20251001"
   // Allow custom strings for new models while preserving autocomplete
@@ -29,14 +37,28 @@ export type ClaudeModel =
  * @see https://ai.google.dev/gemini-api/docs/models/gemini
  */
 export type GeminiModel =
+  // Rolling aliases — track the current generation
+  | "gemini-pro-latest"
   | "gemini-flash-latest"
   | "gemini-flash-lite-latest"
-  | "gemini-3.0-pro"
-  | "gemini-3.0-flash"
+  // Gemini 3.x
+  | "gemini-3.6-flash"
+  | "gemini-3.5-flash"
+  | "gemini-3.5-flash-lite"
+  | "gemini-3.1-pro-preview"
+  | "gemini-3.1-flash-lite"
+  | "gemini-3.1-flash-lite-preview"
+  | "gemini-3-pro-preview"
+  | "gemini-3-flash-preview"
+  // Gemini 2.5
+  | "gemini-2.5-pro"
+  | "gemini-2.5-flash"
   | "gemini-2.5-flash-lite"
-  | "gemini-2.0-flash-exp"
+  // Gemini 2.0
   | "gemini-2.0-flash"
+  | "gemini-2.0-flash-001"
   | "gemini-2.0-flash-lite"
+  | "gemini-2.0-flash-lite-001"
   // Allow custom strings for new models while preserving autocomplete
   | (string & {});
 
@@ -46,17 +68,32 @@ export type GeminiModel =
  * @see https://docs.mistral.ai/getting-started/models/
  */
 export type MistralModel =
+  // General purpose
   | "mistral-large-latest"
+  | "mistral-large-2512"
+  | "mistral-medium-latest"
+  | "mistral-medium-3.5"
   | "mistral-small-latest"
+  | "mistral-small-2603"
+  // Reasoning
+  | "magistral-small-latest"
+  // Edge / small
+  | "ministral-14b-latest"
   | "ministral-8b-latest"
-  | "ministral-8b-2410"
+  | "ministral-8b-2512"
   | "ministral-3b-latest"
-  | "ministral-3b-2410"
+  | "ministral-3b-2512"
+  // Code
   | "codestral-latest"
-  | "codestral-2405"
+  | "codestral-2508"
+  | "devstral-latest"
+  | "devstral-medium-latest"
+  // Embedding / moderation / OCR
   | "mistral-embed"
+  | "codestral-embed"
   | "mistral-moderation-latest"
-  | "mistral-moderation-2411"
+  | "mistral-moderation-2603"
+  | "mistral-ocr-latest"
   // Allow custom strings for new models while preserving autocomplete
   | (string & {});
 

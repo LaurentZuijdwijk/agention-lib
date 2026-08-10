@@ -38,11 +38,11 @@ describe("GeminiAgent", () => {
       expect(agent).toBeInstanceOf(GeminiAgent);
       expect(GoogleGenerativeAI).toHaveBeenCalledWith("test-api-key");
       expect(mockClient.getGenerativeModel).toHaveBeenCalledWith({
-        model: "gemini-2.0-flash",
+        model: "gemini-flash-latest",
       });
       expect(agent["config"]).toEqual({
         apiKey: "test-api-key",
-        model: "gemini-2.0-flash",
+        model: "gemini-flash-latest",
         temperature: 0,
         maxTokens: 1024,
       });

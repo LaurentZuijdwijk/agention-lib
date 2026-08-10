@@ -90,7 +90,7 @@ async function example() {
     description:
       "You are a world class software engineer who helps with software projects, you have access to files and directories and can create and write to files.",
     name: "Powerfull AI coder",
-    model: "claude-3-5-haiku-latest",
+    model: "claude-haiku-4-5",
     tools: [directoryReadTool, fileReadTool, fileWriteTool],
     apiKey: process.env.ANTHROPIC_API_KEY as string,
     disableParallelToolUse: false,

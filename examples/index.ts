@@ -112,7 +112,7 @@ async function exampleAgents() {
     description:
       "This agent gets the weather for a specific location, it is sarcastic and to the point and tries to make me laugh",
     name: "Funny sarcastic weather agent",
-    model: "claude-3-5-haiku-latest",
+    model: "claude-haiku-4-5",
     tools: [geoCodingTool, weatherTool],
     apiKey: process.env.ANTHROPIC_API_KEY as string,
     // Optional: Force tool usage
@@ -126,7 +126,7 @@ async function exampleAgents() {
     description:
       "This helps with software projects, it takes commands, reads files and suggests improvements",
     name: "Powerfull AI coder",
-    model: "claude-3-5-haiku-latest",
+    model: "claude-haiku-4-5",
     tools: [directoryReadTool, fileReadTool],
     apiKey: process.env.ANTHROPIC_API_KEY as string,
     // Optional: Force tool usage

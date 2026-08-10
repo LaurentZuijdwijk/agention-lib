@@ -39,7 +39,7 @@ describe("ClaudeAgent", () => {
       expect(Anthropic).toHaveBeenCalledWith({ apiKey: "test-api-key" });
       expect(agent["config"]).toEqual({
         apiKey: "test-api-key",
-        model: "claude-3-5-haiku-latest",
+        model: "claude-haiku-4-5",
         temperature: 0,
         maxTokens: 1024,
         disableParallelToolUse: false,
@@ -105,7 +105,7 @@ describe("ClaudeAgent", () => {
       await agent.execute("test input");
 
       expect(mockClient.messages.create).toHaveBeenCalledWith({
-        model: "claude-3-5-haiku-latest",
+        model: "claude-haiku-4-5",
         system:
           "You are an agent called TestAgent and should follow these instructions: Test Description",
         max_tokens: 1024,

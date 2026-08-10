@@ -191,7 +191,7 @@ const medicalResearchAgent = new ClaudeAgent(
     tools: [pubmedSearchTool, pubmedAbstractTool],
     apiKey: process.env.ANTHROPIC_API_KEY as string,
     // Using Opus for better medical knowledge and reasoning
-    model: "claude-3-5-haiku-latest",
+    model: "claude-haiku-4-5",
     maxTokens: 8000,
     temperature: 0.4,
   },

@@ -25,6 +25,15 @@ export type ToolUseContent = {
   id: string;
   name: string;
   input: Record<string, unknown>;
+  /**
+   * Provider-opaque reasoning token that has to be echoed back verbatim.
+   *
+   * Gemini 3 returns one beside every `functionCall` and rejects any later
+   * request in the conversation that omits it — "Function call is missing a
+   * thought_signature in functionCall parts". Nothing reads its contents; it
+   * only has to survive the round trip through history.
+   */
+  thoughtSignature?: string;
 };
 
 /**
@@ -265,9 +274,18 @@ export function text(value: string): TextContent {
 export function toolUse(
   id: string,
   name: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  thoughtSignature?: string
 ): ToolUseContent {
-  return { type: "tool_use", id, name, input };
+  // Only set the key when there is one, so a block stored without a signature
+  // serializes exactly as it did before the field existed
+  return {
+    type: "tool_use",
+    id,
+    name,
+    input,
+    ...(thoughtSignature ? { thoughtSignature } : {}),
+  };
 }
 
 /**

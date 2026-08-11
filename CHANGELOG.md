@@ -63,11 +63,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Separately, `capabilities.chat` removes the models that were never chat models
   (embeddings, Imagen, Veo, live audio — 16 of Gemini's 52).
 
+- **OpenAI sent `strict: true` on schemas that cannot satisfy it.** Strict mode requires
+  `required` to name *every* key in `properties`, so a tool with one optional parameter
+  was a 400 before the model ran — and since the tool belt is identical on every retry,
+  every request of the session failed. `strict` is now decided per tool by the new
+  `canUseStrictSchema()`, which also rejects nested objects (strict wants
+  `additionalProperties: false` on those too, and only the top level sets it). Tools whose
+  parameters are all required keep the guarantee.
+
+  Rewriting optionals as `["string", "null"]` and requiring them — OpenAI's own suggestion
+  — was rejected deliberately: it changes the schema every other provider sees, and Gemini
+  does not accept type unions.
+- **Gemini rejected every tool result that was not a JSON object.** `functionResponse.response`
+  is a protobuf `Struct`, and the transformer's `JSON.parse` fallback only caught a *parse
+  failure* — but a tool returning a plain string is stored as `JSON.stringify(result)`,
+  which parses back to a string rather than throwing. A bare scalar went out and Gemini
+  answered `400 Invalid value at 'contents[2].parts[0].function_response.response'` with
+  the tool output quoted back, on the first tool call of any session. Anything that is not
+  an object is now nested under `result`, matching the shape the parse-failure path already
+  produced. Fixed in the transformer, so replayed history is covered too.
+- **Gemini 3 thought signatures were destroyed by the transformer.** Gemini 3 returns an
+  opaque `thoughtSignature` beside every `functionCall` and requires it back on that part
+  in every later request; without it the follow-up to a tool-using turn is rejected with
+  `400 "Function call is missing a thought_signature in functionCall parts"`. Both
+  directions dropped it, and since the transformer is the only thing that touches these
+  parts, no subclass could carry it. `ToolUseContent` gains an optional `thoughtSignature`
+  (with a matching 4th parameter on `toolUse()`), `fromProviderContent` captures it and
+  `toProvider` emits it. The field is omitted entirely when absent, so Gemini 2.5 and
+  non-thinking paths send a byte-identical request.
+
+  Verified end-to-end against `gemini-3.5-flash`: a full tool round trip now succeeds,
+  and the pre-fix transformer fails on the same call with the Struct error above.
+
 ### Note
 - **Mistral's `raw` is the SDK's parsed view, not the wire response.** The Mistral SDK
   validates against a schema that drops unknown fields, so capabilities the API has
   added since `@mistralai/mistralai` 1.13.0 — `reasoning`, the audio flags — never reach
   this library. Every other agent's `raw` is untouched.
+- `@google/generative-ai` declares neither `thoughtSignature` nor `FunctionCall.id`, both
+  of which the live API returns. A local `GeminiPart` type widens `Part` rather than
+  casting at each use.
+- Signatures also ride on **text** parts (confirmed on every response, including a
+  one-word answer), but omitting those is accepted — a text-only follow-up without them
+  returns 200. Only the function-call case is enforced, so only that one is carried.
+- `functionCall.id` is deliberately still not used as the `tool_use` id. `toProvider`
+  sends tool results as `functionResponse.name = block.tool_use_id`, which Gemini requires
+  to be the function *name*; keying blocks by Gemini's id would desynchronise the
+  tool_use/tool_result pair for nothing, since the id is never echoed back.
 
 ## [1.5.0] - 2026-08-11
 

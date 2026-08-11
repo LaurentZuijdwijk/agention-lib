@@ -417,3 +417,155 @@ describe("chatCompletionsTransformer — toolResultEntry", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Gemini — functionResponse.response must be a protobuf Struct
+//
+// Ported from agention-marshall's gemini-tool-response.test.ts. The reported
+// bug: a tool returning a plain string is stored as `JSON.stringify(result)`,
+// which parses back to a string rather than throwing, so the object fallback
+// never fired and a bare scalar went out. Gemini answers 400 with the whole
+// tool output quoted back — on the first tool call of any session.
+// ---------------------------------------------------------------------------
+
+/** What the agent stores: `JSON.stringify` of whatever the tool returned. */
+const asStored = (result: unknown): string => JSON.stringify(result) as string;
+
+/** What the transformer sends as `functionResponse.response`. */
+function asSent(stored: string): unknown {
+  const entry = geminiTransformer.toolResultEntry("get_weather", stored);
+  const [content] = geminiTransformer.toProvider([entry]) as any[];
+  return content.parts[0].functionResponse.response;
+}
+
+const isStruct = (value: unknown): boolean =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+describe("geminiTransformer — tool results are Structs", () => {
+  it("wraps a plain string result, which is what most tools return", () => {
+    expect(asSent(asStored("d  .changeset\nd  .claude\nf  .env"))).toEqual({
+      result: "d  .changeset\nd  .claude\nf  .env",
+    });
+  });
+
+  it("leaves a result that is already an object alone", () => {
+    expect(asSent(asStored({ files: ["a.ts"], truncated: false }))).toEqual({
+      files: ["a.ts"],
+      truncated: false,
+    });
+  });
+
+  it("wraps the scalars a JSON parse would otherwise hand back bare", () => {
+    expect(asSent(asStored("42"))).toEqual({ result: "42" });
+    expect(asSent(asStored(7))).toEqual({ result: 7 });
+    expect(asSent(asStored(true))).toEqual({ result: true });
+  });
+
+  it("wraps an array, which is valid JSON but not a Struct", () => {
+    expect(asSent(asStored(["a", "b"]))).toEqual({ result: ["a", "b"] });
+  });
+
+  it("survives a tool that returned nothing at all", () => {
+    // JSON.stringify(undefined) is undefined, not a string
+    expect(asSent(asStored(undefined))).toEqual({ result: "" });
+    expect(asSent(asStored(null))).toEqual({ result: "" });
+  });
+
+  it("keeps text that was never JSON in the first place", () => {
+    expect(asSent("not json at all")).toEqual({ result: "not json at all" });
+  });
+
+  it("always produces something Gemini will accept as a Struct", () => {
+    for (const result of ["text", "", 42, true, null, undefined, ["a"], { ok: 1 }]) {
+      expect(isStruct(asSent(asStored(result)))).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gemini — thought signatures survive the round trip
+//
+// Gemini 3 attaches an opaque `thoughtSignature` to every functionCall part and
+// requires it back on that same part in every later request. Verified against
+// the live API: replaying a tool turn without it is rejected with
+//   400 "Function call is missing a thought_signature in functionCall parts."
+// The transformer is the only place that touches these parts, so a subclass
+// cannot carry the field — it has to survive here.
+// ---------------------------------------------------------------------------
+
+describe("geminiTransformer — thought signatures", () => {
+  const SIGNATURE = "Et0CCtoCARFNMg9xpotCjWgr8rPF+rbSfJaLqutU";
+
+  it("captures the signature from a function call part", () => {
+    const entry = geminiTransformer.fromProviderContent("assistant", [
+      {
+        functionCall: { name: "get_weather", args: { city: "Paris" } },
+        thoughtSignature: SIGNATURE,
+      },
+    ] as any);
+
+    expect(entry.content[0]).toEqual(
+      toolUse("get_weather", "get_weather", { city: "Paris" }, SIGNATURE)
+    );
+  });
+
+  it("emits the signature back on the part it came from", () => {
+    const entry: HistoryEntry = {
+      role: "assistant",
+      content: [
+        toolUse("get_weather", "get_weather", { city: "Paris" }, SIGNATURE),
+      ],
+    };
+
+    const [content] = geminiTransformer.toProvider([entry]) as any[];
+
+    expect(content.parts[0]).toEqual({
+      functionCall: { name: "get_weather", args: { city: "Paris" } },
+      thoughtSignature: SIGNATURE,
+    });
+  });
+
+  it("survives a full round trip through history", () => {
+    const parts = [
+      {
+        functionCall: { name: "get_weather", args: { city: "Paris" } },
+        thoughtSignature: SIGNATURE,
+      },
+    ];
+
+    const entry = geminiTransformer.fromProviderContent("assistant", parts as any);
+    const [content] = geminiTransformer.toProvider([entry]) as any[];
+
+    expect(content.parts[0].thoughtSignature).toBe(SIGNATURE);
+  });
+
+  it("omits the field entirely when there is no signature", () => {
+    // Gemini 2.5 and any non-thinking path send none, and an explicit
+    // undefined would be a different request body
+    const entry: HistoryEntry = {
+      role: "assistant",
+      content: [toolUse("get_weather", "get_weather", { city: "Paris" })],
+    };
+
+    const [content] = geminiTransformer.toProvider([entry]) as any[];
+
+    expect(content.parts[0]).toEqual({
+      functionCall: { name: "get_weather", args: { city: "Paris" } },
+    });
+    expect("thoughtSignature" in content.parts[0]).toBe(false);
+  });
+
+  it("keeps each signature with its own call when several come back at once", () => {
+    const entry = geminiTransformer.fromProviderContent("assistant", [
+      { functionCall: { name: "get_weather", args: { city: "Paris" } }, thoughtSignature: "sig-a" },
+      { functionCall: { name: "get_time", args: { tz: "UTC" } }, thoughtSignature: "sig-b" },
+    ] as any);
+
+    const [content] = geminiTransformer.toProvider([entry]) as any[];
+
+    expect(content.parts.map((p: any) => p.thoughtSignature)).toEqual([
+      "sig-a",
+      "sig-b",
+    ]);
+  });
+});

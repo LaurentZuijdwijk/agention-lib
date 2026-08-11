@@ -175,11 +175,58 @@ describe("OpenAiAgent", () => {
             required: ["param1"],
             additionalProperties: false,
           },
-          strict: true,
+          // param2 is optional, and strict mode requires `required` to name
+          // every property — sending strict:true here 400s the whole request
+          strict: false,
         },
       ]);
 
       expect(mockTool.getPrompt).toHaveBeenCalled();
+    });
+
+    it("should keep strict mode for a tool whose parameters are all required", () => {
+      const mockTool = {
+        getPrompt: jest.fn().mockReturnValue({
+          name: "strict_tool",
+          description: "Every parameter is required",
+          input_schema: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              content: { type: "string" },
+            },
+            required: ["path", "content"],
+          },
+        }),
+      };
+
+      agent["tools"].set("strict_tool", mockTool as any);
+
+      const [definition] = agent["getToolDefinitions"]();
+
+      expect(definition.strict).toBe(true);
+    });
+
+    it("should drop strict mode for a tool with a nested object", () => {
+      // Strict wants additionalProperties:false on nested objects too, and this
+      // only sets it at the top level. MCP servers send these routinely.
+      const mockTool = {
+        getPrompt: jest.fn().mockReturnValue({
+          name: "nested_tool",
+          description: "Takes a filter object",
+          input_schema: {
+            type: "object",
+            properties: { filter: { type: "object", properties: {} } },
+            required: ["filter"],
+          },
+        }),
+      };
+
+      agent["tools"].set("nested_tool", mockTool as any);
+
+      const [definition] = agent["getToolDefinitions"]();
+
+      expect(definition.strict).toBe(false);
     });
 
     it("should return empty array when no tools", () => {

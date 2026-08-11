@@ -29,6 +29,7 @@ import {
   ReasoningEffortFor,
 } from "../model-types";
 import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
+import { canUseStrictSchema } from "./openai-strict";
 
 type AgentConfig<M extends OpenAIModel = OpenAIModel> = BaseAgentConfig & {
   apiKey: string;
@@ -182,17 +183,21 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     return Array.from(this.tools.values()).map((tool) => {
       const prompt = tool.getPrompt();
 
+      const parameters = {
+        type: prompt.input_schema.type,
+        properties: prompt.input_schema.properties,
+        required: prompt.input_schema.required,
+        additionalProperties: false,
+      };
+
       return {
         type: "function",
         name: prompt.name,
         description: prompt.description,
-        parameters: {
-          type: prompt.input_schema.type,
-          properties: prompt.input_schema.properties,
-          required: prompt.input_schema.required,
-          additionalProperties: false,
-        },
-        strict: true,
+        parameters,
+        // Per tool, not unconditional: strict mode requires `required` to name
+        // every property, so one optional parameter would 400 the whole request
+        strict: canUseStrictSchema(parameters),
       };
     });
   }

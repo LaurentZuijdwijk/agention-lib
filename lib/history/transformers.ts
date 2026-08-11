@@ -19,6 +19,19 @@ import type { ResponseInputItem } from "openai/resources/responses/responses";
 
 import type { Content, Part, FunctionCall } from "@google/generative-ai";
 
+/**
+ * A Gemini part, plus the fields the live API sends that
+ * `@google/generative-ai` does not declare.
+ *
+ * `thoughtSignature` is an opaque reasoning token Gemini 3 attaches to each
+ * `functionCall` part and requires back on that same part in every later
+ * request of the conversation; without it the follow-up call to a tool-using
+ * turn is rejected with "Function call is missing a thought_signature in
+ * functionCall parts". The SDK was written against Gemini 2.5, which had no
+ * such requirement, so the type predates the field entirely.
+ */
+type GeminiPart = Part & { thoughtSignature?: string };
+
 import {
   HistoryEntry,
   MessageContent,
@@ -538,7 +551,7 @@ export const geminiTransformer = {
       // Gemini uses "user" and "model" roles
       const role = entry.role === "assistant" ? "model" : "user";
 
-      const parts: Part[] = [];
+      const parts: GeminiPart[] = [];
 
       // Add text parts
       for (const block of textBlocks) {
@@ -571,23 +584,42 @@ export const geminiTransformer = {
             name: block.name,
             args: block.input,
           },
+          // Gemini 3 requires its own reasoning token back on the part it came
+          // from, or it rejects the follow-up request outright
+          ...(block.thoughtSignature
+            ? { thoughtSignature: block.thoughtSignature }
+            : {}),
         });
       }
 
       // Add function response parts (for user messages with tool results)
       for (const block of toolResultBlocks) {
-        // Parse content if it's JSON, otherwise wrap in response object
-        let responseData: object;
+        // `functionResponse.response` is a protobuf Struct, so it has to be a
+        // JSON *object*. Parsing alone is not enough: a tool returning a plain
+        // string is stored as `JSON.stringify(result)`, which parses back to a
+        // string rather than throwing, so a bare scalar would go out and Gemini
+        // would answer 400 with the tool output quoted back. Anything that is
+        // not already an object is nested under `result` — the same shape the
+        // parse-failure path produces, so the model sees no difference and no
+        // tool has to know about any of this.
+        let responseData: unknown;
         try {
           responseData = JSON.parse(block.content);
         } catch {
-          responseData = { result: block.content };
+          responseData = block.content;
+        }
+        if (
+          typeof responseData !== "object" ||
+          responseData === null ||
+          Array.isArray(responseData)
+        ) {
+          responseData = { result: responseData ?? "" };
         }
 
         parts.push({
           functionResponse: {
             name: block.tool_use_id, // Gemini uses the function name, but we store tool_use_id
-            response: responseData,
+            response: responseData as object,
           },
         });
       }
@@ -614,9 +646,16 @@ export const geminiTransformer = {
         const fc = part.functionCall as FunctionCall;
         normalizedContent.push(
           toolUse(
-            fc.name, // Gemini doesn't have separate IDs, use function name
+            // Deliberately the name, not the `id` the live response also
+            // carries: `toProvider` sends a tool result as
+            // `functionResponse.name = block.tool_use_id`, and Gemini requires
+            // that to be the function name. Keying the block by Gemini's id
+            // would desynchronise the tool_use/tool_result pair without
+            // buying anything — the id is never echoed back.
             fc.name,
-            (fc.args || {}) as Record<string, unknown>
+            fc.name,
+            (fc.args || {}) as Record<string, unknown>,
+            (part as GeminiPart).thoughtSignature
           )
         );
       }

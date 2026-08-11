@@ -110,18 +110,41 @@ describe("ClaudeAgent", () => {
 
   describe("listModels", () => {
     it("should normalize the models the API reports", async () => {
+      // Shape verified on the wire on 2026-08-11 — the token limits and the
+      // capability tree are absent from the SDK's own ModelInfo type.
       const cards = [
         {
           id: "claude-opus-4-6",
           type: "model",
           display_name: "Claude Opus 4.6",
           created_at: "2026-02-05T00:00:00Z",
+          max_input_tokens: 1000000,
+          max_tokens: 128000,
+          capabilities: {
+            image_input: { supported: true },
+            thinking: {
+              supported: true,
+              types: { enabled: { supported: false }, adaptive: { supported: true } },
+            },
+            effort: {
+              supported: true,
+              low: { supported: true },
+              max: { supported: true },
+            },
+          },
         },
         {
           id: "claude-haiku-4-5",
           type: "model",
           display_name: "Claude Haiku 4.5",
           created_at: "2025-10-01T00:00:00Z",
+          max_input_tokens: 200000,
+          max_tokens: 64000,
+          capabilities: {
+            image_input: { supported: true },
+            thinking: { supported: false },
+            effort: { supported: false, low: { supported: false } },
+          },
         },
       ];
       mockClient.models.list.mockReturnValue(
@@ -137,15 +160,62 @@ describe("ClaudeAgent", () => {
           id: "claude-opus-4-6",
           displayName: "Claude Opus 4.6",
           created: new Date("2026-02-05T00:00:00Z"),
+          contextLength: 1000000,
+          maxOutputTokens: 128000,
+          // Tools are not reported by the endpoint, so the flag stays unset
+          capabilities: { vision: true, thinking: true },
           raw: cards[0],
         },
         {
           id: "claude-haiku-4-5",
           displayName: "Claude Haiku 4.5",
           created: new Date("2025-10-01T00:00:00Z"),
+          contextLength: 200000,
+          maxOutputTokens: 64000,
+          capabilities: { vision: true, thinking: false },
           raw: cards[1],
         },
       ]);
+    });
+
+    it("should survive a response without the capability tree", async () => {
+      // An older API version, or a gateway that trims the response
+      mockClient.models.list.mockReturnValue(
+        (async function* () {
+          yield { id: "claude-x", display_name: "X", created_at: "2025-01-01T00:00:00Z" };
+        })()
+      );
+
+      const [model] = await agent.listModels();
+
+      expect(model.contextLength).toBeUndefined();
+      expect(model.capabilities).toEqual({});
+    });
+
+    it("should expose the effort levels a model accepts on raw", async () => {
+      mockClient.models.list.mockReturnValue(
+        (async function* () {
+          yield {
+            id: "claude-opus-4-6",
+            display_name: "X",
+            created_at: "2025-01-01T00:00:00Z",
+            capabilities: {
+              effort: {
+                supported: true,
+                low: { supported: true },
+                medium: { supported: true },
+                xhigh: { supported: false },
+              },
+            },
+          };
+        })()
+      );
+
+      const [model] = await agent.listModels();
+
+      // The live answer to what model-types.ts hardcodes for OpenAI
+      expect(model.raw.capabilities?.effort?.low?.supported).toBe(true);
+      expect(model.raw.capabilities?.effort?.xhigh?.supported).toBe(false);
     });
 
     it("should follow every page", async () => {

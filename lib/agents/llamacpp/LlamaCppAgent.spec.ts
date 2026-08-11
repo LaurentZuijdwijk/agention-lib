@@ -163,6 +163,10 @@ describe("LlamaCppAgent", () => {
         loaded: false,
         contextLength: undefined,
       });
+      // Vision follows from the declared modalities; tool support is not
+      // reported by the server, so it stays unset
+      expect(result[0].capabilities).toEqual({ vision: true });
+      expect(result[1].capabilities).toEqual({ vision: undefined });
       // Launch args, presets and modalities stay on raw
       expect(result[0].raw.status.args).toEqual(["--ctx-size", "120000"]);
       expect(result[0].raw.architecture.input_modalities).toEqual([

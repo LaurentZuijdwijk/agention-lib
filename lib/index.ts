@@ -13,8 +13,14 @@ export * from "./agents/anthropic/ClaudeAgent";
 export { OpenAiAgent } from "./agents/openai/OpenAiAgent";
 export { MistralAgent } from "./agents/mistral/MistralAgent";
 export type { MistralModelCard } from "./agents/mistral/MistralAgent";
-export { GeminiAgent } from "./agents/google/GeminiAgent";
-export type { GeminiModelCard } from "./agents/google/GeminiAgent";
+export {
+  GeminiAgent,
+  GEMINI_RETIRED_MODELS,
+} from "./agents/google/GeminiAgent";
+export type {
+  GeminiModelCard,
+  GeminiListModelsOptions,
+} from "./agents/google/GeminiAgent";
 export { OllamaAgent } from "./agents/ollama/OllamaAgent";
 export type { OllamaModelInfo } from "./agents/ollama/OllamaAgent";
 export { LlamaCppAgent } from "./agents/llamacpp/LlamaCppAgent";

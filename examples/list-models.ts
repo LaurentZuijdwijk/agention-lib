@@ -22,18 +22,31 @@ import { LlamaCppAgent } from "../lib/agents/llamacpp/LlamaCppAgent";
 
 const identity = { id: "1", name: "Lister", description: "Lists models" };
 
-function print(provider: string, models: ModelInfo[]): void {
+function print(provider: string, allModels: ModelInfo[]): void {
+  // Drop the models the provider says an agent cannot drive — embeddings,
+  // image and live-audio models on Gemini, for instance
+  const models = allModels.filter((m) => m.capabilities?.chat !== false);
+  const skipped = allModels.length - models.length;
   const loaded = models.filter((m) => m.loaded).length;
-  const suffix = models.some((m) => m.loaded !== undefined)
-    ? `, ${loaded} loaded`
-    : "";
-  console.log(`\n${provider} — ${models.length} models${suffix}`);
+  const suffix = [
+    models.some((m) => m.loaded !== undefined) ? `${loaded} loaded` : "",
+    skipped ? `${skipped} non-chat hidden` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  console.log(
+    `\n${provider} — ${models.length} models${suffix ? ` (${suffix})` : ""}`
+  );
   for (const model of models.slice(0, 10)) {
+    const caps = model.capabilities ?? {};
     const bits = [
       model.displayName && `"${model.displayName}"`,
       model.contextLength && `${model.contextLength.toLocaleString()} ctx`,
+      caps.vision === true && "vision",
+      caps.tools === true && "tools",
+      caps.thinking === true && "thinking",
+      model.replacedBy && `retires → ${model.replacedBy}`,
       model.ownedBy,
-      model.created?.toISOString().slice(0, 10),
     ].filter(Boolean);
     // Only llama.cpp's router distinguishes offered from loaded
     const mark = model.loaded === undefined ? " " : model.loaded ? "●" : "○";

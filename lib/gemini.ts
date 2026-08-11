@@ -1,5 +1,11 @@
 // Gemini Agent Entry Point
 export * from "./core";
-export { GeminiAgent } from "./agents/google/GeminiAgent";
-export type { GeminiModelCard } from "./agents/google/GeminiAgent";
+export {
+  GeminiAgent,
+  GEMINI_RETIRED_MODELS,
+} from "./agents/google/GeminiAgent";
+export type {
+  GeminiModelCard,
+  GeminiListModelsOptions,
+} from "./agents/google/GeminiAgent";
 export { geminiTransformer } from "./history/transformers";

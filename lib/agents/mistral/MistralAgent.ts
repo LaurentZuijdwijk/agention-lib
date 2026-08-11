@@ -134,8 +134,15 @@ export class MistralAgent extends BaseAgent {
   /**
    * List the models available to this API key, base and fine-tuned alike.
    *
-   * Mistral reports a context window, which lands on `contextLength`; the
-   * per-model `capabilities` flags (function calling, vision, …) are on `raw`.
+   * Mistral is the most forthcoming of the providers: it reports a context
+   * window, a full capability set, and a retirement date with a replacement
+   * model. All of that is mapped onto the neutral fields.
+   *
+   * Note that `raw` here is the SDK's parsed view, not the wire response — the
+   * Mistral SDK validates against a schema that drops fields it does not know,
+   * so capabilities the API has added since the installed SDK version (as of
+   * `1.13.0`: `reasoning`, the audio flags) are gone before this code sees
+   * them. Every other agent's `raw` is the untouched response.
    */
   async listModels(): Promise<ModelInfo<MistralModelCard>[]> {
     try {
@@ -146,6 +153,13 @@ export class MistralAgent extends BaseAgent {
         created: model.created ? new Date(model.created * 1000) : undefined,
         ownedBy: model.ownedBy,
         contextLength: model.maxContextLength,
+        capabilities: {
+          chat: model.capabilities.completionChat,
+          tools: model.capabilities.functionCalling,
+          vision: model.capabilities.vision,
+        },
+        deprecatedAt: model.deprecation ?? undefined,
+        replacedBy: model.deprecationReplacementModel ?? undefined,
         raw: model,
       }));
     } catch (error: unknown) {

@@ -29,6 +29,52 @@ import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { ClaudeModel } from "../model-types";
 
+/** A capability node in Anthropic's model card — always at least `supported`. */
+type AnthropicSupported = { supported: boolean };
+
+/**
+ * One entry from Anthropic's `/v1/models`.
+ *
+ * Declared here rather than taken from the SDK, whose `ModelInfo` still covers
+ * only `id`/`type`/`display_name`/`created_at`. The API also returns token
+ * limits and a capability tree — verified on the wire on 2026-08-11 — and those
+ * are what `contextLength`, `maxOutputTokens` and `capabilities` are read from.
+ * Everything past the four SDK fields is optional so that an older API version,
+ * or a gateway that trims the response, still typechecks.
+ */
+export type AnthropicModelCard = AnthropicModelInfo & {
+  /** Context window in tokens. */
+  max_input_tokens?: number;
+  /** Largest `max_tokens` the model accepts for a response. */
+  max_tokens?: number;
+  capabilities?: {
+    batch?: AnthropicSupported;
+    citations?: AnthropicSupported;
+    code_execution?: AnthropicSupported;
+    /** Server-side context editing; the dated keys are individual strategies. */
+    context_management?: AnthropicSupported & {
+      [strategy: string]: AnthropicSupported | boolean | undefined;
+    };
+    /** Which effort levels the model accepts — the live answer to what `model-types.ts` hardcodes. */
+    effort?: AnthropicSupported & {
+      low?: AnthropicSupported;
+      medium?: AnthropicSupported;
+      high?: AnthropicSupported;
+      xhigh?: AnthropicSupported;
+      max?: AnthropicSupported;
+    };
+    image_input?: AnthropicSupported;
+    pdf_input?: AnthropicSupported;
+    structured_outputs?: AnthropicSupported;
+    thinking?: AnthropicSupported & {
+      types?: {
+        enabled?: AnthropicSupported;
+        adaptive?: AnthropicSupported;
+      };
+    };
+  };
+};
+
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
   model?: ClaudeModel;
@@ -129,19 +175,32 @@ export class ClaudeAgent extends BaseAgent {
   /**
    * List the models available to this API key, newest first.
    *
-   * Anthropic reports a display name and release date but no context window,
-   * so `contextLength` is always undefined here. The result is fully
-   * paginated — the endpoint pages at 1000 models.
+   * Anthropic reports token limits and a capability tree that the SDK's own
+   * type omits, so `raw` is typed as {@link AnthropicModelCard} — which is also
+   * where `contextLength` (`max_input_tokens`), `maxOutputTokens` and the
+   * vision/thinking flags come from. `capabilities.effort` on `raw` states which
+   * effort levels each model accepts. Tool support is not reported; every model
+   * the endpoint lists supports tools, so `capabilities.tools` stays undefined
+   * rather than being asserted.
+   *
+   * The result is fully paginated — the endpoint pages at 1000 models.
    */
-  async listModels(): Promise<ModelInfo<AnthropicModelInfo>[]> {
+  async listModels(): Promise<ModelInfo<AnthropicModelCard>[]> {
     try {
-      const models: ModelInfo<AnthropicModelInfo>[] = [];
+      const models: ModelInfo<AnthropicModelCard>[] = [];
       for await (const model of this.client.models.list({ limit: 1000 })) {
+        const card = model as AnthropicModelCard;
         models.push({
-          id: model.id,
-          displayName: model.display_name,
-          created: new Date(model.created_at),
-          raw: model,
+          id: card.id,
+          displayName: card.display_name,
+          created: new Date(card.created_at),
+          contextLength: card.max_input_tokens,
+          maxOutputTokens: card.max_tokens,
+          capabilities: {
+            vision: card.capabilities?.image_input?.supported,
+            thinking: card.capabilities?.thinking?.supported,
+          },
+          raw: card,
         });
       }
       return models;

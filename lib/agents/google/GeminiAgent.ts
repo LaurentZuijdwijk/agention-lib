@@ -28,6 +28,45 @@ import { GeminiModel } from "../model-types";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com";
 
 /**
+ * Models that `models.list` still advertises but the API no longer serves.
+ *
+ * Google leaves retired models in the listing, fully described and claiming
+ * `generateContent`; calling one fails with `404 — "This model is no longer
+ * available to new users"`. Nothing in the listing distinguishes them, and the
+ * stable `v1` endpoint carries them too, so the only way to keep them out of
+ * `listModels()` is to name them.
+ *
+ * A retirement is permanent, so this list only ever grows — an entry never
+ * needs revisiting, and one that disappears from the API's listing costs
+ * nothing to keep.
+ *
+ * Every entry is confirmed by probing `countTokens` (free, and it 404s the same
+ * way), most recently on 2026-08-11. Note that retirement is per-model, not per
+ * family: `gemini-2.5-flash-image`, `gemini-2.5-*-preview-tts` and
+ * `gemini-2.5-computer-use-preview-10-2025` were all still live at that date,
+ * which is why these are listed individually rather than matched by prefix.
+ *
+ * Pass `{ includeRetired: true }` to `listModels()` to see them anyway.
+ */
+export const GEMINI_RETIRED_MODELS: readonly string[] = [
+  // Retired for new users some time before 2026-08-11
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash-lite",
+];
+
+const GEMINI_RETIRED = new Set(GEMINI_RETIRED_MODELS);
+
+/** Options for {@link GeminiAgent.listModels}. */
+export type GeminiListModelsOptions = {
+  /**
+   * Include models known to have been retired. Off by default: they are listed
+   * by the API but fail at call time.
+   */
+  includeRetired?: boolean;
+};
+
+/**
  * One entry from the Generative Language API's `models.list` response.
  *
  * Declared here rather than imported: `@google/generative-ai` only covers
@@ -42,8 +81,14 @@ export type GeminiModelCard = {
   description?: string;
   inputTokenLimit?: number;
   outputTokenLimit?: number;
-  /** e.g. `["generateContent", "countTokens"]` — an embedding model has neither. */
+  /**
+   * e.g. `["generateContent", "countTokens"]`. Embedding models have
+   * `embedContent`, Imagen `predict`, Veo `predictLongRunning`, and the live
+   * models only `bidiGenerateContent` — none of which an agent can drive.
+   */
   supportedGenerationMethods?: string[];
+  /** Whether the model reasons before answering. */
+  thinking?: boolean;
   temperature?: number;
   maxTemperature?: number;
   topP?: number;
@@ -130,10 +175,17 @@ export class GeminiAgent extends BaseAgent {
    * page is followed, and the `"models/"` prefix is stripped from `id` so the
    * value can be passed straight back as an agent's `model`.
    *
-   * The list includes embedding models; filter on
-   * `raw.supportedGenerationMethods` for the ones this agent can drive.
+   * The list covers everything the key can reach, including embedding, image
+   * and live-audio models — `capabilities.chat` marks the ones an agent can
+   * actually drive.
+   *
+   * Models known to have been retired are left out, since the API lists them
+   * but no longer serves them — see {@link GEMINI_RETIRED_MODELS}. Pass
+   * `{ includeRetired: true }` for the listing exactly as Google returns it.
    */
-  async listModels(): Promise<ModelInfo<GeminiModelCard>[]> {
+  async listModels(
+    options?: GeminiListModelsOptions
+  ): Promise<ModelInfo<GeminiModelCard>[]> {
     try {
       const models: ModelInfo<GeminiModelCard>[] = [];
       let pageToken: string | undefined;
@@ -164,10 +216,20 @@ export class GeminiAgent extends BaseAgent {
         };
 
         for (const model of body.models ?? []) {
+          const id = model.name.replace(/^models\//, "");
+          if (!options?.includeRetired && GEMINI_RETIRED.has(id)) {
+            continue;
+          }
+
           models.push({
-            id: model.name.replace(/^models\//, ""),
+            id,
             displayName: model.displayName,
             contextLength: model.inputTokenLimit,
+            maxOutputTokens: model.outputTokenLimit,
+            capabilities: {
+              chat: model.supportedGenerationMethods?.includes("generateContent"),
+              thinking: model.thinking,
+            },
             raw: model,
           });
         }

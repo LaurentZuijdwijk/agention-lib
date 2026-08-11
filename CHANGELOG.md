@@ -5,6 +5,70 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Capability and limit data on `ModelInfo`.** Providers report more about their models
+  than `listModels()` was surfacing, so four fields join the neutral shape:
+  `maxOutputTokens`, `capabilities` (`{ chat, tools, vision, thinking }`), `deprecatedAt`
+  and `replacedBy`.
+
+  ```typescript
+  const models = await agent.listModels();
+  const usable = models.filter((m) => m.capabilities?.chat !== false);
+  const vision = models.filter((m) => m.capabilities?.vision === true);
+  ```
+
+  Capability flags are three-valued: `true`/`false` are the provider's answer,
+  `undefined` means it does not report on that capability — the common case, since no
+  provider covers all four. Filter with `!== false` for "not known to be unsupported".
+  Claude fills `vision`/`thinking`, Mistral `chat`/`tools`/`vision`, Gemini
+  `chat`/`thinking`, llama.cpp `vision`; OpenAI and Ollama report none.
+
+### Fixed
+- **`contextLength` was always undefined on `ClaudeAgent`.** Anthropic's `/v1/models`
+  does return `max_input_tokens` and `max_tokens`, along with a capability tree covering
+  thinking, effort levels, image and PDF input, citations, code execution, structured
+  outputs and context management. None of it is in `@anthropic-ai/sdk` 0.71.2's
+  `ModelInfo` type, so it was invisible and the 1.5.0 docs wrongly said Anthropic
+  reports no context window. `raw` is now typed as the new `AnthropicModelCard`, and
+  `contextLength`/`maxOutputTokens`/`capabilities` are populated from it — Claude Opus 5
+  reports a 1,000,000-token window and 128,000-token responses. Verified on the wire
+  2026-08-11.
+
+  `raw.capabilities.effort` is worth knowing about: it states which effort levels each
+  Claude model accepts, the live version of what `model-types.ts` hardcodes for OpenAI.
+- `GeminiModelCard` was missing `thinking`, which the API returns.
+- **Retired Gemini models are filtered out of `listModels()`.** Google keeps retired
+  models in `models.list`, fully described and advertising `generateContent`; calling one
+  returns `404 — "no longer available to new users"`. Nothing in the response
+  distinguishes them and the stable `v1` endpoint lists them too, so `GeminiAgent` now
+  carries a denylist:
+
+  ```typescript
+  import { GEMINI_RETIRED_MODELS } from "@agentionai/agents/gemini";
+
+  await agent.listModels();                          // retired models excluded
+  await agent.listModels({ includeRetired: true });  // exactly what Google returns
+  ```
+
+  Retirement is permanent, so the list only grows and no entry needs revisiting. It
+  matches ids exactly rather than by prefix, because retirement is per-model:
+  `gemini-2.5-flash`, `gemini-2.5-pro` and `gemini-2.5-flash-lite` are gone while
+  `gemini-2.5-flash-image`, `gemini-2.5-pro-preview-tts` and
+  `gemini-2.5-computer-use-preview-10-2025` still answer. Every entry was confirmed by
+  probing `countTokens` (free, and it 404s identically) across all 36 of the key's
+  `generateContent` models on 2026-08-11 — those three were the only casualties.
+
+  Separately, `capabilities.chat` removes the models that were never chat models
+  (embeddings, Imagen, Veo, live audio — 16 of Gemini's 52).
+
+### Note
+- **Mistral's `raw` is the SDK's parsed view, not the wire response.** The Mistral SDK
+  validates against a schema that drops unknown fields, so capabilities the API has
+  added since `@mistralai/mistralai` 1.13.0 — `reasoning`, the audio flags — never reach
+  this library. Every other agent's `raw` is untouched.
+
 ## [1.5.0] - 2026-08-11
 
 ### Added

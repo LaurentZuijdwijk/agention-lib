@@ -118,7 +118,10 @@ export class LlamaCppAgent extends OpenAICompatibleAgent {
    *   with, falling back to the trained ceiling `n_ctx_train`. Only loaded
    *   models carry `meta`.
    *
-   * The rest — launch args, presets, modalities, quantization — is on `raw`.
+   * `capabilities.vision` follows from the declared input modalities. Tool
+   * support is not reported — it depends on the chat template, not the server —
+   * so it stays undefined. The rest, launch args and presets and quantization
+   * included, is on `raw`.
    */
   async listModels(): Promise<ModelInfo<LlamaCppModelCard>[]> {
     const models = (await super.listModels()) as ModelInfo<LlamaCppModelCard>[];
@@ -129,6 +132,9 @@ export class LlamaCppAgent extends OpenAICompatibleAgent {
         ? model.raw.status.value === "loaded"
         : undefined,
       contextLength: model.raw.meta?.n_ctx ?? model.raw.meta?.n_ctx_train,
+      capabilities: {
+        vision: model.raw.architecture?.input_modalities?.includes("image"),
+      },
     }));
   }
 }

@@ -84,6 +84,26 @@ export type TokenUsage = {
 };
 
 /**
+ * What a model can do, as reported by its provider.
+ *
+ * Every flag is three-valued: `true` and `false` are the provider's answer,
+ * `undefined` means it does not report on that capability at all — which is the
+ * common case, since no provider covers all four. Filter with `!== false` when
+ * you want "not known to be unsupported", and with `=== true` when you need
+ * positive confirmation.
+ */
+export type ModelCapabilities = {
+  /** Conversational generation — what an agent needs to run at all. */
+  chat?: boolean;
+  /** Function / tool calling. */
+  tools?: boolean;
+  /** Image input. */
+  vision?: boolean;
+  /** Extended thinking / reasoning. */
+  thinking?: boolean;
+};
+
+/**
  * A model as reported by a provider's models endpoint, in a shape that is the
  * same on every provider.
  *
@@ -105,6 +125,22 @@ export type ModelInfo<TRaw = unknown> = {
   ownedBy?: string;
   /** Maximum input context in tokens, where the provider reports one. */
   contextLength?: number;
+  /** Maximum tokens in a single response, where the provider reports one. */
+  maxOutputTokens?: number;
+  /**
+   * What the provider says this model supports. Absent flags mean "not
+   * reported", never "unsupported" — see {@link ModelCapabilities}.
+   */
+  capabilities?: ModelCapabilities;
+  /**
+   * When the provider plans to retire the model, where it publishes a date.
+   * Only Mistral does today; note that a model can stop working before any
+   * announced date, and Google in particular retires models that its listing
+   * still advertises.
+   */
+  deprecatedAt?: Date;
+  /** Model the provider recommends in its place, where it names one. */
+  replacedBy?: string;
   /**
    * Whether the model is currently held in memory, on servers that distinguish
    * "offered" from "loaded" — llama.cpp's model router being the case in point,

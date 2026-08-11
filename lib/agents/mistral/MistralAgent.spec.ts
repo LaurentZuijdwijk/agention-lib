@@ -99,6 +99,9 @@ describe("MistralAgent", () => {
           created: new Date(1731000000 * 1000),
           ownedBy: "mistralai",
           contextLength: 131072,
+          capabilities: { chat: true, tools: true, vision: undefined },
+          deprecatedAt: undefined,
+          replacedBy: undefined,
           raw: cards[0],
         },
         {
@@ -108,9 +111,33 @@ describe("MistralAgent", () => {
           created: undefined,
           ownedBy: "my-org",
           contextLength: 32768,
+          capabilities: { chat: true, tools: undefined, vision: undefined },
+          deprecatedAt: undefined,
+          replacedBy: undefined,
           raw: cards[1],
         },
       ]);
+    });
+
+    it("maps the retirement date and its replacement", async () => {
+      // Mistral is the only provider that publishes this
+      mockClient.models.list.mockResolvedValue({
+        data: [
+          {
+            id: "mistral-medium-2505",
+            capabilities: { completionChat: true, functionCalling: true, vision: true },
+            maxContextLength: 131072,
+            deprecation: new Date("2026-08-31T12:00:00Z"),
+            deprecationReplacementModel: "mistral-medium-3-5",
+          },
+        ],
+      });
+
+      const [model] = await agent.listModels();
+
+      expect(model.deprecatedAt).toEqual(new Date("2026-08-31T12:00:00Z"));
+      expect(model.replacedBy).toBe("mistral-medium-3-5");
+      expect(model.capabilities).toEqual({ chat: true, tools: true, vision: true });
     });
 
     it("returns an empty list when the response carries no data", async () => {

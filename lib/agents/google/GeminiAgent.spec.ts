@@ -107,12 +107,15 @@ describe("GeminiAgent", () => {
           name: "models/gemini-flash-latest",
           displayName: "Gemini Flash Latest",
           inputTokenLimit: 1048576,
-          supportedGenerationMethods: ["generateContent"],
+          outputTokenLimit: 65536,
+          supportedGenerationMethods: ["generateContent", "countTokens"],
+          thinking: true,
         },
         {
           name: "models/text-embedding-004",
           displayName: "Text Embedding 004",
           inputTokenLimit: 2048,
+          outputTokenLimit: 1,
           supportedGenerationMethods: ["embedContent"],
         },
       ];
@@ -128,12 +131,17 @@ describe("GeminiAgent", () => {
           id: "gemini-flash-latest",
           displayName: "Gemini Flash Latest",
           contextLength: 1048576,
+          maxOutputTokens: 65536,
+          capabilities: { chat: true, thinking: true },
           raw: cards[0],
         },
         {
           id: "text-embedding-004",
           displayName: "Text Embedding 004",
           contextLength: 2048,
+          maxOutputTokens: 1,
+          // An embedding model: listed, but nothing an agent can drive
+          capabilities: { chat: false, thinking: undefined },
           raw: cards[1],
         },
       ]);
@@ -143,6 +151,68 @@ describe("GeminiAgent", () => {
         "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
       );
       expect(init.headers).toEqual({ "x-goog-api-key": "test-api-key" });
+    });
+
+    it("should drop models the API lists but no longer serves", async () => {
+      // Google keeps retired models in the listing, fully described and
+      // claiming generateContent; calling one 404s
+      (global.fetch as jest.Mock).mockResolvedValue(
+        okResponse({
+          models: [
+            {
+              name: "models/gemini-2.5-flash",
+              displayName: "Gemini 2.5 Flash",
+              supportedGenerationMethods: ["generateContent"],
+            },
+            { name: "models/gemini-3.6-flash", displayName: "Gemini 3.6 Flash" },
+          ],
+        })
+      );
+
+      const result = await agent.listModels();
+
+      expect(result.map((m) => m.id)).toEqual(["gemini-3.6-flash"]);
+    });
+
+    it("should keep retired models when asked for them", async () => {
+      (global.fetch as jest.Mock).mockResolvedValue(
+        okResponse({
+          models: [
+            { name: "models/gemini-2.5-flash" },
+            { name: "models/gemini-3.6-flash" },
+          ],
+        })
+      );
+
+      const result = await agent.listModels({ includeRetired: true });
+
+      expect(result.map((m) => m.id)).toEqual([
+        "gemini-2.5-flash",
+        "gemini-3.6-flash",
+      ]);
+    });
+
+    it("should only retire the exact ids listed, not whole families", async () => {
+      // gemini-2.5-flash is gone, but its image and TTS siblings still answer —
+      // which is why the denylist matches ids rather than a prefix
+      (global.fetch as jest.Mock).mockResolvedValue(
+        okResponse({
+          models: [
+            { name: "models/gemini-2.5-flash" },
+            { name: "models/gemini-2.5-flash-image" },
+            { name: "models/gemini-2.5-flash-preview-tts" },
+            { name: "models/gemini-2.5-computer-use-preview-10-2025" },
+          ],
+        })
+      );
+
+      const result = await agent.listModels();
+
+      expect(result.map((m) => m.id)).toEqual([
+        "gemini-2.5-flash-image",
+        "gemini-2.5-flash-preview-tts",
+        "gemini-2.5-computer-use-preview-10-2025",
+      ]);
     });
 
     it("should follow nextPageToken until the last page", async () => {

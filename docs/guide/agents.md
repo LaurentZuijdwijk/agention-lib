@@ -243,8 +243,40 @@ The result is the same `ModelInfo` shape on every provider:
 | `created` | Release or creation date, where the provider reports one |
 | `ownedBy` | Owning organisation, where the provider reports one |
 | `contextLength` | Maximum input context in tokens, where the provider reports one |
+| `maxOutputTokens` | Maximum tokens in a single response, where the provider reports one |
+| `capabilities` | `{ chat?, tools?, vision?, thinking? }` — see below |
+| `deprecatedAt` / `replacedBy` | Retirement date and successor, where the provider publishes them |
 | `loaded` | Whether the model is in memory, on servers that distinguish offered from loaded |
 | `raw` | The provider's unmodified entry, typed per provider |
+
+Capability flags are **three-valued**. `true` and `false` are the provider's
+answer; `undefined` means it does not report on that capability at all, which is
+the common case — no provider covers all four. Filter with `!== false` for "not
+known to be unsupported", `=== true` when you need positive confirmation:
+
+```typescript
+const models = await agent.listModels();
+
+// Models this agent can actually drive
+const usable = models.filter((m) => m.capabilities?.chat !== false);
+
+// Models confirmed to take images
+const vision = models.filter((m) => m.capabilities?.vision === true);
+```
+
+| Provider | `chat` | `tools` | `vision` | `thinking` |
+|---|---|---|---|---|
+| Claude | — | — | ✓ | ✓ |
+| OpenAI | — | — | — | — |
+| Mistral | ✓ | ✓ | ✓ | — |
+| Gemini | ✓ | — | — | ✓ |
+| Ollama | — | — | — | — |
+| llama.cpp | — | — | ✓ | — |
+
+Claude reports no `tools` flag because every model the endpoint lists supports
+tools — asserting `true` would be inventing data the API does not give, so it
+stays undefined. Mistral does report a `reasoning` flag on the wire, but the
+installed SDK's schema drops it before this library sees it (see below).
 
 Only `id` is guaranteed — no two providers report the same set of fields:
 
@@ -262,14 +294,47 @@ Anything a provider reports beyond these fields is on `raw`, which is typed to
 that provider's own model shape:
 
 ```typescript
-const geminiModels = await gemini.listModels();
-const chatModels = geminiModels.filter((m) =>
-  m.raw.supportedGenerationMethods?.includes('generateContent')
-);
+// Which effort levels each Claude model accepts, straight from the API
+const claudeModels = await claude.listModels();
+const efforts = claudeModels[0].raw.capabilities?.effort;
+
+// How the llama.cpp router would launch a model
+const localModels = await llamacpp.listModels();
+console.log(localModels[0].raw.status?.args);
 ```
+
+`raw` is the provider's untouched response on every agent **except Mistral**,
+whose SDK validates the response against a schema and silently drops fields it
+does not know — as of `@mistralai/mistralai` 1.13.0 that includes the
+`reasoning` and audio capability flags the API actually sends.
 
 Failures — a bad key, an unreachable local server — are wrapped in
 `ExecutionError`.
+
+### A listed model is not always a callable model
+
+Google keeps retired models in its listing, fully described and advertising
+`generateContent`; calling one fails with `404 — "This model is no longer
+available to new users"`. Nothing in the response distinguishes those entries
+from live ones, so `GeminiAgent` carries a denylist and drops them:
+
+```typescript
+import { GEMINI_RETIRED_MODELS } from '@agentionai/agents/gemini';
+
+await agent.listModels();                          // retired models excluded
+await agent.listModels({ includeRetired: true });  // exactly what Google returns
+console.log(GEMINI_RETIRED_MODELS);                // what gets dropped, and why
+```
+
+Retirement is permanent, so the list only ever grows and no entry ever needs
+revisiting. It is also per-model, not per-family: when `gemini-2.5-flash`,
+`gemini-2.5-pro` and `gemini-2.5-flash-lite` went, `gemini-2.5-flash-image`,
+`gemini-2.5-pro-preview-tts` and `gemini-2.5-computer-use-preview-10-2025`
+stayed — which is why ids are matched exactly rather than by prefix. Entries are
+confirmed by probing `countTokens`, which is free and fails the same way.
+
+Mistral is the well-behaved counter-example: it publishes `deprecatedAt` and
+`replacedBy` ahead of time, so you can see a retirement coming.
 
 ## Ollama (Local Models)
 

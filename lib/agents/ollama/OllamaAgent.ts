@@ -1,4 +1,4 @@
-import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
+import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
   ApiError,
@@ -136,12 +136,21 @@ export class OllamaAgent extends BaseAgent {
 
   /**
    * List the models currently available on the Ollama server.
+   *
+   * `id` is the tag to pass as `model` (e.g. `"llama3.2:latest"`) and `created`
+   * carries the local `modified_at` timestamp — Ollama reports when a model was
+   * last pulled or changed on this machine, not when it was released.
    */
-  async listModels(): Promise<OllamaModelInfo[]> {
+  async listModels(): Promise<ModelInfo<OllamaModelInfo>[]> {
     try {
       const client = await this.getClient();
       const response = await client.list();
-      return response.models;
+      return response.models.map((model) => ({
+        id: model.model,
+        displayName: model.name,
+        created: model.modified_at ? new Date(model.modified_at) : undefined,
+        raw: model,
+      }));
     } catch (error: unknown) {
       throw new ExecutionError(
         `Failed to list Ollama models: ${

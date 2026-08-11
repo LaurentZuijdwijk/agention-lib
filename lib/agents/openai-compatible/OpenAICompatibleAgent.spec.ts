@@ -105,13 +105,25 @@ describe("OpenAICompatibleAgent", () => {
   // ---------------------------------------------------------------------------
 
   describe("listModels", () => {
-    it("returns the data array from the models endpoint", async () => {
-      const models = [{ id: "model-a" }, { id: "model-b" }];
+    it("normalizes the data array from the models endpoint", async () => {
+      const models = [
+        { id: "model-a", created: 1700000000, owned_by: "local" },
+        { id: "model-b" },
+      ];
       mockClient.models.list.mockResolvedValue({ data: models });
 
       const result = await agent.listModels();
 
-      expect(result).toEqual(models);
+      expect(result).toEqual([
+        {
+          id: "model-a",
+          created: new Date(1700000000 * 1000),
+          ownedBy: "local",
+          raw: models[0],
+        },
+        // Local servers often report nothing but the id
+        { id: "model-b", created: undefined, ownedBy: undefined, raw: models[1] },
+      ]);
       expect(mockClient.models.list).toHaveBeenCalled();
     });
 

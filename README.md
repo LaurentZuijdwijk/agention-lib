@@ -75,7 +75,7 @@ import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 
 ## Features
 
-- **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral, plus local models via Ollama and llama.cpp—same interface. Switch models with one line.
+- **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral, plus local models via Ollama and llama.cpp—same interface. Switch models with one line. `listModels()` asks any provider what it currently offers, in one shared shape.
 - **Composable Context Management** - Tool result masking (lossless, free) + rolling summarization (auto-firing) + sub-agent delegation (token isolation by architecture).
 - **Streaming** - `executeStream()` on Claude, OpenAI, and all OpenAI-compatible agents. Yields `{ type: "text" | "reasoning" }` chunks; tool calls handled transparently.
 - **Built-In Tools** - Use provider-defined server-side tools (e.g. Anthropic's web search, bash, text editor) alongside your own.

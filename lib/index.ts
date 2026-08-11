@@ -12,9 +12,16 @@ export * from "./agents/BaseAgent";
 export * from "./agents/anthropic/ClaudeAgent";
 export { OpenAiAgent } from "./agents/openai/OpenAiAgent";
 export { MistralAgent } from "./agents/mistral/MistralAgent";
+export type { MistralModelCard } from "./agents/mistral/MistralAgent";
 export { GeminiAgent } from "./agents/google/GeminiAgent";
+export type { GeminiModelCard } from "./agents/google/GeminiAgent";
 export { OllamaAgent } from "./agents/ollama/OllamaAgent";
+export type { OllamaModelInfo } from "./agents/ollama/OllamaAgent";
 export { LlamaCppAgent } from "./agents/llamacpp/LlamaCppAgent";
+export type {
+  LlamaCppModelCard,
+  LlamaCppModelMeta,
+} from "./agents/llamacpp/LlamaCppAgent";
 export { OpenAICompatibleAgent } from "./agents/openai-compatible/OpenAICompatibleAgent";
 export type { OpenAICompatibleConfig, StreamChunk } from "./agents/openai-compatible/OpenAICompatibleAgent";
 export * from "./agents/model-types";

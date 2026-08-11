@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { OllamaAgent } from "./OllamaAgent";
+import { ExecutionError } from "../errors/AgentError";
 
 describe("OllamaAgent", () => {
   let agent: OllamaAgent;
@@ -10,6 +11,47 @@ describe("OllamaAgent", () => {
       name: "TestAgent",
       description: "Test Description",
       model: "llama3.2",
+    });
+  });
+
+  describe("listModels", () => {
+    it("normalizes the models the server reports", async () => {
+      const models = [
+        {
+          name: "llama3.2:latest",
+          model: "llama3.2:latest",
+          modified_at: "2025-11-02T10:15:00.000Z",
+          size: 2019393189,
+          digest: "abc123",
+          details: { family: "llama", parameter_size: "3.2B" },
+        },
+      ];
+      // The client is created lazily by an optional dynamic import; seeding it
+      // here keeps the test free of the real `ollama` package.
+      agent["_client"] = { list: jest.fn().mockResolvedValue({ models }) };
+
+      const result = await agent.listModels();
+
+      expect(result).toEqual([
+        {
+          id: "llama3.2:latest",
+          displayName: "llama3.2:latest",
+          // Ollama's modified_at is when the model was last pulled locally
+          created: new Date("2025-11-02T10:15:00.000Z"),
+          raw: models[0],
+        },
+      ]);
+    });
+
+    it("wraps failures in an ExecutionError", async () => {
+      agent["_client"] = {
+        list: jest.fn().mockRejectedValue(new Error("connection refused")),
+      };
+
+      await expect(agent.listModels()).rejects.toThrow(ExecutionError);
+      await expect(agent.listModels()).rejects.toThrow(
+        /Failed to list Ollama models: connection refused/
+      );
     });
   });
 

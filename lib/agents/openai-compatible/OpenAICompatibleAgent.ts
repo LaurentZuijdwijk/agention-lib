@@ -6,7 +6,7 @@ import {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { Model } from "openai/resources/models";
-import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
+import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentVendor } from "../AgentConfig";
 import { AgentEvent } from "../AgentEvent";
 import {
@@ -93,11 +93,19 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
 
   /**
    * List the models available on the server via the `/v1/models` endpoint.
+   *
+   * Local servers vary in how much they fill in — llama.cpp reports little
+   * beyond the id — so most fields other than `id` are typically undefined.
    */
-  async listModels(): Promise<Model[]> {
+  async listModels(): Promise<ModelInfo<Model>[]> {
     try {
       const page = await this.client.models.list();
-      return page.data;
+      return page.data.map((model) => ({
+        id: model.id,
+        created: model.created ? new Date(model.created * 1000) : undefined,
+        ownedBy: model.owned_by,
+        raw: model,
+      }));
     } catch (error: unknown) {
       throw new ExecutionError(
         `Failed to list ${this.getVendorName()} models: ${

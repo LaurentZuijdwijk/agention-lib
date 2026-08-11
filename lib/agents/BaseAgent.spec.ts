@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { BaseAgent, BaseAgentConfig, HistoryEntry } from "./BaseAgent";
 import { Tool, ToolDefinition } from "../tools/Tool";
+import { ExecutionError } from "./errors/AgentError";
 
 // Create a concrete implementation for testing
 class TestAgent extends BaseAgent<string, string> {
@@ -110,6 +111,19 @@ describe("BaseAgent", () => {
     it("should return empty array when no tools", () => {
       const definitions = agent["getToolDefinitions"]();
       expect(definitions).toEqual([]);
+    });
+  });
+
+  describe("listModels", () => {
+    it("should throw for an agent that does not implement it", async () => {
+      // Every built-in agent overrides this; a custom agent without a models
+      // endpoint should fail loudly rather than return an empty list.
+      const custom = new TestAgent({ ...config, vendor: "custom" });
+
+      await expect(custom.listModels()).rejects.toThrow(ExecutionError);
+      await expect(custom.listModels()).rejects.toThrow(
+        /listModels\(\) is not implemented for the 'custom' agent/
+      );
     });
   });
 

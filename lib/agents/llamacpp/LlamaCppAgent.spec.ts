@@ -102,8 +102,93 @@ describe("LlamaCppAgent", () => {
 
       const result = await agent.listModels();
 
-      expect(result).toEqual(models);
+      expect(result.map((m) => m.id)).toEqual(["model-a", "model-b"]);
+      expect(result.map((m) => m.raw)).toEqual(models);
       expect(mockClient.models.list).toHaveBeenCalled();
+    });
+
+    it("should report which models the router has loaded", async () => {
+      // Shape verified against llama.cpp b10148 in model-router mode
+      const models = [
+        {
+          id: "Qwen3.6-35B-A3B-Q6_K_P",
+          object: "model",
+          created: 1786434402,
+          owned_by: "llamacpp",
+          aliases: ["Qwen3.6-35B-Q6_K_P"],
+          tags: [],
+          status: {
+            value: "loaded",
+            args: ["--ctx-size", "120000"],
+            preset: "[Qwen3.6-35B-A3B-Q6_K_P]\nctx-size = 120000\n",
+          },
+          architecture: {
+            input_modalities: ["text", "image"],
+            output_modalities: ["text"],
+          },
+          source: "preset",
+          can_remove: false,
+          meta: {
+            n_ctx: 120064,
+            n_ctx_train: 262144,
+            n_params: 34660610688,
+            size: 30638328320,
+            ftype: "Q6_K",
+          },
+        },
+        {
+          id: "Gemma-4-31B-it-i1-Q4_K_M",
+          object: "model",
+          created: 1786434402,
+          owned_by: "llamacpp",
+          // An unloaded model carries no meta — nothing is in memory to describe
+          status: { value: "unloaded", args: [], preset: "" },
+          source: "preset",
+          can_remove: false,
+        },
+      ];
+      mockClient.models.list.mockResolvedValue({ data: models });
+
+      const result = await agent.listModels();
+
+      expect(result[0]).toMatchObject({
+        id: "Qwen3.6-35B-A3B-Q6_K_P",
+        loaded: true,
+        // n_ctx (as loaded) wins over n_ctx_train (the trained ceiling)
+        contextLength: 120064,
+        ownedBy: "llamacpp",
+      });
+      expect(result[1]).toMatchObject({
+        id: "Gemma-4-31B-it-i1-Q4_K_M",
+        loaded: false,
+        contextLength: undefined,
+      });
+      // Launch args, presets and modalities stay on raw
+      expect(result[0].raw.status.args).toEqual(["--ctx-size", "120000"]);
+      expect(result[0].raw.architecture.input_modalities).toEqual([
+        "text",
+        "image",
+      ]);
+    });
+
+    it("should fall back to the trained context when the model is not loaded with one", async () => {
+      mockClient.models.list.mockResolvedValue({
+        data: [{ id: "m", meta: { n_ctx_train: 131072 } }],
+      });
+
+      const [model] = await agent.listModels();
+
+      expect(model.contextLength).toBe(131072);
+    });
+
+    it("should leave loaded undefined on a single-model server", async () => {
+      // A plain llama-server reports no status: the one model it lists is the
+      // loaded one, so `false` would be actively wrong here.
+      mockClient.models.list.mockResolvedValue({ data: [{ id: "default" }] });
+
+      const [model] = await agent.listModels();
+
+      expect(model.loaded).toBeUndefined();
     });
 
     it("should wrap failures in an ExecutionError", async () => {

@@ -2,6 +2,7 @@ import { Anthropic, APIError } from "@anthropic-ai/sdk";
 import {
   ContentBlock,
   Message,
+  type ModelInfo as AnthropicModelInfo,
   RawContentBlockDeltaEvent,
   RawContentBlockStartEvent,
   RawMessageDeltaEvent,
@@ -12,7 +13,7 @@ import {
 } from "@anthropic-ai/sdk/resources";
 import { type ToolDefinition } from "../../tools/Tool";
 import { type BuiltInTool } from "../../tools/BuiltInTool";
-import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
+import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
   AgentError,
@@ -123,6 +124,34 @@ export class ClaudeAgent extends BaseAgent {
 
   protected getToolDefinitions(): ToolDefinition[] {
     return Array.from(this.tools.values()).map((tool) => tool.getPrompt());
+  }
+
+  /**
+   * List the models available to this API key, newest first.
+   *
+   * Anthropic reports a display name and release date but no context window,
+   * so `contextLength` is always undefined here. The result is fully
+   * paginated — the endpoint pages at 1000 models.
+   */
+  async listModels(): Promise<ModelInfo<AnthropicModelInfo>[]> {
+    try {
+      const models: ModelInfo<AnthropicModelInfo>[] = [];
+      for await (const model of this.client.models.list({ limit: 1000 })) {
+        models.push({
+          id: model.id,
+          displayName: model.display_name,
+          created: new Date(model.created_at),
+          raw: model,
+        });
+      }
+      return models;
+    } catch (error: unknown) {
+      throw new ExecutionError(
+        `Failed to list Anthropic models: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   }
 
   /**

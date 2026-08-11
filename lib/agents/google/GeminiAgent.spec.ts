@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GeminiAgent } from "./GeminiAgent";
+import { ExecutionError } from "../errors/AgentError";
 
 // Mock the Google Generative AI SDK
 jest.mock("@google/generative-ai");
@@ -82,6 +83,117 @@ describe("GeminiAgent", () => {
         maxTokens: 2048,
         temperature: 0.5,
       });
+    });
+  });
+
+  describe("listModels", () => {
+    // The SDK has no models endpoint, so the agent calls the REST API directly
+    const okResponse = (body: unknown) => ({
+      ok: true,
+      json: async () => body,
+    });
+
+    beforeEach(() => {
+      global.fetch = jest.fn();
+    });
+
+    afterEach(() => {
+      delete (global as any).fetch;
+    });
+
+    it("should normalize the models the API reports", async () => {
+      const cards = [
+        {
+          name: "models/gemini-flash-latest",
+          displayName: "Gemini Flash Latest",
+          inputTokenLimit: 1048576,
+          supportedGenerationMethods: ["generateContent"],
+        },
+        {
+          name: "models/text-embedding-004",
+          displayName: "Text Embedding 004",
+          inputTokenLimit: 2048,
+          supportedGenerationMethods: ["embedContent"],
+        },
+      ];
+      (global.fetch as jest.Mock).mockResolvedValue(
+        okResponse({ models: cards })
+      );
+
+      const result = await agent.listModels();
+
+      expect(result).toEqual([
+        {
+          // The "models/" prefix is stripped so the id can be passed back as `model`
+          id: "gemini-flash-latest",
+          displayName: "Gemini Flash Latest",
+          contextLength: 1048576,
+          raw: cards[0],
+        },
+        {
+          id: "text-embedding-004",
+          displayName: "Text Embedding 004",
+          contextLength: 2048,
+          raw: cards[1],
+        },
+      ]);
+
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url.toString()).toBe(
+        "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
+      );
+      expect(init.headers).toEqual({ "x-goog-api-key": "test-api-key" });
+    });
+
+    it("should follow nextPageToken until the last page", async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce(
+          okResponse({
+            models: [{ name: "models/a" }],
+            nextPageToken: "token-2",
+          })
+        )
+        .mockResolvedValueOnce(okResponse({ models: [{ name: "models/b" }] }));
+
+      const result = await agent.listModels();
+
+      expect(result.map((m) => m.id)).toEqual(["a", "b"]);
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      const [secondUrl] = (global.fetch as jest.Mock).mock.calls[1];
+      expect(secondUrl.searchParams.get("pageToken")).toBe("token-2");
+    });
+
+    it("should send configured defaultHeaders", async () => {
+      const headerAgent = new GeminiAgent({
+        id: "h",
+        name: "H",
+        description: "d",
+        apiKey: "test-api-key",
+        defaultHeaders: { "X-Trace-Id": "abc123" },
+      });
+      (global.fetch as jest.Mock).mockResolvedValue(okResponse({ models: [] }));
+
+      await headerAgent.listModels();
+
+      const [, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(init.headers).toEqual({
+        "x-goog-api-key": "test-api-key",
+        "X-Trace-Id": "abc123",
+      });
+    });
+
+    it("should wrap a non-2xx response in an ExecutionError", async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        text: async () => "API key not valid",
+      });
+
+      await expect(agent.listModels()).rejects.toThrow(ExecutionError);
+      await expect(agent.listModels()).rejects.toThrow(
+        /Failed to list Gemini models: 403 Forbidden: API key not valid/
+      );
     });
   });
 

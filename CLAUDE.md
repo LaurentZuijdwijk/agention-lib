@@ -110,6 +110,12 @@ The graph module provides workflow orchestration patterns:
   - **Connection loss** — `MCPClient` now extends `EventEmitter` (`MCPClientEvent.CONNECTED`/`DISCONNECTED`/`RECONNECTING`/`RECONNECTED`/`TOOLS_CHANGED`/`ERROR`), `getState()`/`isConnected()`, and opt-in `reconnect` with exponential backoff. Calls made during an in-flight reconnect wait for it.
   - **`tools/list_changed`** — subscribes via `setNotificationHandler` and re-runs discovery; `refreshTools()` for manual refresh. `Tool` instance identity is preserved for unchanged definitions so agents holding references keep working.
   - **`authProvider` typed** — `MCPOAuthClientProvider` declared structurally in `lib/mcp/types.ts` rather than imported, so consumers without the optional peer still typecheck; `types.spec.ts` asserts the SDK's `OAuthClientProvider` stays assignable to it. Added `@modelcontextprotocol/sdk` to devDependencies for that assertion.
+- [x] `listModels()` on every agent — `ClaudeAgent`, `OpenAiAgent`, `MistralAgent` and `GeminiAgent` now have one, alongside the existing `OllamaAgent` and `OpenAICompatibleAgent` implementations. All six return the same neutral `ModelInfo` type (new, in `BaseAgent.ts`): `id` plus optional `displayName`/`created`/`ownedBy`/`contextLength`, with the provider's untouched entry on a per-provider-typed `raw`. **Breaking for the two existing ones**, which returned raw provider arrays; `m.raw` recovers the old value.
+  - Anthropic, OpenAI and Mistral go through their SDK's `models.list()`; Claude's is fully paginated via the SDK's async iterator. Gemini calls `/v1beta/models` with `fetch` because `@google/generative-ai` has no models endpoint at all — it follows `nextPageToken` and strips the `"models/"` prefix so `id` is directly usable as a `model` value. New exported shapes: `GeminiModelCard`, `MistralModelCard`.
+  - `BaseAgent.listModels()` throws `ExecutionError` by default, so a custom agent without a models endpoint fails loudly rather than returning an empty list.
+  - `ModelInfo.loaded` + `LlamaCppModelCard` — llama.cpp in **model-router mode** lists every model it can serve, each with `status.value: "loaded" | "unloaded"`, and only loaded ones carry `meta`. `LlamaCppAgent` overrides `listModels()` to map that onto `loaded` and to fill `contextLength` from `meta.n_ctx ?? meta.n_ctx_train`. `loaded` is `undefined` (not `false`) on a single-model `llama-server`, which sends no `status` — its one model is by definition loaded. Router-only fields (launch `args`, `preset`, `architecture.input_modalities`, `source`, `can_remove`) are typed on `raw`. Verified against llama.cpp b10148 at `http://192.168.1.249:8080`.
+  - Example: `examples/list-models.ts`. Docs: "Listing Available Models" in `docs/guide/agents.md`.
+  - Follow-up this enables: check `model-types.ts`'s hand-maintained unions against what the providers actually report.
 - [x] Added explicit OAuth token support to `ClaudeAgent` — new `authType?: "apiKey" | "oauth"` on `ClaudeSpecificConfig`/flat config (default `"apiKey"`). When `"oauth"`, `apiKey` is passed to the Anthropic SDK as `authToken` (bearer) instead of `apiKey` (`x-api-key` header), for OAuth access tokens like Claude Code's `sk-ant-oat...` tokens. Deliberately explicit rather than sniffing the token prefix, since prefixes are an implementation detail.
 
 ---
@@ -144,11 +150,6 @@ These are derived from context engineering research (lost-in-the-middle, U-shape
 3. **PDF parsing** - Add tools for PDF document processing
 4. **Vector DB integration** - Add tools for vector database operations
 5. **Graph visualization** - Visual representation of pipeline structure and metrics
-6. **`listModels()` on the hosted agents** - `OllamaAgent` and `OpenAICompatibleAgent` have it;
-   `ClaudeAgent`, `OpenAiAgent`, `GeminiAgent` and `MistralAgent` do not. All four expose a
-   models endpoint (`/v1/models` for Anthropic and OpenAI and Mistral, `/v1beta/models` for
-   Gemini), so a common `listModels()` would let the hardcoded unions in `model-types.ts` be
-   checked against reality rather than hand-maintained.
 
 ### Documentation
 - [ ] Expand main README with architecture overview

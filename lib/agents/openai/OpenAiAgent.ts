@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
+import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
   AgentError,
@@ -21,6 +21,7 @@ import {
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import type { Reasoning } from "openai/resources/shared";
+import type { Model as OpenAIModelCard } from "openai/resources/models";
 import {
   OPENAI_REASONING_SUPPORT,
   OpenAIModel,
@@ -150,6 +151,31 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     // Add system message to history (skips if already exists with same content)
     this.addSystemMessage(this.getSystemMessage());
+  }
+
+  /**
+   * List the models available to this API key.
+   *
+   * The list covers everything the key can reach — chat, embedding, audio and
+   * image models alike — so filter by `id` if you only want the ones this
+   * agent can drive.
+   */
+  async listModels(): Promise<ModelInfo<OpenAIModelCard>[]> {
+    try {
+      const page = await this.client.models.list();
+      return page.data.map((model) => ({
+        id: model.id,
+        created: model.created ? new Date(model.created * 1000) : undefined,
+        ownedBy: model.owned_by,
+        raw: model,
+      }));
+    } catch (error: unknown) {
+      throw new ExecutionError(
+        `Failed to list OpenAI models: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   }
 
   protected getToolDefinitions(): Tool[] {

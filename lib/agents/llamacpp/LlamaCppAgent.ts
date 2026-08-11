@@ -1,9 +1,61 @@
+import { Model } from "openai/resources/models";
 import { History } from "../../history/History";
+import { ModelInfo } from "../BaseAgent";
 import {
   OpenAICompatibleAgent,
   OpenAICompatibleConfig,
 } from "../openai-compatible/OpenAICompatibleAgent";
 import { LlamaCppModel } from "../model-types";
+
+/**
+ * The GGUF details `llama-server` reports for a model it has loaded. Absent
+ * from the listing for a model the router knows about but has not loaded.
+ */
+export type LlamaCppModelMeta = {
+  vocab_type?: number;
+  n_vocab?: number;
+  /** Context the model was actually loaded with (`--ctx-size`). */
+  n_ctx?: number;
+  /** Context the model was trained with — its ceiling, not its current size. */
+  n_ctx_train?: number;
+  n_embd?: number;
+  n_params?: number;
+  /** On-disk size in bytes. */
+  size?: number;
+  /** Quantization, e.g. `"Q6_K"`. */
+  ftype?: string;
+};
+
+/**
+ * One entry from a llama.cpp server's `/v1/models`.
+ *
+ * Everything past the OpenAI-standard fields is optional because it depends on
+ * how the server was started: a single-model `llama-server` reports `meta` for
+ * the model it is serving and nothing else, while a server in model-router mode
+ * lists every model it can serve, each with a `status` saying whether it is
+ * currently loaded. Verified against llama.cpp b10148.
+ */
+export type LlamaCppModelCard = Model & {
+  /** Alternative ids that resolve to this model. */
+  aliases?: string[];
+  tags?: string[];
+  /** Router mode only: whether the model is in memory, and how it is launched. */
+  status?: {
+    value: "loaded" | "unloaded" | (string & {});
+    /** The `llama-server` argv the router uses to bring this model up. */
+    args?: string[];
+    /** The preset block backing this model, as INI text. */
+    preset?: string;
+  };
+  architecture?: {
+    input_modalities?: string[];
+    output_modalities?: string[];
+  };
+  /** Where the router got the model — a config preset or the local HF cache. */
+  source?: "preset" | "cache" | (string & {});
+  can_remove?: boolean;
+  meta?: LlamaCppModelMeta;
+};
 
 type LlamaCppConfig = Omit<OpenAICompatibleConfig, "baseURL" | "model" | "vendor"> & {
   /** Base URL of the llama.cpp server's OpenAI-compatible API (default: `http://localhost:8080/v1`) */
@@ -53,5 +105,30 @@ export class LlamaCppAgent extends OpenAICompatibleAgent {
 
   protected getVendorName(): string {
     return "llama.cpp";
+  }
+
+  /**
+   * List the models the server offers, adding the two things llama.cpp reports
+   * beyond the OpenAI-standard fields:
+   *
+   * - `loaded` — in model-router mode a listed model is not necessarily in
+   *   memory; an unloaded one has to be loaded before it answers. Left
+   *   undefined by a single-model server, which reports no status at all.
+   * - `contextLength` — `meta.n_ctx`, the context the model was actually loaded
+   *   with, falling back to the trained ceiling `n_ctx_train`. Only loaded
+   *   models carry `meta`.
+   *
+   * The rest — launch args, presets, modalities, quantization — is on `raw`.
+   */
+  async listModels(): Promise<ModelInfo<LlamaCppModelCard>[]> {
+    const models = (await super.listModels()) as ModelInfo<LlamaCppModelCard>[];
+
+    return models.map((model) => ({
+      ...model,
+      loaded: model.raw.status
+        ? model.raw.status.value === "loaded"
+        : undefined,
+      contextLength: model.raw.meta?.n_ctx ?? model.raw.meta?.n_ctx_train,
+    }));
   }
 }

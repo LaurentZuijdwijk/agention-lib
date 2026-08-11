@@ -12,6 +12,7 @@ import {
   CommonAgentConfig,
   VendorSpecificConfig,
 } from "./AgentConfig";
+import { ExecutionError } from "./errors/AgentError";
 
 // Re-export for convenience
 export type { HistoryEntry, MessageRole, MessageContent, ImageMimeType };
@@ -80,6 +81,42 @@ export type TokenUsage = {
    * that path, divide `output_tokens - reasoning_tokens` by `generationMs`.
    */
   outputTokensPerSecond?: number;
+};
+
+/**
+ * A model as reported by a provider's models endpoint, in a shape that is the
+ * same on every provider.
+ *
+ * Only `id` — the value you pass as `model` in an agent config — is guaranteed.
+ * Every other field is optional because no two providers report the same set:
+ * Anthropic gives a display name and release date but no context window,
+ * OpenAI gives an owner and a creation timestamp, Mistral and Gemini give
+ * context limits. The provider's own untouched entry is always available on
+ * `raw` for anything not covered here.
+ */
+export type ModelInfo<TRaw = unknown> = {
+  /** Model identifier, as passed to the API in the `model` field. */
+  id: string;
+  /** Human-readable name, where the provider reports one. */
+  displayName?: string;
+  /** Release or creation date, where the provider reports one. */
+  created?: Date;
+  /** Owning organisation, where the provider reports one. */
+  ownedBy?: string;
+  /** Maximum input context in tokens, where the provider reports one. */
+  contextLength?: number;
+  /**
+   * Whether the model is currently held in memory, on servers that distinguish
+   * "offered" from "loaded" — llama.cpp's model router being the case in point,
+   * where an unloaded model is listed but has to be loaded before it answers.
+   *
+   * Undefined wherever the distinction does not exist or is not reported: every
+   * hosted provider, and a single-model `llama-server`, where the one model
+   * listed is by definition the loaded one.
+   */
+  loaded?: boolean;
+  /** The provider's unmodified entry for this model. */
+  raw: TRaw;
 };
 
 /**
@@ -170,6 +207,24 @@ export abstract class BaseAgent<
 
   protected getToolDefinitions(): unknown[] {
     return Array.from(this.tools.values()).map((tool) => tool.getPrompt());
+  }
+
+  /**
+   * List the models the provider currently offers, straight from its models
+   * endpoint — the live answer, as opposed to the hand-maintained unions in
+   * `model-types.ts`.
+   *
+   * Overridden by every built-in agent; the base implementation throws so that
+   * a custom agent without a models endpoint fails with a clear message rather
+   * than silently returning nothing.
+   *
+   * @throws {ExecutionError} If the provider does not support listing, or the
+   *                          request fails.
+   */
+  async listModels(): Promise<ModelInfo[]> {
+    throw new ExecutionError(
+      `listModels() is not implemented for the '${this.vendor}' agent`
+    );
   }
 
   /**

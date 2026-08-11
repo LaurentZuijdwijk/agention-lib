@@ -5,6 +5,62 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-11
+
+### Added
+- **`listModels()` on every agent** — ask any provider which models it currently offers,
+  rather than trusting the hand-maintained unions in `model-types.ts`:
+
+  ```typescript
+  const models = await agent.listModels();
+  console.log(models.map((m) => m.id));
+  ```
+
+  `ClaudeAgent` (paginated `client.models.list()`), `OpenAiAgent`, `MistralAgent` and
+  `GeminiAgent` are new; `OllamaAgent` and `OpenAICompatibleAgent` already had one.
+  Gemini goes straight to `/v1beta/models` because `@google/generative-ai` ships no
+  models endpoint, following `nextPageToken` to the last page and stripping the
+  `"models/"` prefix so `id` can be passed back as an agent's `model`. Failures are
+  wrapped in `ExecutionError`; `BaseAgent.listModels()` throws by default, so a custom
+  agent without a models endpoint fails loudly instead of returning nothing.
+
+  Also exported: `ModelInfo` (in `BaseAgent.ts`), plus the provider model shapes
+  `GeminiModelCard`, `MistralModelCard`, `LlamaCppModelCard` and `LlamaCppModelMeta`.
+
+- **`loaded` on `ModelInfo`, for llama.cpp's model router.** Started in router mode,
+  `llama-server` lists every model it can serve, not just the one in memory — an
+  unloaded model has to be loaded before it answers. `LlamaCppAgent.listModels()` now
+  reports that, and fills `contextLength` from `meta.n_ctx` (the context the model was
+  loaded with) falling back to `meta.n_ctx_train`:
+
+  ```typescript
+  const models = await agent.listModels();
+  const ready = models.filter((m) => m.loaded);
+  ```
+
+  `loaded` stays `undefined` on a single-model `llama-server`, which reports no status —
+  its one model is by definition loaded, so `false` would be wrong — and on every hosted
+  provider. `raw` is typed as `LlamaCppModelCard`, covering the launch args, preset,
+  modalities, source and GGUF metadata the router reports. Verified against llama.cpp
+  b10148.
+
+- `examples/list-models.ts` — queries every provider whose API key is set.
+
+### Changed
+- **`listModels()` now returns `ModelInfo[]` on `OllamaAgent` and
+  `OpenAICompatibleAgent`/`LlamaCppAgent`** (previously `OllamaModelInfo[]` and the
+  OpenAI SDK's `Model[]`), so the shape is the same on every provider: `id` plus
+  optional `displayName`, `created`, `ownedBy` and `contextLength`. The provider's own
+  untouched entry is on `raw`, typed per provider — `models.map((m) => m.raw)` recovers
+  the previous return value, and on Ollama `m.id` replaces `m.model` / `m.name`.
+
+- The provider model types are now exported from the entry points that use them:
+  `GeminiModelCard` from `@agentionai/agents/gemini`, `MistralModelCard` from
+  `/mistral`, `OllamaModelInfo` from `/ollama`, `LlamaCppModelCard` and
+  `LlamaCppModelMeta` from `/llamacpp` (all also on the root export). They are what
+  `ModelInfo.raw` resolves to, and were previously unreachable — `OllamaModelInfo`
+  since it was introduced.
+
 ## [1.4.0] - 2026-08-10
 
 ### Added

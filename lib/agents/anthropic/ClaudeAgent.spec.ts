@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Anthropic } from "@anthropic-ai/sdk";
 import { ClaudeAgent } from "./ClaudeAgent"; // Adjust the import path as needed
-import { MaxTokensExceededError } from "../errors/AgentError";
+import { ExecutionError, MaxTokensExceededError } from "../errors/AgentError";
 import { AgentEvent } from "../AgentEvent";
 
 // Mock the Anthropic SDK
@@ -17,6 +17,9 @@ describe("ClaudeAgent", () => {
     mockClient = {
       messages: {
         create: jest.fn(),
+      },
+      models: {
+        list: jest.fn(),
       },
     } as any;
     (Anthropic as jest.Mock).mockImplementation(() => mockClient);
@@ -102,6 +105,78 @@ describe("ClaudeAgent", () => {
       });
 
       expect(Anthropic).toHaveBeenCalledWith({ authToken: "sk-ant-oat-some-token" });
+    });
+  });
+
+  describe("listModels", () => {
+    it("should normalize the models the API reports", async () => {
+      const cards = [
+        {
+          id: "claude-opus-4-6",
+          type: "model",
+          display_name: "Claude Opus 4.6",
+          created_at: "2026-02-05T00:00:00Z",
+        },
+        {
+          id: "claude-haiku-4-5",
+          type: "model",
+          display_name: "Claude Haiku 4.5",
+          created_at: "2025-10-01T00:00:00Z",
+        },
+      ];
+      mockClient.models.list.mockReturnValue(
+        (async function* () {
+          yield* cards;
+        })()
+      );
+
+      const result = await agent.listModels();
+
+      expect(result).toEqual([
+        {
+          id: "claude-opus-4-6",
+          displayName: "Claude Opus 4.6",
+          created: new Date("2026-02-05T00:00:00Z"),
+          raw: cards[0],
+        },
+        {
+          id: "claude-haiku-4-5",
+          displayName: "Claude Haiku 4.5",
+          created: new Date("2025-10-01T00:00:00Z"),
+          raw: cards[1],
+        },
+      ]);
+    });
+
+    it("should follow every page", async () => {
+      // The SDK's auto-pagination is transparent here: whatever the iterator
+      // yields across page boundaries ends up in one flat list.
+      mockClient.models.list.mockReturnValue(
+        (async function* () {
+          yield { id: "a", display_name: "A", created_at: "2025-01-01T00:00:00Z" };
+          yield { id: "b", display_name: "B", created_at: "2025-01-02T00:00:00Z" };
+          yield { id: "c", display_name: "C", created_at: "2025-01-03T00:00:00Z" };
+        })()
+      );
+
+      const result = await agent.listModels();
+
+      expect(result.map((m) => m.id)).toEqual(["a", "b", "c"]);
+    });
+
+    it("should wrap failures in an ExecutionError", async () => {
+      // mockImplementation, not mockReturnValue: each call needs its own
+      // iterator, since the first call would otherwise exhaust it.
+      mockClient.models.list.mockImplementation(
+        async function* () {
+          throw new Error("401 unauthorized");
+        }
+      );
+
+      await expect(agent.listModels()).rejects.toThrow(ExecutionError);
+      await expect(agent.listModels()).rejects.toThrow(
+        /Failed to list Anthropic models: 401 unauthorized/
+      );
     });
   });
 

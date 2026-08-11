@@ -216,6 +216,61 @@ const ollama = new OllamaAgent({
 const response = await claude.execute('Hello');
 ```
 
+## Listing Available Models
+
+Every agent has `listModels()`, which asks the provider what it currently
+offers. This is the live answer, as opposed to the hand-maintained model unions
+in `model-types.ts` — useful for populating a model picker, checking that an id
+still exists, or discovering which models a local server has loaded.
+
+```typescript
+const models = await claude.listModels();
+
+for (const model of models) {
+  console.log(model.id, model.displayName);
+}
+
+// The id drops straight back into an agent config
+const agent = new ClaudeAgent({ ...config, model: models[0].id });
+```
+
+The result is the same `ModelInfo` shape on every provider:
+
+| Field | Description |
+|-------|-------------|
+| `id` | Model identifier — the value you pass as `model` |
+| `displayName` | Human-readable name, where the provider reports one |
+| `created` | Release or creation date, where the provider reports one |
+| `ownedBy` | Owning organisation, where the provider reports one |
+| `contextLength` | Maximum input context in tokens, where the provider reports one |
+| `loaded` | Whether the model is in memory, on servers that distinguish offered from loaded |
+| `raw` | The provider's unmodified entry, typed per provider |
+
+Only `id` is guaranteed — no two providers report the same set of fields:
+
+| Provider | Reports | Notes |
+|----------|---------|-------|
+| Claude | `displayName`, `created` | Fully paginated; no context window in the response |
+| OpenAI | `created`, `ownedBy` | Includes embedding, audio and image models |
+| Mistral | `displayName`, `created`, `ownedBy`, `contextLength` | Base and fine-tuned models; `raw.capabilities` has the feature flags |
+| Gemini | `displayName`, `contextLength` | Direct call to `/v1beta/models`; the `models/` prefix is stripped from `id` |
+| Ollama | `displayName`, `created` | `created` is the local `modified_at` — when the model was last pulled |
+| llama.cpp | `created`, `ownedBy`, plus `contextLength` and `loaded` in router mode | See [below](#listing-models-on-llama-cpp) |
+| Other OpenAI-compatible | `created`, `ownedBy` where the server sends them | Local servers often report nothing but the id |
+
+Anything a provider reports beyond these fields is on `raw`, which is typed to
+that provider's own model shape:
+
+```typescript
+const geminiModels = await gemini.listModels();
+const chatModels = geminiModels.filter((m) =>
+  m.raw.supportedGenerationMethods?.includes('generateContent')
+);
+```
+
+Failures — a bad key, an unreachable local server — are wrapped in
+`ExecutionError`.
+
 ## Ollama (Local Models)
 
 `OllamaAgent` runs models locally via [Ollama](https://ollama.com) — no API key or internet connection required.
@@ -302,7 +357,7 @@ Any model string you have pulled locally is valid — the type allows arbitrary 
 
 ```typescript
 const models = await agent.listModels();
-console.log(models.map((m) => m.name));
+console.log(models.map((m) => m.id));
 ```
 
 ## llama.cpp (Local Models)
@@ -337,11 +392,40 @@ const agent = new LlamaCppAgent({
 const response = await agent.execute('What is the capital of France?');
 ```
 
-**Listing available models:**
+### Listing models on llama.cpp
 
 ```typescript
 const models = await agent.listModels();
 console.log(models.map((m) => m.id));
+```
+
+Started in **model-router mode**, `llama-server` lists every model it can serve,
+not just the one it is running — an unloaded model has to be loaded before it
+answers, which takes time and memory. `listModels()` surfaces that as `loaded`,
+and fills `contextLength` from the context the model was actually loaded with
+(`meta.n_ctx`, falling back to the trained ceiling `n_ctx_train`):
+
+```typescript
+const models = await agent.listModels();
+
+const ready = models.filter((m) => m.loaded);
+console.log(`${ready.length} of ${models.length} models in memory`);
+```
+
+A single-model `llama-server` reports no status, so `loaded` stays `undefined`
+there — the one model it lists is by definition the loaded one, and `false`
+would be actively misleading.
+
+Everything else llama.cpp reports is on `raw`, typed as `LlamaCppModelCard`:
+
+```typescript
+// Only the models that can take an image
+const visionModels = models.filter((m) =>
+  m.raw.architecture?.input_modalities?.includes('image')
+);
+
+// How the router would launch this model, and its quantization
+console.log(models[0].raw.status?.args, models[0].raw.meta?.ftype);
 ```
 
 ## Custom OpenAI-Compatible Agents

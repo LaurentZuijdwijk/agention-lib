@@ -1,7 +1,7 @@
 import { Mistral } from "@mistralai/mistralai";
 import { HTTPClient } from "@mistralai/mistralai/lib/http";
 
-import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
+import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
   ApiError,
@@ -13,6 +13,7 @@ import { History, MessageContent } from "../../history/History";
 import { mistralTransformer } from "../../history/transformers";
 import {
   ChatCompletionResponse,
+  ModelList,
   TextChunk,
   Tool,
   ToolCall,
@@ -23,6 +24,13 @@ import { setTimeout } from "timers/promises";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { MistralModel } from "../model-types";
+
+/**
+ * One entry from Mistral's `/v1/models` response — a base model card or a
+ * fine-tuned one. Derived from the SDK's `ModelList` rather than imported
+ * directly, since the SDK exports the union under the unhelpful name `Data`.
+ */
+export type MistralModelCard = NonNullable<ModelList["data"]>[number];
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
@@ -121,6 +129,32 @@ export class MistralAgent extends BaseAgent {
 
     // Add system message to history (skips if already exists with same content)
     this.addSystemMessage(this.getSystemMessage());
+  }
+
+  /**
+   * List the models available to this API key, base and fine-tuned alike.
+   *
+   * Mistral reports a context window, which lands on `contextLength`; the
+   * per-model `capabilities` flags (function calling, vision, …) are on `raw`.
+   */
+  async listModels(): Promise<ModelInfo<MistralModelCard>[]> {
+    try {
+      const response = await this.client.models.list();
+      return (response.data ?? []).map((model) => ({
+        id: model.id,
+        displayName: model.name ?? undefined,
+        created: model.created ? new Date(model.created * 1000) : undefined,
+        ownedBy: model.ownedBy,
+        contextLength: model.maxContextLength,
+        raw: model,
+      }));
+    } catch (error: unknown) {
+      throw new ExecutionError(
+        `Failed to list Mistral models: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   }
 
   protected getToolDefinitions(): Tool[] {

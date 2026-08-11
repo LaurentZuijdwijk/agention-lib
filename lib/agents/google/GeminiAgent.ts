@@ -10,7 +10,7 @@ import {
   Schema,
 } from "@google/generative-ai";
 
-import { BaseAgent, BaseAgentConfig, TokenUsage } from "../BaseAgent";
+import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
   ApiError,
@@ -23,6 +23,32 @@ import { geminiTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { GeminiModel } from "../model-types";
+
+/** Base URL of the Generative Language API, matching the SDK's own default. */
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com";
+
+/**
+ * One entry from the Generative Language API's `models.list` response.
+ *
+ * Declared here rather than imported: `@google/generative-ai` only covers
+ * content generation and ships no type for the models endpoint.
+ */
+export type GeminiModelCard = {
+  /** Resource name, e.g. `"models/gemini-flash-latest"`. */
+  name: string;
+  baseModelId?: string;
+  version?: string;
+  displayName?: string;
+  description?: string;
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+  /** e.g. `["generateContent", "countTokens"]` — an embedding model has neither. */
+  supportedGenerationMethods?: string[];
+  temperature?: number;
+  maxTemperature?: number;
+  topP?: number;
+  topK?: number;
+};
 
 type AgentConfig = BaseAgentConfig & {
   apiKey: string;
@@ -83,6 +109,7 @@ export class GeminiAgent extends BaseAgent {
       candidateCount,
       responseMimeType,
       responseSchema,
+      defaultHeaders: config.defaultHeaders,
     };
 
     // Initialize the model
@@ -93,6 +120,69 @@ export class GeminiAgent extends BaseAgent {
 
     // Add system message to history (skips if already exists with same content)
     this.addSystemMessage(this.getSystemMessage());
+  }
+
+  /**
+   * List the models available to this API key.
+   *
+   * Issued as a direct request to `/v1beta/models`: `@google/generative-ai`
+   * exposes no models endpoint, so there is no client method to call. Every
+   * page is followed, and the `"models/"` prefix is stripped from `id` so the
+   * value can be passed straight back as an agent's `model`.
+   *
+   * The list includes embedding models; filter on
+   * `raw.supportedGenerationMethods` for the ones this agent can drive.
+   */
+  async listModels(): Promise<ModelInfo<GeminiModelCard>[]> {
+    try {
+      const models: ModelInfo<GeminiModelCard>[] = [];
+      let pageToken: string | undefined;
+
+      do {
+        const url = new URL(`${GEMINI_API_BASE}/v1beta/models`);
+        url.searchParams.set("pageSize", "1000");
+        if (pageToken) {
+          url.searchParams.set("pageToken", pageToken);
+        }
+
+        const response = await fetch(url, {
+          headers: {
+            "x-goog-api-key": this.config.apiKey!,
+            ...this.config.defaultHeaders,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `${response.status} ${response.statusText}: ${await response.text()}`
+          );
+        }
+
+        const body = (await response.json()) as {
+          models?: GeminiModelCard[];
+          nextPageToken?: string;
+        };
+
+        for (const model of body.models ?? []) {
+          models.push({
+            id: model.name.replace(/^models\//, ""),
+            displayName: model.displayName,
+            contextLength: model.inputTokenLimit,
+            raw: model,
+          });
+        }
+
+        pageToken = body.nextPageToken;
+      } while (pageToken);
+
+      return models;
+    } catch (error: unknown) {
+      throw new ExecutionError(
+        `Failed to list Gemini models: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   }
 
   protected getToolDefinitionsForGemini():

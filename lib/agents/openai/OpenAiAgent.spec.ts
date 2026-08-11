@@ -25,6 +25,9 @@ describe("OpenAiAgent", () => {
       responses: {
         create: jest.fn(),
       },
+      models: {
+        list: jest.fn(),
+      },
     };
 
     (OpenAI as jest.Mock).mockImplementation(() => mockClient);
@@ -87,6 +90,53 @@ describe("OpenAiAgent", () => {
       expect(customAgent.getId()).toBe("custom-id");
       expect(customAgent.getName()).toBe("Custom Agent");
       expect(customAgent.getDescription()).toBe("Custom description");
+    });
+  });
+
+  describe("listModels", () => {
+    it("should normalize the models the API reports", async () => {
+      const cards = [
+        {
+          id: "gpt-5.6-luna",
+          object: "model",
+          created: 1770000000,
+          owned_by: "system",
+        },
+        {
+          id: "text-embedding-3-small",
+          object: "model",
+          created: 1705948997,
+          owned_by: "system",
+        },
+      ];
+      mockClient.models.list.mockResolvedValue({ data: cards });
+
+      const result = await agent.listModels();
+
+      expect(result).toEqual([
+        {
+          id: "gpt-5.6-luna",
+          // OpenAI reports seconds, not milliseconds
+          created: new Date(1770000000 * 1000),
+          ownedBy: "system",
+          raw: cards[0],
+        },
+        {
+          id: "text-embedding-3-small",
+          created: new Date(1705948997 * 1000),
+          ownedBy: "system",
+          raw: cards[1],
+        },
+      ]);
+    });
+
+    it("should wrap failures in an ExecutionError", async () => {
+      mockClient.models.list.mockRejectedValue(new Error("401 unauthorized"));
+
+      await expect(agent.listModels()).rejects.toThrow(ExecutionError);
+      await expect(agent.listModels()).rejects.toThrow(
+        /Failed to list OpenAI models: 401 unauthorized/
+      );
     });
   });
 

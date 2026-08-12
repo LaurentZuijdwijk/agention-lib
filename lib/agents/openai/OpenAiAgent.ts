@@ -2,6 +2,11 @@ import OpenAI from "openai";
 import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
+  ExecuteOptions,
+  isAbortError,
+  throwIfAborted,
+} from "../cancellation";
+import {
   AgentError,
   ApiError,
   ExecutionError,
@@ -239,7 +244,10 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     return "";
   }
 
-  async execute(input: string | MessageContent[]): Promise<string> {
+  async execute(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
@@ -283,22 +291,39 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
 
       this.startTurnTimer();
-      const response = await this.client.responses.create({
-        model: this.config.model!,
-        max_output_tokens: this.config.maxTokens,
-        input: inputMessages,
-        tools: this.getToolDefinitions(),
-        store: false,
-        temperature: this.config.temperature,
-        top_p: this.config.topP,
-        // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
-        user: this.config.user,
-        ...this.buildReasoningParams(),
-      });
+      const response = await this.client.responses.create(
+        {
+          model: this.config.model!,
+          max_output_tokens: this.config.maxTokens,
+          input: inputMessages,
+          tools: this.getToolDefinitions(),
+          store: false,
+          temperature: this.config.temperature,
+          top_p: this.config.topP,
+          // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
+          user: this.config.user,
+          ...this.buildReasoningParams(),
+        },
+        { signal: options?.signal }
+      );
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
-      return await this.handleResponse(response);
+      return await this.handleResponse(response, options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "AbortError",
+            abortError.message,
+            false
+          );
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
+
       if (error && typeof error === "object" && "error" in error) {
         const openAIError = error as {
           error: { message?: string; code?: string };
@@ -355,7 +380,10 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     }
   }
 
-  protected async handleResponse(response: Response): Promise<string> {
+  protected async handleResponse(
+    response: Response,
+    options?: ExecuteOptions
+  ): Promise<string> {
     if (!response.output || !response.output.length) {
       const error = new ExecutionError(
         "Invalid response format: missing output"
@@ -442,6 +470,12 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       return response.output_text;
     } else if (toolCalls.length) {
       try {
+        // Stop before the assistant turn is written: nothing else would notice
+        // a cancellation until the next provider call, and bailing out here
+        // avoids both running the tools' side effects and leaving a function
+        // call in history with no output to answer it.
+        throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
         // Add assistant message with tool calls to history (normalized)
         const functionCalls = toolCalls.map((tc) => ({
           id: tc.id || tc.call_id,
@@ -457,7 +491,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         );
         this.addToHistory(assistantEntry);
 
-        const toolResponses = await this.handleToolUse(toolCalls);
+        const toolResponses = await this.handleToolUse(toolCalls, options);
 
         // Add tool results to history (normalized)
         for (const result of toolResponses) {
@@ -476,21 +510,24 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           );
 
           this.startTurnTimer();
-          const newResponse = await this.client.responses.create({
-            model: this.config.model!,
-            max_output_tokens: this.config.maxTokens,
-            input: inputMessages,
-            tools: this.getToolDefinitions(),
-            store: false,
-            temperature: this.config.temperature,
-            top_p: this.config.topP,
-            // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
-            user: this.config.user,
-            ...this.buildReasoningParams(),
-          });
+          const newResponse = await this.client.responses.create(
+            {
+              model: this.config.model!,
+              max_output_tokens: this.config.maxTokens,
+              input: inputMessages,
+              tools: this.getToolDefinitions(),
+              store: false,
+              temperature: this.config.temperature,
+              top_p: this.config.topP,
+              // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
+              user: this.config.user,
+              ...this.buildReasoningParams(),
+            },
+            { signal: options?.signal }
+          );
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
-          return this.handleResponse(newResponse);
+          return this.handleResponse(newResponse, options);
         } catch (error: unknown) {
           if (error && typeof error === "object" && "error" in error) {
             const openAIError = error as {
@@ -552,7 +589,8 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
   }
 
   private async handleToolUse(
-    content: ResponseFunctionToolCall[]
+    content: ResponseFunctionToolCall[],
+    options?: ExecuteOptions
   ): Promise<Array<{ call_id: string; output: string }>> {
     if (!content || !content.length) {
       throw new ExecutionError("Invalid tool calls content");
@@ -608,7 +646,8 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
             toolArgs,
             toolCall.id || "",
             this.config.model,
-            "openai"
+            "openai",
+            { signal: options?.signal }
           );
 
           return {
@@ -655,7 +694,10 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
    * }
    * ```
    */
-  async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
+  async *executeStream(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
     this.currentToolCallCount = 0;
@@ -688,8 +730,16 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     this.history.beginExecution();
 
     try {
-      yield* this.streamTurn();
+      yield* this.streamTurn(options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "AbortError", abortError.message, false);
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
       if (error instanceof AgentError) {
         this.emit(AgentEvent.ERROR, error);
         if (this.vizEventId) {
@@ -726,22 +776,27 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     }
   }
 
-  private async *streamTurn(): AsyncGenerator<StreamChunk> {
+  private async *streamTurn(
+    options?: ExecuteOptions
+  ): AsyncGenerator<StreamChunk> {
     const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
 
     this.startTurnTimer();
-    const stream = await this.client.responses.create({
-      model: this.config.model!,
-      max_output_tokens: this.config.maxTokens,
-      input: inputMessages,
-      tools: this.getToolDefinitions(),
-      store: false,
-      stream: true,
-      temperature: this.config.temperature,
-      top_p: this.config.topP,
-      user: this.config.user,
-      ...this.buildReasoningParams("auto"),
-    }) as AsyncIterable<ResponseStreamEvent>;
+    const stream = await this.client.responses.create(
+      {
+        model: this.config.model!,
+        max_output_tokens: this.config.maxTokens,
+        input: inputMessages,
+        tools: this.getToolDefinitions(),
+        store: false,
+        stream: true,
+        temperature: this.config.temperature,
+        top_p: this.config.topP,
+        user: this.config.user,
+        ...this.buildReasoningParams("auto"),
+      },
+      { signal: options?.signal }
+    ) as AsyncIterable<ResponseStreamEvent>;
 
     let completedEvent: ResponseCompletedEvent | null = null;
 
@@ -770,6 +825,11 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       }
     }
 
+    // The SDK's stream iterator swallows the abort and simply stops yielding.
+    // Without this the turn would fail as a malformed stream instead of a
+    // cancellation — checked here so the tokens already spent are reported.
+    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
     if (!completedEvent) {
       throw new ExecutionError("OpenAI stream ended without a completed event");
     }
@@ -780,6 +840,10 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     ) as unknown as ResponseFunctionToolCall[];
 
     if (toolCalls.length > 0) {
+      // As in handleResponse(): bail out before the assistant turn is written,
+      // so a cancelled run leaves no unanswered function call in history.
+      throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
       this.emit(AgentEvent.TOOL_USE, toolCalls);
       this.currentToolCallCount += toolCalls.length;
 
@@ -796,12 +860,12 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       );
       this.addToHistory(assistantEntry);
 
-      const toolResults = await this.handleToolUse(toolCalls);
+      const toolResults = await this.handleToolUse(toolCalls, options);
       for (const result of toolResults) {
         this.addToHistory(openAiTransformer.toolResultEntry(result.call_id, result.output, false));
       }
 
-      yield* this.streamTurn();
+      yield* this.streamTurn(options);
     } else {
       const textContent = response.output_text || "";
       const entry = openAiTransformer.fromProviderMessage("assistant", textContent);

@@ -34,6 +34,7 @@ export * from "./agents/model-types";
 export * from "./agents/AgentConfig";
 export * from "./agents/AgentEvent";
 export * from "./agents/errors/AgentError";
+export * from "./agents/cancellation";
 
 // History
 export * from "./history/History";

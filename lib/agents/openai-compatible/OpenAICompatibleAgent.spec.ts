@@ -2,7 +2,11 @@
 import OpenAI from "openai";
 import { OpenAICompatibleAgent } from "./OpenAICompatibleAgent";
 import { AgentEvent } from "../AgentEvent";
-import { ExecutionError, MaxTokensExceededError } from "../errors/AgentError";
+import {
+  AbortError,
+  ExecutionError,
+  MaxTokensExceededError,
+} from "../errors/AgentError";
 
 jest.mock("openai");
 
@@ -199,7 +203,8 @@ describe("OpenAICompatibleAgent", () => {
 
       expect(result).toBe("Hello there");
       expect(mockClient.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({ stream: false, messages: expect.any(Array) })
+        expect.objectContaining({ stream: false, messages: expect.any(Array) }),
+        { signal: undefined }
       );
     });
 
@@ -270,7 +275,8 @@ describe("OpenAICompatibleAgent", () => {
       await extended.execute("Hi");
 
       expect(mockClient.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({ extra_param: true })
+        expect.objectContaining({ extra_param: true }),
+        { signal: undefined }
       );
     });
   });
@@ -333,7 +339,8 @@ describe("OpenAICompatibleAgent", () => {
         { city: "Paris" },
         "call_1",
         undefined, // model not set on this agent
-        "llamacpp" // this.vendor
+        "llamacpp", // this.vendor
+        { signal: undefined }
       );
       expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(2);
       expect(agent.lastTokenUsage).toMatchObject({
@@ -428,6 +435,168 @@ describe("OpenAICompatibleAgent", () => {
         AgentEvent.TOOL_ERROR,
         expect.objectContaining({ message: expect.stringContaining("unknown_tool") })
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // cancellation
+  // ---------------------------------------------------------------------------
+
+  describe("cancellation", () => {
+    const textResponse = (content: string) => ({
+      choices: [
+        { finish_reason: "stop", message: { role: "assistant", content } },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
+
+    const toolPrompt = {
+      name: "get_weather",
+      description: "Look up the weather",
+      input_schema: {
+        type: "object",
+        properties: { city: { type: "string" } },
+      },
+    };
+
+    const toolCallResponse = {
+      choices: [
+        {
+          finish_reason: "tool_calls",
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_1",
+                type: "function",
+                function: { name: "get_weather", arguments: '{"city":"Paris"}' },
+              },
+            ],
+          },
+        },
+      ],
+      usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
+    };
+
+    it("forwards the signal to the API call", async () => {
+      const controller = new AbortController();
+      mockClient.chat.completions.create.mockResolvedValue(
+        textResponse("Hello")
+      );
+
+      await agent.execute("Hi", { signal: controller.signal });
+
+      expect(mockClient.chat.completions.create).toHaveBeenCalledWith(
+        expect.any(Object),
+        { signal: controller.signal }
+      );
+    });
+
+    it("throws an AbortError when the SDK reports the request was aborted", async () => {
+      const controller = new AbortController();
+      mockClient.chat.completions.create.mockImplementation(async () => {
+        controller.abort();
+        throw Object.assign(new Error("Request was aborted."), {
+          name: "APIUserAbortError",
+        });
+      });
+
+      const error = await agent
+        .execute("Hi", { signal: controller.signal })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(AbortError);
+      expect(error.message).toBe("Execution of agent TestAgent was aborted");
+    });
+
+    it("does not run tools, or write an unanswered call, when aborted mid-turn", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue("never called");
+      agent["tools"].set("get_weather", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockClient.chat.completions.create.mockImplementation(async () => {
+        controller.abort();
+        return toolCallResponse;
+      });
+
+      await expect(
+        agent.execute("Weather in Paris?", { signal: controller.signal })
+      ).rejects.toBeInstanceOf(AbortError);
+
+      expect(toolExecute).not.toHaveBeenCalled();
+      expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(1);
+      const entries = agent.getHistoryEntries();
+      expect(
+        entries.some((entry) =>
+          entry.content.some((block: any) => block.type === "tool_use")
+        )
+      ).toBe(false);
+    });
+
+    it("passes the signal on to the tools it runs", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue({ tempC: 22 });
+      agent["tools"].set("get_weather", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(toolCallResponse)
+        .mockResolvedValueOnce(textResponse("It's sunny in Paris."));
+
+      await agent.execute("Weather in Paris?", { signal: controller.signal });
+
+      expect(toolExecute).toHaveBeenCalledWith(
+        "1",
+        "TestAgent",
+        { city: "Paris" },
+        "call_1",
+        undefined,
+        "llamacpp",
+        { signal: controller.signal }
+      );
+    });
+
+    it("aborts a stream in flight", async () => {
+      // The SDK's stream iterator swallows the abort and just stops yielding,
+      // so the agent has to notice the signal itself — otherwise this reads as
+      // a complete (if short) turn.
+      const controller = new AbortController();
+      mockClient.chat.completions.create.mockImplementation(async () => ({
+        async *[Symbol.asyncIterator]() {
+          yield { choices: [{ finish_reason: null, delta: { content: "Hel" } }] };
+          controller.abort();
+        },
+      }));
+
+      const chunks: string[] = [];
+      const error = await (async () => {
+        try {
+          for await (const chunk of agent.executeStream("Hi", {
+            signal: controller.signal,
+          })) {
+            chunks.push(chunk.content);
+          }
+        } catch (e) {
+          return e;
+        }
+      })();
+
+      expect(chunks).toEqual(["Hel"]);
+      expect(error).toBeInstanceOf(AbortError);
+      expect(mockClient.chat.completions.create).toHaveBeenCalledWith(
+        expect.objectContaining({ stream: true }),
+        { signal: controller.signal }
+      );
+      // The partial text is not passed off as a finished assistant turn
+      expect(
+        agent.getHistoryEntries().some((entry) => entry.role === "assistant")
+      ).toBe(false);
     });
   });
 
@@ -805,7 +974,7 @@ describe("OpenAICompatibleAgent", () => {
 
       expect(chunks).toEqual([{ type: "text", content: "Sunny in Paris." }]);
       expect(mockTool.execute).toHaveBeenCalledWith(
-        "1", "TestAgent", { city: "Paris" }, "call_1", undefined, "llamacpp"
+        "1", "TestAgent", { city: "Paris" }, "call_1", undefined, "llamacpp", { signal: undefined }
       );
       expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(2);
     });
@@ -981,7 +1150,8 @@ describe("OpenAICompatibleAgent", () => {
         expect.objectContaining({
           stream: true,
           stream_options: { include_usage: true },
-        })
+        }),
+        { signal: undefined }
       );
     });
   });

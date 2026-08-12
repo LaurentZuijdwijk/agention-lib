@@ -4,6 +4,7 @@ import { OpenAiAgent, lowestReasoningEffort } from "./OpenAiAgent";
 import { OPENAI_REASONING_SUPPORT } from "../model-types";
 import { AgentEvent } from "../AgentEvent";
 import {
+  AbortError,
   ApiError,
   ExecutionError,
   ToolExecutionError,
@@ -268,7 +269,8 @@ describe("OpenAiAgent", () => {
           input: expect.any(Array),
           tools: [],
           store: false,
-        })
+        }),
+        { signal: undefined }
       );
 
       expect(eventSpy).toHaveBeenCalledWith(
@@ -687,6 +689,155 @@ describe("OpenAiAgent", () => {
     });
   });
 
+  describe("cancellation", () => {
+    const toolPrompt = {
+      name: "test_tool",
+      description: "A test tool",
+      input_schema: {
+        type: "object",
+        properties: { param: { type: "string" } },
+        required: ["param"],
+      },
+    };
+
+    const textResponse = {
+      output: [{ type: "message", status: "completed", content: "Hello" }],
+      output_text: "Hello",
+      usage: { input_tokens: 5, output_tokens: 5, total_tokens: 10 },
+    };
+
+    const toolCallResponse = {
+      output: [
+        {
+          type: "function_call",
+          id: "fc_1",
+          call_id: "call_1",
+          name: "test_tool",
+          arguments: JSON.stringify({ param: "value" }),
+        },
+      ],
+      output_text: "",
+      usage: { input_tokens: 5, output_tokens: 5, total_tokens: 10 },
+    };
+
+    it("forwards the signal to the API call", async () => {
+      const controller = new AbortController();
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(mockClient.responses.create).toHaveBeenCalledWith(
+        expect.any(Object),
+        { signal: controller.signal }
+      );
+    });
+
+    it("throws an AbortError when the SDK reports the request was aborted", async () => {
+      const controller = new AbortController();
+      agent.on(AgentEvent.ERROR, () => {});
+      mockClient.responses.create.mockImplementation(async () => {
+        controller.abort();
+        throw Object.assign(new Error("Request was aborted."), {
+          name: "APIUserAbortError",
+        });
+      });
+
+      const error = await agent
+        .execute("test input", { signal: controller.signal })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(AbortError);
+      expect(error.message).toBe("Execution of agent TestAgent was aborted");
+    });
+
+    it("does not run tools, or write an unanswered call, when aborted mid-turn", async () => {
+      const controller = new AbortController();
+      agent.on(AgentEvent.ERROR, () => {});
+      const toolExecute = jest.fn().mockResolvedValue("never called");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockClient.responses.create.mockImplementation(async () => {
+        controller.abort();
+        return toolCallResponse;
+      });
+
+      await expect(
+        agent.execute("test input", { signal: controller.signal })
+      ).rejects.toBeInstanceOf(AbortError);
+
+      expect(toolExecute).not.toHaveBeenCalled();
+      expect(mockClient.responses.create).toHaveBeenCalledTimes(1);
+      const entries = agent.getHistoryEntries();
+      expect(
+        entries.some((entry) =>
+          entry.content.some((block: any) => block.type === "tool_use")
+        )
+      ).toBe(false);
+    });
+
+    it("passes the signal on to the tools it runs", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue("sunny");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockClient.responses.create
+        .mockResolvedValueOnce(toolCallResponse)
+        .mockResolvedValueOnce(textResponse);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(toolExecute).toHaveBeenCalledWith(
+        "1",
+        "TestAgent",
+        { param: "value" },
+        "fc_1",
+        "gpt-4.1-mini",
+        "openai",
+        { signal: controller.signal }
+      );
+    });
+
+    it("aborts a stream in flight", async () => {
+      // The SDK's stream iterator swallows the abort and just stops yielding,
+      // which without the agent's own check reads as a malformed stream rather
+      // than a cancellation.
+      const controller = new AbortController();
+      agent.on(AgentEvent.ERROR, () => {});
+      mockClient.responses.create.mockImplementation(async () => ({
+        async *[Symbol.asyncIterator]() {
+          yield { type: "response.output_text.delta", delta: "Hel" };
+          controller.abort();
+        },
+      }));
+
+      const chunks: string[] = [];
+      const error = await (async () => {
+        try {
+          for await (const chunk of agent.executeStream("hi", {
+            signal: controller.signal,
+          })) {
+            chunks.push(chunk.content);
+          }
+        } catch (e) {
+          return e;
+        }
+      })();
+
+      expect(chunks).toEqual(["Hel"]);
+      expect(error).toBeInstanceOf(AbortError);
+      expect(mockClient.responses.create).toHaveBeenCalledWith(
+        expect.objectContaining({ stream: true }),
+        { signal: controller.signal }
+      );
+    });
+  });
+
   describe("handleToolUse", () => {
     it("should throw error for invalid tool calls content", async () => {
       await expect(agent["handleToolUse"](null)).rejects.toThrow(
@@ -740,7 +891,8 @@ describe("OpenAiAgent", () => {
         { param: "value" },
         "123",
         "gpt-4.1-mini",
-        "openai"
+        "openai",
+        { signal: undefined }
       );
     });
 

@@ -259,7 +259,8 @@ describe("LlamaCppAgent", () => {
           model: "default",
           stream: false,
           messages: expect.any(Array),
-        })
+        }),
+        { signal: undefined }
       );
       expect(eventSpy).toHaveBeenCalledWith(AgentEvent.BEFORE_EXECUTE, "Hi");
       expect(eventSpy).toHaveBeenCalledWith(AgentEvent.DONE, mockResponse.choices[0].message, expect.anything());
@@ -358,7 +359,8 @@ describe("LlamaCppAgent", () => {
         { city: "Paris" },
         "call_1",
         "default",
-        "llamacpp"
+        "llamacpp",
+        { signal: undefined }
       );
       expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(2);
 

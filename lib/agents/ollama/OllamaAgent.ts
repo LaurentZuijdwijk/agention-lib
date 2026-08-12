@@ -1,6 +1,12 @@
 import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
+  ExecuteOptions,
+  combineSignals,
+  isAbortError,
+  throwIfAborted,
+} from "../cancellation";
+import {
   ApiError,
   ExecutionError,
   MaxTokensExceededError,
@@ -76,8 +82,11 @@ export class OllamaAgent extends BaseAgent {
   /** Count of tool calls in current execution */
   private currentToolCallCount: number = 0;
 
-  /** Cached Ollama client instance */
-  private _client: unknown = null;
+  /** Cached signal-less Ollama client instance */
+  private _client: OllamaClient | null = null;
+
+  /** Cached constructor from the optional `ollama` peer dependency */
+  private _clientClass: OllamaClientConstructor | null = null;
 
   constructor(config: Omit<AgentConfig, "vendor">, history?: History) {
     super({ ...config, vendor: "ollama" }, history);
@@ -101,25 +110,19 @@ export class OllamaAgent extends BaseAgent {
     this.addSystemMessage(this.getSystemMessage());
   }
 
-  private async getClient(): Promise<{
-    chat: (params: unknown) => Promise<unknown>;
-    list: () => Promise<{ models: OllamaModelInfo[] }>;
-  }> {
-    if (!this._client) {
+  private async loadClientClass(): Promise<OllamaClientConstructor> {
+    if (!this._clientClass) {
       const pkg = "ollama";
       try {
         const mod = (await import(pkg)) as {
-          Ollama?: new (opts: unknown) => unknown;
-          default?: { Ollama?: new (opts: unknown) => unknown };
+          Ollama?: OllamaClientConstructor;
+          default?: { Ollama?: OllamaClientConstructor };
         };
         const OllamaClass = mod.Ollama ?? mod.default?.Ollama;
         if (!OllamaClass) {
           throw new Error("Could not find Ollama class in ollama package");
         }
-        this._client = new OllamaClass({
-          host: this.config.host,
-          headers: this.config.defaultHeaders,
-        });
+        this._clientClass = OllamaClass;
       } catch (err) {
         throw new ExecutionError(
           `Failed to load 'ollama' package. Install it with: npm install ollama\n${
@@ -128,10 +131,37 @@ export class OllamaAgent extends BaseAgent {
         );
       }
     }
-    return this._client as {
-      chat: (params: unknown) => Promise<unknown>;
-      list: () => Promise<{ models: OllamaModelInfo[] }>;
-    };
+    return this._clientClass;
+  }
+
+  /**
+   * Get an Ollama client.
+   *
+   * The `ollama` package takes no per-request options — its own `abort()`
+   * cancels every streamed request on the client at once, which is too blunt
+   * for a per-run signal. A client does accept a `fetch` implementation
+   * though, so a run with a signal gets its own client whose `fetch` attaches
+   * that signal to each request. Clients are cheap (they open no connection),
+   * and the signal-less one is still cached and shared.
+   */
+  private async getClient(signal?: AbortSignal): Promise<OllamaClient> {
+    if (!signal && this._client) return this._client;
+
+    const OllamaClass = await this.loadClientClass();
+
+    if (signal) {
+      return new OllamaClass({
+        host: this.config.host,
+        headers: this.config.defaultHeaders,
+        fetch: fetchWithSignal(signal),
+      });
+    }
+
+    this._client ??= new OllamaClass({
+      host: this.config.host,
+      headers: this.config.defaultHeaders,
+    });
+    return this._client;
   }
 
   /**
@@ -175,7 +205,10 @@ export class OllamaAgent extends BaseAgent {
     return "";
   }
 
-  async execute(input: string | MessageContent[]): Promise<string> {
+  async execute(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
     this.currentToolCallCount = 0;
@@ -208,11 +241,24 @@ export class OllamaAgent extends BaseAgent {
     this.history.beginExecution();
 
     try {
-      await this.getClient(); // ensure client is cached before handleResponse loop
-      const response = await this.callOllama();
+      const response = await this.callOllama(options);
       this.emit(AgentEvent.AFTER_EXECUTE, response);
-      return await this.handleResponse(response as OllamaResponse);
+      return await this.handleResponse(response as OllamaResponse, options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "AbortError",
+            abortError.message,
+            false
+          );
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
+
       if (error instanceof ExecutionError || error instanceof ApiError) {
         this.emit(AgentEvent.ERROR, error);
         if (this.vizEventId) {
@@ -263,8 +309,8 @@ export class OllamaAgent extends BaseAgent {
     return opts;
   }
 
-  private async callOllama(): Promise<unknown> {
-    const client = await this.getClient();
+  private async callOllama(executeOptions?: ExecuteOptions): Promise<unknown> {
+    const client = await this.getClient(executeOptions?.signal);
     const messages = ollamaTransformer.toProvider(this.history.getEntries());
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
     const options = this.buildOptions();
@@ -279,7 +325,10 @@ export class OllamaAgent extends BaseAgent {
     });
   }
 
-  protected async handleResponse(response: unknown): Promise<string> {
+  protected async handleResponse(
+    response: unknown,
+    options?: ExecuteOptions
+  ): Promise<string> {
     const ollamaResponse = response as OllamaResponse;
 
     const usage = this.accumulateUsage(this.parseUsage(ollamaResponse));
@@ -335,6 +384,13 @@ export class OllamaAgent extends BaseAgent {
 
     // Tool calls detected
     const toolCalls = message.tool_calls!;
+
+    // Stop before the assistant turn is written: nothing else would notice a
+    // cancellation until the next provider call, and bailing out here avoids
+    // both running the tools' side effects and leaving a tool call in history
+    // with no tool message to answer it.
+    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
     this.emit(AgentEvent.TOOL_USE, toolCalls);
     this.currentToolCallCount += toolCalls.length;
 
@@ -349,7 +405,11 @@ export class OllamaAgent extends BaseAgent {
     );
     this.addToHistory(assistantEntry);
 
-    const toolResults = await this.handleToolCalls(toolCalls, generatedIds);
+    const toolResults = await this.handleToolCalls(
+      toolCalls,
+      generatedIds,
+      options
+    );
 
     for (const result of toolResults) {
       const resultEntry = ollamaTransformer.toolResultEntry(
@@ -361,9 +421,9 @@ export class OllamaAgent extends BaseAgent {
 
     // Continue conversation with tool results
     try {
-      const newResponse = await this.callOllama();
+      const newResponse = await this.callOllama(options);
       this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
-      return this.handleResponse(newResponse);
+      return this.handleResponse(newResponse, options);
     } catch (error: unknown) {
       const executionError = new ExecutionError(
         `Ollama error during tool response: ${
@@ -377,7 +437,8 @@ export class OllamaAgent extends BaseAgent {
 
   private async handleToolCalls(
     toolCalls: OllamaToolCall[],
-    generatedIds: string[]
+    generatedIds: string[],
+    options?: ExecuteOptions
   ): Promise<Array<{ toolCallId: string; content: string }>> {
     return Promise.all(
       toolCalls.map(async (toolCall, idx) => {
@@ -408,7 +469,8 @@ export class OllamaAgent extends BaseAgent {
             args as Record<string, unknown>,
             toolCallId,
             this.config.model,
-            "ollama"
+            "ollama",
+            { signal: options?.signal }
           );
 
           return { toolCallId, content: JSON.stringify(result) };
@@ -457,7 +519,32 @@ export class OllamaAgent extends BaseAgent {
   }
 }
 
-// Internal response shape from the ollama package
+/**
+ * Wrap the global `fetch` so every request carries `signal`, keeping any
+ * signal the caller already set — the `ollama` package attaches its own to
+ * streamed requests so that its `abort()` keeps working.
+ */
+function fetchWithSignal(signal: AbortSignal): typeof fetch {
+  return (input, init) =>
+    fetch(input, {
+      ...init,
+      signal: combineSignals(init?.signal ?? undefined, signal),
+    });
+}
+
+// Internal shapes from the ollama package, which is an optional peer
+// dependency and so cannot be imported for its types.
+type OllamaClient = {
+  chat: (params: unknown) => Promise<unknown>;
+  list: () => Promise<{ models: OllamaModelInfo[] }>;
+};
+
+type OllamaClientConstructor = new (config: {
+  host?: string;
+  headers?: Record<string, string>;
+  fetch?: typeof fetch;
+}) => OllamaClient;
+
 type OllamaToolCall = {
   function: {
     name: string;

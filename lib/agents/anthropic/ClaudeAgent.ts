@@ -16,6 +16,11 @@ import { type BuiltInTool } from "../../tools/BuiltInTool";
 import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
+  ExecuteOptions,
+  isAbortError,
+  throwIfAborted,
+} from "../cancellation";
+import {
   AgentError,
   ApiError,
   ExecutionError,
@@ -261,7 +266,10 @@ export class ClaudeAgent extends BaseAgent {
     return "";
   }
 
-  async execute(input: string | MessageContent[]): Promise<string> {
+  async execute(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
@@ -305,12 +313,27 @@ export class ClaudeAgent extends BaseAgent {
     try {
       this.startTurnTimer();
       const response = (await this.client.messages.create(
-        this.buildMessageParams()
+        this.buildMessageParams(),
+        { signal: options?.signal }
       )) as Message;
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
-      return await this.handleResponse(response);
+      return await this.handleResponse(response, options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "AbortError",
+            abortError.message,
+            false
+          );
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
+
       if (error instanceof APIError) {
         const apiError = new ApiError(
           `Anthropic API error: ${error.message}`,
@@ -357,7 +380,10 @@ export class ClaudeAgent extends BaseAgent {
     }
   }
 
-  protected async handleResponse(response: Message): Promise<string> {
+  protected async handleResponse(
+    response: Message,
+    options?: ExecuteOptions
+  ): Promise<string> {
     // Store token usage for metrics tracking
     const usage = this.accumulateUsage(this.parseUsage(response.usage));
 
@@ -442,6 +468,12 @@ export class ClaudeAgent extends BaseAgent {
       }
     } else if (response.stop_reason === "tool_use") {
       try {
+        // Stop before the assistant turn is written: nothing else would notice
+        // a cancellation until the next provider call, and bailing out here
+        // avoids both running the tools' side effects and leaving a tool_use
+        // in history with no tool_result to answer it.
+        throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
         this.emit(AgentEvent.TOOL_USE, response.content);
 
         // Add assistant response to history (normalized format)
@@ -451,7 +483,7 @@ export class ClaudeAgent extends BaseAgent {
         );
         this.addToHistory(assistantEntry);
 
-        const toolResults = await this.handleToolUse(response.content);
+        const toolResults = await this.handleToolUse(response.content, options);
 
         // Add tool results to history (normalized format)
         this.addMessageToHistory("user", toolResults);
@@ -460,11 +492,12 @@ export class ClaudeAgent extends BaseAgent {
         try {
           this.startTurnTimer();
           const newResponse = (await this.client.messages.create(
-            this.buildMessageParams()
+            this.buildMessageParams(),
+            { signal: options?.signal }
           )) as Message;
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
-          return this.handleResponse(newResponse);
+          return this.handleResponse(newResponse, options);
         } catch (error: unknown) {
           if (error instanceof APIError) {
             const apiError = new ApiError(
@@ -506,7 +539,8 @@ export class ClaudeAgent extends BaseAgent {
   }
 
   private async handleToolUse(
-    content: ContentBlock[]
+    content: ContentBlock[],
+    options?: ExecuteOptions
   ): Promise<ReturnType<typeof toolResult>[]> {
     const toolUseBlocks = content.filter(
       (block) => block.type === "tool_use"
@@ -566,7 +600,8 @@ export class ClaudeAgent extends BaseAgent {
             block.input as Record<string, unknown>,
             block.id,
             this.config.model,
-            "anthropic"
+            "anthropic",
+            { signal: options?.signal }
           );
 
           if (vizEventId) {
@@ -616,7 +651,10 @@ export class ClaudeAgent extends BaseAgent {
    * }
    * ```
    */
-  async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
+  async *executeStream(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
     this.currentToolCallCount = 0;
@@ -649,8 +687,16 @@ export class ClaudeAgent extends BaseAgent {
     this.history.beginExecution();
 
     try {
-      yield* this.streamTurn();
+      yield* this.streamTurn(options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "AbortError", abortError.message, false);
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
       if (error instanceof APIError) {
         const apiError = new ApiError(
           `Anthropic API error: ${error.message}`,
@@ -684,12 +730,17 @@ export class ClaudeAgent extends BaseAgent {
     }
   }
 
-  private async *streamTurn(): AsyncGenerator<StreamChunk> {
+  private async *streamTurn(
+    options?: ExecuteOptions
+  ): AsyncGenerator<StreamChunk> {
     this.startTurnTimer();
-    const stream = await this.client.messages.create({
-      ...this.buildMessageParams(),
-      stream: true,
-    });
+    const stream = await this.client.messages.create(
+      {
+        ...this.buildMessageParams(),
+        stream: true,
+      },
+      { signal: options?.signal }
+    );
 
     // Accumulate every content block by index so the assistant turn can be
     // reconstructed in order — critically including `thinking` blocks (with
@@ -764,6 +815,12 @@ export class ClaudeAgent extends BaseAgent {
       total_tokens: inputTokens + outputTokens,
     });
 
+    // The SDK's stream iterator swallows the abort and simply stops yielding,
+    // so without this an interrupted stream would look like a short but
+    // complete turn — writing partial text to history and emitting DONE.
+    // Checked after accumulateUsage() so the tokens already spent are reported.
+    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
     if (stopReason === "max_tokens") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
@@ -809,16 +866,20 @@ export class ClaudeAgent extends BaseAgent {
     );
 
     if (stopReason === "tool_use" && toolUseBlocks.length > 0) {
+      // As in handleResponse(): bail out before the assistant turn is written,
+      // so a cancelled run leaves no unanswered tool_use in history.
+      throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
       this.emit(AgentEvent.TOOL_USE, orderedBlocks);
       this.currentToolCallCount += toolUseBlocks.length;
 
       const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
       this.addToHistory(assistantEntry);
 
-      const toolResults = await this.handleToolUse(orderedBlocks);
+      const toolResults = await this.handleToolUse(orderedBlocks, options);
       this.addMessageToHistory("user", toolResults);
 
-      yield* this.streamTurn();
+      yield* this.streamTurn(options);
     } else {
       const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
       this.addToHistory(assistantEntry);

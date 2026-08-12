@@ -571,6 +571,57 @@ describe("MCPClient", () => {
       );
     });
 
+    it("uses the agent run's signal when the tool is executed with one", async () => {
+      const controller = new AbortController();
+      const client = MCPClient.fromStdio({ command: "node" });
+      await client.connect();
+
+      const [tool] = client.getTools();
+      await tool.execute(
+        "agent-1",
+        "TestAgent",
+        { city: "Oslo" },
+        "call-16b",
+        "claude-haiku-4-5",
+        "anthropic",
+        { signal: controller.signal }
+      );
+
+      expect(mockCallTool).toHaveBeenCalledWith(
+        { name: "get_weather", arguments: { city: "Oslo" } },
+        undefined,
+        { signal: controller.signal }
+      );
+    });
+
+    it("prefers the run's signal over the client's default one", async () => {
+      const clientController = new AbortController();
+      const runController = new AbortController();
+      const client = MCPClient.fromStdio(
+        { command: "node" },
+        { callOptions: { signal: clientController.signal, timeout: 5000 } }
+      );
+      await client.connect();
+
+      const [tool] = client.getTools();
+      await tool.execute(
+        "agent-1",
+        "TestAgent",
+        { city: "Oslo" },
+        "call-16c",
+        "claude-haiku-4-5",
+        "anthropic",
+        { signal: runController.signal }
+      );
+
+      // The client's other defaults still apply
+      expect(mockCallTool).toHaveBeenCalledWith(
+        { name: "get_weather", arguments: { city: "Oslo" } },
+        undefined,
+        { signal: runController.signal, timeout: 5000 }
+      );
+    });
+
     it("layers per-call options over the client defaults", async () => {
       const client = MCPClient.fromStdio(
         { command: "node" },

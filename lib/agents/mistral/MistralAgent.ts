@@ -4,6 +4,11 @@ import { HTTPClient } from "@mistralai/mistralai/lib/http";
 import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
+  ExecuteOptions,
+  isAbortError,
+  throwIfAborted,
+} from "../cancellation";
+import {
   ApiError,
   ExecutionError,
   MaxTokensExceededError,
@@ -186,7 +191,10 @@ export class MistralAgent extends BaseAgent {
     return "";
   }
 
-  async execute(input: string | MessageContent[]): Promise<string> {
+  async execute(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
@@ -229,23 +237,40 @@ export class MistralAgent extends BaseAgent {
     try {
       const messages = mistralTransformer.toProvider(this.history.getEntries());
       this.startTurnTimer();
-      const response = await this.client.chat.complete({
-        model: this.config.model!,
-        messages: messages as Parameters<
-          typeof this.client.chat.complete
-        >[0]["messages"],
-        tools: this.getToolDefinitions(),
-        temperature: this.config.temperature,
-        topP: this.config.topP,
-        maxTokens: this.config.maxTokens,
-        randomSeed: this.config.randomSeed,
-        safePrompt: this.config.safePrompt,
-        stop: this.config.stopSequences,
-      });
+      const response = await this.client.chat.complete(
+        {
+          model: this.config.model!,
+          messages: messages as Parameters<
+            typeof this.client.chat.complete
+          >[0]["messages"],
+          tools: this.getToolDefinitions(),
+          temperature: this.config.temperature,
+          topP: this.config.topP,
+          maxTokens: this.config.maxTokens,
+          randomSeed: this.config.randomSeed,
+          safePrompt: this.config.safePrompt,
+          stop: this.config.stopSequences,
+        },
+        { signal: options?.signal }
+      );
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
-      return await this.handleResponse(response);
+      return await this.handleResponse(response, options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "AbortError",
+            abortError.message,
+            false
+          );
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
+
       const err = error as { status?: number; message?: string };
       if (err.status) {
         const apiError = new ApiError(
@@ -294,7 +319,8 @@ export class MistralAgent extends BaseAgent {
   }
 
   protected async handleResponse(
-    response: ChatCompletionResponse
+    response: ChatCompletionResponse,
+    options?: ExecuteOptions
   ): Promise<string> {
     if (!response.choices || response.choices.length === 0) {
       const error = new ExecutionError("Empty response from Mistral API");
@@ -378,13 +404,22 @@ export class MistralAgent extends BaseAgent {
       return textContent;
     } else if (choice.finishReason === "tool_calls" || message.toolCalls) {
       try {
+        // Stop before the assistant turn is written: nothing else would notice
+        // a cancellation until the next provider call, and bailing out here
+        // avoids both running the tools' side effects and leaving a tool call
+        // in history with no tool message to answer it.
+        throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
         this.emit(AgentEvent.TOOL_USE, message.toolCalls);
 
         // Add assistant message with tool calls to history (normalized)
         const assistantEntry = mistralTransformer.fromProviderMessage(message);
         this.addToHistory(assistantEntry);
 
-        const toolResults = await this.handleToolCalls(message.toolCalls || []);
+        const toolResults = await this.handleToolCalls(
+          message.toolCalls || [],
+          options
+        );
         // Add tool results to history (normalized)
         for (const result of toolResults) {
           const resultEntry = mistralTransformer.toolResultEntry(
@@ -395,8 +430,11 @@ export class MistralAgent extends BaseAgent {
           this.addToHistory(resultEntry);
         }
 
-        // Rate limiting delay for Mistral
-        await setTimeout(this.config.rateLimitDelay || 1500);
+        // Rate limiting delay for Mistral. Aborting during the wait rejects
+        // immediately rather than sitting out the full delay first.
+        await setTimeout(this.config.rateLimitDelay || 1500, undefined, {
+          signal: options?.signal,
+        });
 
         // Continue conversation
         try {
@@ -404,22 +442,25 @@ export class MistralAgent extends BaseAgent {
 
           this.startTurnTimer();
 
-          const newResponse = await this.client.chat.complete({
-            model: this.config.model!,
-            messages: messages as Parameters<
-              typeof this.client.chat.complete
-            >[0]["messages"],
-            tools: this.getToolDefinitions(),
-            temperature: this.config.temperature,
-            topP: this.config.topP,
-            maxTokens: this.config.maxTokens,
-            randomSeed: this.config.randomSeed,
-            safePrompt: this.config.safePrompt,
-            stop: this.config.stopSequences,
-          });
+          const newResponse = await this.client.chat.complete(
+            {
+              model: this.config.model!,
+              messages: messages as Parameters<
+                typeof this.client.chat.complete
+              >[0]["messages"],
+              tools: this.getToolDefinitions(),
+              temperature: this.config.temperature,
+              topP: this.config.topP,
+              maxTokens: this.config.maxTokens,
+              randomSeed: this.config.randomSeed,
+              safePrompt: this.config.safePrompt,
+              stop: this.config.stopSequences,
+            },
+            { signal: options?.signal }
+          );
 
           this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
-          return this.handleResponse(newResponse);
+          return this.handleResponse(newResponse, options);
         } catch (error: unknown) {
           const err = error as { status?: number; message?: string };
           if (err.status) {
@@ -476,7 +517,8 @@ export class MistralAgent extends BaseAgent {
   }
 
   private async handleToolCalls(
-    toolCalls: ToolCall[]
+    toolCalls: ToolCall[],
+    options?: ExecuteOptions
   ): Promise<Array<{ name: string; toolCallId: string; content: string }>> {
     if (!toolCalls.length) {
       throw new ExecutionError("No tool calls found in response");
@@ -524,7 +566,8 @@ export class MistralAgent extends BaseAgent {
             args,
             toolCallId,
             this.config.model,
-            "mistral"
+            "mistral",
+            { signal: options?.signal }
           );
 
           return {

@@ -1,7 +1,11 @@
 // @ts-nocheck
 import { Anthropic } from "@anthropic-ai/sdk";
 import { ClaudeAgent } from "./ClaudeAgent"; // Adjust the import path as needed
-import { ExecutionError, MaxTokensExceededError } from "../errors/AgentError";
+import {
+  AbortError,
+  ExecutionError,
+  MaxTokensExceededError,
+} from "../errors/AgentError";
 import { AgentEvent } from "../AgentEvent";
 
 // Mock the Anthropic SDK
@@ -266,17 +270,20 @@ describe("ClaudeAgent", () => {
 
       await agent.execute("test input");
 
-      expect(mockClient.messages.create).toHaveBeenCalledWith({
-        model: "claude-haiku-4-5",
-        system:
-          "You are an agent called TestAgent and should follow these instructions: Test Description",
-        max_tokens: 1024,
-        messages: [
-          { role: "user", content: [{ type: "text", text: "test input" }] },
-        ],
-        tools: [],
-        temperature: 0,
-      });
+      expect(mockClient.messages.create).toHaveBeenCalledWith(
+        {
+          model: "claude-haiku-4-5",
+          system:
+            "You are an agent called TestAgent and should follow these instructions: Test Description",
+          max_tokens: 1024,
+          messages: [
+            { role: "user", content: [{ type: "text", text: "test input" }] },
+          ],
+          tools: [],
+          temperature: 0,
+        },
+        { signal: undefined }
+      );
     });
 
     it("should call history.setSessionAnchor() once per execute()", async () => {
@@ -404,6 +411,185 @@ describe("ClaudeAgent", () => {
 
       expect(result).toBe("Final response");
       expect(mockClient.messages.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("cancellation", () => {
+    it("forwards the signal to the API call", async () => {
+      const controller = new AbortController();
+      mockClient.messages.create.mockResolvedValue({
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "Hello" }],
+        usage: { input_tokens: 5, output_tokens: 5 },
+      } as any);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(mockClient.messages.create).toHaveBeenCalledWith(
+        expect.any(Object),
+        { signal: controller.signal }
+      );
+    });
+
+    it("throws an AbortError when the SDK reports the request was aborted", async () => {
+      const controller = new AbortController();
+      mockClient.messages.create.mockImplementation(async () => {
+        controller.abort();
+        throw Object.assign(new Error("Request was aborted."), {
+          name: "APIUserAbortError",
+        });
+      });
+
+      const error = await agent
+        .execute("test input", { signal: controller.signal })
+        .catch((e) => e);
+
+      // Not the ApiError the same SDK error would produce without a signal
+      expect(error).toBeInstanceOf(AbortError);
+      expect(error.message).toBe("Execution of agent TestAgent was aborted");
+    });
+
+    it("emits ERROR with the AbortError", async () => {
+      const controller = new AbortController();
+      const errors: unknown[] = [];
+      agent.on(AgentEvent.ERROR, (e) => errors.push(e));
+      mockClient.messages.create.mockImplementation(async () => {
+        controller.abort();
+        throw Object.assign(new Error("Request was aborted."), {
+          name: "APIUserAbortError",
+        });
+      });
+
+      await agent
+        .execute("test input", { signal: controller.signal })
+        .catch(() => undefined);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toBeInstanceOf(AbortError);
+    });
+
+    it("does not run tools, or write an unanswered tool_use, when aborted mid-turn", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue("never called");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn(),
+      } as any);
+
+      // Aborted while the first response is being handled — the tool loop is
+      // the only thing left that could still act on it.
+      mockClient.messages.create.mockImplementation(async () => {
+        controller.abort();
+        return {
+          stop_reason: "tool_use",
+          content: [
+            { type: "tool_use", name: "test_tool", id: "tool1", input: {} },
+          ],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        } as any;
+      });
+
+      await expect(
+        agent.execute("test input", { signal: controller.signal })
+      ).rejects.toBeInstanceOf(AbortError);
+
+      expect(toolExecute).not.toHaveBeenCalled();
+      expect(mockClient.messages.create).toHaveBeenCalledTimes(1);
+      // A tool_use with no tool_result would make the next request 400
+      const entries = agent.getHistoryEntries();
+      expect(
+        entries.some((entry) =>
+          entry.content.some((block: any) => block.type === "tool_use")
+        )
+      ).toBe(false);
+    });
+
+    it("passes the signal on to the tools it runs", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue("sunny");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn(),
+      } as any);
+
+      mockClient.messages.create
+        .mockResolvedValueOnce({
+          stop_reason: "tool_use",
+          content: [
+            {
+              type: "tool_use",
+              name: "test_tool",
+              id: "tool1",
+              input: { param: "value" },
+            },
+          ],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        } as any)
+        .mockResolvedValueOnce({
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: "Done" }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        } as any);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(toolExecute).toHaveBeenCalledWith(
+        "1",
+        "TestAgent",
+        { param: "value" },
+        "tool1",
+        "claude-haiku-4-5",
+        "anthropic",
+        { signal: controller.signal }
+      );
+    });
+
+    it("aborts a stream in flight", async () => {
+      // The SDK's stream iterator swallows the abort and just stops yielding,
+      // so the agent has to notice the signal itself — otherwise this reads as
+      // a complete (if short) turn.
+      const controller = new AbortController();
+      mockClient.messages.create.mockImplementation(async () => ({
+        async *[Symbol.asyncIterator]() {
+          yield {
+            type: "content_block_start",
+            index: 0,
+            content_block: { type: "text", text: "" },
+          };
+          yield {
+            type: "content_block_delta",
+            index: 0,
+            delta: { type: "text_delta", text: "Hel" },
+          };
+          controller.abort();
+        },
+      }));
+
+      const chunks: string[] = [];
+      const error = await (async () => {
+        try {
+          for await (const chunk of agent.executeStream("hi", {
+            signal: controller.signal,
+          })) {
+            chunks.push(chunk.content);
+          }
+        } catch (e) {
+          return e;
+        }
+      })();
+
+      expect(chunks).toEqual(["Hel"]);
+      expect(error).toBeInstanceOf(AbortError);
+      expect(mockClient.messages.create).toHaveBeenCalledWith(
+        expect.objectContaining({ stream: true }),
+        { signal: controller.signal }
+      );
+      // The partial text is not passed off as a finished assistant turn
+      expect(
+        agent
+          .getHistoryEntries()
+          .some((entry) => entry.role === "assistant")
+      ).toBe(false);
     });
   });
 

@@ -13,6 +13,11 @@ import {
 import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
 import { AgentEvent } from "../AgentEvent";
 import {
+  ExecuteOptions,
+  isAbortError,
+  throwIfAborted,
+} from "../cancellation";
+import {
   ApiError,
   ExecutionError,
   MaxTokensExceededError,
@@ -379,7 +384,10 @@ export class GeminiAgent extends BaseAgent {
     return "";
   }
 
-  async execute(input: string | MessageContent[]): Promise<string> {
+  async execute(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
 
     // Reset token usage for this execution
@@ -426,25 +434,45 @@ export class GeminiAgent extends BaseAgent {
 
       this.startTurnTimer();
 
-      const response = await this.generativeModel.generateContent({
-        contents,
-        systemInstruction: systemMessage,
-        tools: tools ? [tools] : undefined,
-        generationConfig: {
-          maxOutputTokens: this.config.maxTokens,
-          temperature: this.config.temperature,
-          topP: this.config.topP,
-          topK: this.config.topK,
-          stopSequences: this.config.stopSequences,
-          candidateCount: this.config.candidateCount,
-          responseMimeType: this.config.responseMimeType,
-          responseSchema: this.config.responseSchema,
+      const response = await this.generativeModel.generateContent(
+        {
+          contents,
+          systemInstruction: systemMessage,
+          tools: tools ? [tools] : undefined,
+          generationConfig: {
+            maxOutputTokens: this.config.maxTokens,
+            temperature: this.config.temperature,
+            topP: this.config.topP,
+            topK: this.config.topK,
+            stopSequences: this.config.stopSequences,
+            candidateCount: this.config.candidateCount,
+            responseMimeType: this.config.responseMimeType,
+            responseSchema: this.config.responseSchema,
+          },
         },
-      });
+        // Note: an abort only stops the client from waiting — Google still
+        // runs and bills the request. Merged over the model's own request
+        // options, so `customHeaders` set at construction survive.
+        { signal: options?.signal }
+      );
 
       this.emit(AgentEvent.AFTER_EXECUTE, response);
-      return await this.handleResponse(response);
+      return await this.handleResponse(response, options);
     } catch (error) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "AbortError",
+            abortError.message,
+            false
+          );
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
+
       const err = error as { status?: number; message?: string };
       if (err.status) {
         const apiError = new ApiError(
@@ -493,7 +521,8 @@ export class GeminiAgent extends BaseAgent {
   }
 
   protected async handleResponse(
-    response: GenerateContentResult
+    response: GenerateContentResult,
+    options?: ExecuteOptions
   ): Promise<string> {
     const result = response.response;
 
@@ -573,6 +602,12 @@ export class GeminiAgent extends BaseAgent {
 
     // Handle function calls
     try {
+      // Stop before the assistant turn is written: nothing else would notice a
+      // cancellation until the next provider call, and bailing out here avoids
+      // both running the tools' side effects and leaving a functionCall in
+      // history with no functionResponse to answer it.
+      throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
       this.emit(AgentEvent.TOOL_USE, functionCalls);
 
       // Add assistant response with function calls to history (normalized)
@@ -582,7 +617,10 @@ export class GeminiAgent extends BaseAgent {
       );
       this.addToHistory(assistantEntry);
 
-      const toolResults = await this.handleFunctionCalls(functionCalls);
+      const toolResults = await this.handleFunctionCalls(
+        functionCalls,
+        options
+      );
 
       // Add tool results to history (normalized)
       for (const tr of toolResults) {
@@ -601,24 +639,27 @@ export class GeminiAgent extends BaseAgent {
 
         this.startTurnTimer();
 
-        const newResponse = await this.generativeModel.generateContent({
-          contents: newContents,
-          systemInstruction: systemMessage,
-          tools: tools ? [tools] : undefined,
-          generationConfig: {
-            maxOutputTokens: this.config.maxTokens,
-            temperature: this.config.temperature,
-            topP: this.config.topP,
-            topK: this.config.topK,
-            stopSequences: this.config.stopSequences,
-            candidateCount: this.config.candidateCount,
-            responseMimeType: this.config.responseMimeType,
-            responseSchema: this.config.responseSchema,
+        const newResponse = await this.generativeModel.generateContent(
+          {
+            contents: newContents,
+            systemInstruction: systemMessage,
+            tools: tools ? [tools] : undefined,
+            generationConfig: {
+              maxOutputTokens: this.config.maxTokens,
+              temperature: this.config.temperature,
+              topP: this.config.topP,
+              topK: this.config.topK,
+              stopSequences: this.config.stopSequences,
+              candidateCount: this.config.candidateCount,
+              responseMimeType: this.config.responseMimeType,
+              responseSchema: this.config.responseSchema,
+            },
           },
-        });
+          { signal: options?.signal }
+        );
 
         this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
-        return this.handleResponse(newResponse);
+        return this.handleResponse(newResponse, options);
       } catch (error) {
         const err = error as { status?: number; message?: string };
         if (err.status) {
@@ -668,7 +709,8 @@ export class GeminiAgent extends BaseAgent {
   }
 
   private async handleFunctionCalls(
-    functionCalls: Array<Part & { functionCall: FunctionCall }>
+    functionCalls: Array<Part & { functionCall: FunctionCall }>,
+    options?: ExecuteOptions
   ): Promise<Array<{ name: string; response: string }>> {
     if (!functionCalls.length) {
       throw new ExecutionError("No function calls found in response");
@@ -706,7 +748,8 @@ export class GeminiAgent extends BaseAgent {
             args,
             toolName, // Gemini uses function name as ID
             this.config.model,
-            "gemini"
+            "gemini",
+            { signal: options?.signal }
           );
 
           return {

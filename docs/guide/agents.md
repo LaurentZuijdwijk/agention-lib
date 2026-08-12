@@ -571,6 +571,65 @@ const usage = agent.lastTokenUsage;
 console.log(`Input: ${usage?.input_tokens}, Output: ${usage?.output_tokens}`);
 ```
 
+## Cancellation
+
+Every agent's `execute()` (and `executeStream()`, where available) takes an optional second argument carrying an `AbortSignal`:
+
+```typescript
+import { AbortError } from '@agentionai/agents/core';
+
+const controller = new AbortController();
+
+// Give up on the answer after five seconds
+setTimeout(() => controller.abort(), 5_000);
+
+try {
+  const answer = await agent.execute('Write a long essay', {
+    signal: controller.signal,
+  });
+} catch (error) {
+  if (error instanceof AbortError) {
+    console.log('cancelled');
+  }
+}
+```
+
+Aborting:
+
+- **cancels the HTTP request in flight**, on every provider;
+- **stops the tool loop** — no further provider call is made, and tools that have not started do not run;
+- **rejects with an `AbortError`** (`error.name === "AbortError"`, `error.reason` is whatever you passed to `abort()`), rather than the provider-specific `ApiError` the same failure would otherwise produce;
+- **emits `AgentEvent.ERROR`** with that same error, so existing error listeners see it.
+
+The same signal is handed to every tool the run executes, as a third argument to the tool's own `execute`:
+
+```typescript
+const searchTool = new Tool({
+  name: 'search',
+  description: 'Search the web',
+  inputSchema: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
+  execute: async (input, _context, options) => {
+    const response = await fetch(`https://example.com/?q=${input.q}`, {
+      signal: options?.signal,
+    });
+    return response.json();
+  },
+});
+```
+
+MCP tools do this for you — the run's signal is passed to the MCP call, overriding any default `callOptions.signal` on the client. Sub-agent tools built with `Tool.fromAgent()` forward it to the sub-agent's own `execute()`.
+
+**What history looks like afterwards.** A cancelled run stops before writing an assistant turn whose tool calls it will never answer, so a non-transient agent is left with a history you can execute against again. Turns that completed before the abort are kept.
+
+**Provider notes:**
+
+| Provider | How the signal is applied |
+|----------|---------------------------|
+| Anthropic, OpenAI, llama.cpp / OpenAI-compatible | The SDK's per-request `signal` |
+| Mistral | The SDK's per-request options — this also cuts short the inter-call rate-limit wait |
+| Gemini | `SingleRequestOptions.signal`. Client-side only: Google still runs and bills the request |
+| Ollama | The `ollama` package takes no per-request options, so a run with a signal gets its own client whose `fetch` attaches it |
+
 ## Streaming
 
 `executeStream()` is available on `ClaudeAgent`, `OpenAiAgent`, and any `OpenAICompatibleAgent` subclass (including `LlamaCppAgent`). It returns an `AsyncGenerator<StreamChunk>` — the same type across all providers:

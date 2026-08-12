@@ -10,6 +10,11 @@ import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent"
 import { AgentVendor } from "../AgentConfig";
 import { AgentEvent } from "../AgentEvent";
 import {
+  ExecuteOptions,
+  isAbortError,
+  throwIfAborted,
+} from "../cancellation";
+import {
   AgentError,
   ApiError,
   ExecutionError,
@@ -133,7 +138,10 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     return "";
   }
 
-  async execute(input: string | MessageContent[]): Promise<string> {
+  async execute(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
     this.currentToolCallCount = 0;
@@ -166,10 +174,24 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     this.history.beginExecution();
 
     try {
-      const response = await this.callProvider();
+      const response = await this.callProvider(options);
       this.emit(AgentEvent.AFTER_EXECUTE, response);
-      return await this.handleResponse(response);
+      return await this.handleResponse(response, options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(
+            this.vizEventId,
+            "AbortError",
+            abortError.message,
+            false
+          );
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
+
       if (error instanceof OpenAI.APIError) {
         const apiError = new ApiError(
           `${this.getVendorName()} API error: ${error.message}`,
@@ -224,7 +246,9 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     }
   }
 
-  private async callProvider(): Promise<ChatCompletion> {
+  private async callProvider(
+    options?: ExecuteOptions
+  ): Promise<ChatCompletion> {
     const messages = chatCompletionsTransformer.toProvider(
       this.history.getEntries()
     );
@@ -232,23 +256,29 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
 
     this.startTurnTimer();
 
-    return this.client.chat.completions.create({
-      model: this.config.model!,
-      messages,
-      tools,
-      stream: false,
-      max_tokens: this.config.maxTokens,
-      temperature: this.config.temperature,
-      top_p: this.config.topP,
-      stop: this.config.stopSequences,
-      seed: this.config.seed,
-      presence_penalty: this.config.presencePenalty,
-      frequency_penalty: this.config.frequencyPenalty,
-      ...this.buildExtraRequestParams(),
-    });
+    return this.client.chat.completions.create(
+      {
+        model: this.config.model!,
+        messages,
+        tools,
+        stream: false,
+        max_tokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+        top_p: this.config.topP,
+        stop: this.config.stopSequences,
+        seed: this.config.seed,
+        presence_penalty: this.config.presencePenalty,
+        frequency_penalty: this.config.frequencyPenalty,
+        ...this.buildExtraRequestParams(),
+      },
+      { signal: options?.signal }
+    );
   }
 
-  protected async handleResponse(response: ChatCompletion): Promise<string> {
+  protected async handleResponse(
+    response: ChatCompletion,
+    options?: ExecuteOptions
+  ): Promise<string> {
     const usage = this.accumulateUsage(this.parseUsage(response));
 
     const choice = response.choices[0];
@@ -303,13 +333,20 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     }
 
     const toolCalls = message.tool_calls!;
+
+    // Stop before the assistant turn is written: nothing else would notice a
+    // cancellation until the next provider call, and bailing out here avoids
+    // both running the tools' side effects and leaving a tool call in history
+    // with no tool message to answer it.
+    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
     this.emit(AgentEvent.TOOL_USE, toolCalls);
     this.currentToolCallCount += toolCalls.length;
 
     const assistantEntry = chatCompletionsTransformer.fromProviderMessage(message);
     this.addToHistory(assistantEntry);
 
-    const toolResults = await this.handleToolCalls(toolCalls);
+    const toolResults = await this.handleToolCalls(toolCalls, options);
 
     for (const result of toolResults) {
       const resultEntry = chatCompletionsTransformer.toolResultEntry(
@@ -320,9 +357,9 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     }
 
     try {
-      const newResponse = await this.callProvider();
+      const newResponse = await this.callProvider(options);
       this.emit(AgentEvent.AFTER_EXECUTE, newResponse);
-      return this.handleResponse(newResponse);
+      return this.handleResponse(newResponse, options);
     } catch (error: unknown) {
       const executionError = new ExecutionError(
         `${this.getVendorName()} error during tool response: ${
@@ -335,7 +372,8 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   }
 
   private async handleToolCalls(
-    toolCalls: NonNullable<ChatCompletionMessage["tool_calls"]>
+    toolCalls: NonNullable<ChatCompletionMessage["tool_calls"]>,
+    options?: ExecuteOptions
   ): Promise<Array<{ toolCallId: string; content: string }>> {
     return Promise.all(
       toolCalls.map(async (toolCall) => {
@@ -366,7 +404,8 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
             args as Record<string, unknown>,
             toolCallId,
             this.config.model,
-            this.vendor
+            this.vendor,
+            { signal: options?.signal }
           );
 
           return { toolCallId, content: JSON.stringify(result) };
@@ -406,7 +445,10 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
    * }
    * ```
    */
-  async *executeStream(input: string | MessageContent[]): AsyncGenerator<StreamChunk> {
+  async *executeStream(
+    input: string | MessageContent[],
+    options?: ExecuteOptions
+  ): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
     this.currentToolCallCount = 0;
@@ -439,8 +481,17 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     this.history.beginExecution();
 
     try {
-      yield* this.streamTurn();
+      yield* this.streamTurn(options);
     } catch (error: unknown) {
+      if (isAbortError(error, options?.signal)) {
+        const abortError = this.abortError(error, options?.signal);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "AbortError", abortError.message, false);
+          this.vizEventId = undefined;
+        }
+        throw abortError;
+      }
+
       if (error instanceof OpenAI.APIError) {
         const apiError = new ApiError(
           `${this.getVendorName()} API error: ${error.message}`,
@@ -480,27 +531,32 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     }
   }
 
-  private async *streamTurn(): AsyncGenerator<StreamChunk> {
+  private async *streamTurn(
+    options?: ExecuteOptions
+  ): AsyncGenerator<StreamChunk> {
     const messages = chatCompletionsTransformer.toProvider(this.history.getEntries());
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
 
     this.startTurnTimer();
 
-    const stream = await this.client.chat.completions.create({
-      model: this.config.model!,
-      messages,
-      tools,
-      stream: true,
-      stream_options: { include_usage: true },
-      max_tokens: this.config.maxTokens,
-      temperature: this.config.temperature,
-      top_p: this.config.topP,
-      stop: this.config.stopSequences,
-      seed: this.config.seed,
-      presence_penalty: this.config.presencePenalty,
-      frequency_penalty: this.config.frequencyPenalty,
-      ...this.buildExtraRequestParams(),
-    });
+    const stream = await this.client.chat.completions.create(
+      {
+        model: this.config.model!,
+        messages,
+        tools,
+        stream: true,
+        stream_options: { include_usage: true },
+        max_tokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+        top_p: this.config.topP,
+        stop: this.config.stopSequences,
+        seed: this.config.seed,
+        presence_penalty: this.config.presencePenalty,
+        frequency_penalty: this.config.frequencyPenalty,
+        ...this.buildExtraRequestParams(),
+      },
+      { signal: options?.signal }
+    );
 
     let textContent = "";
     let reasoningContent = "";
@@ -562,6 +618,11 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     // continues into a tool call still reports what it spent.
     if (streamUsage) this.accumulateStreamUsage(streamUsage);
 
+    // The SDK's stream iterator swallows the abort and simply stops yielding,
+    // so without this an interrupted stream would look like a short but
+    // complete turn — writing partial text to history and emitting DONE.
+    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
     if (finishReason === "length") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
@@ -577,6 +638,10 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     }
 
     if (finishReason === "tool_calls" && toolCallAcc.size > 0) {
+      // As in handleResponse(): bail out before the assistant turn is written,
+      // so a cancelled run leaves no unanswered tool call in history.
+      throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
       const toolCalls = Array.from(toolCallAcc.entries())
         .sort(([a], [b]) => a - b)
         .map(([, tc]) => ({
@@ -596,12 +661,12 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
       });
       this.addToHistory(assistantEntry);
 
-      const toolResults = await this.handleToolCalls(toolCalls);
+      const toolResults = await this.handleToolCalls(toolCalls, options);
       for (const result of toolResults) {
         this.addToHistory(chatCompletionsTransformer.toolResultEntry(result.toolCallId, result.content));
       }
 
-      yield* this.streamTurn();
+      yield* this.streamTurn(options);
     } else {
       const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
         role: "assistant",

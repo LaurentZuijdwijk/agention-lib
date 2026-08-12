@@ -1,5 +1,6 @@
 import EventEmitter from "events";
 import { BaseAgent, AgentVendor } from "../agents/BaseAgent";
+import { ToolExecuteOptions, isAbortError } from "../agents/cancellation";
 import { vizReporter } from "../viz/VizReporter";
 import { vizConfig } from "../viz/VizConfig";
 import { VizSource } from "../viz/types";
@@ -24,7 +25,15 @@ export interface ToolConfig<T> {
   name: string;
   description: string;
   inputSchema: ToolInputSchema;
-  execute: (input: any, context?: Record<string, any> | null) => Promise<T>;
+  /**
+   * @param options Carries the `AbortSignal` of the agent run this call belongs
+   *                to, so a long-running tool can be cancelled with the run.
+   */
+  execute: (
+    input: any,
+    context?: Record<string, any> | null,
+    options?: ToolExecuteOptions
+  ) => Promise<T>;
   context?: Record<string, any>;
 }
 
@@ -76,7 +85,8 @@ export class ToolResultEvent extends ToolEvent {
 export class Tool<T> extends EventEmitter {
   protected executeFn: (
     input: unknown,
-    context: Record<string, any> | null
+    context: Record<string, any> | null,
+    options?: ToolExecuteOptions
   ) => Promise<T>;
   name: string;
   protected description: string;
@@ -103,10 +113,18 @@ export class Tool<T> extends EventEmitter {
         },
         required: ["instructions"],
       },
-      execute: async (input): Promise<string> => {
+      execute: async (input, _context, options): Promise<string> => {
         try {
-          return (await agent.execute(input.instructions)) as string;
+          return (await agent.execute(input.instructions, {
+            signal: options?.signal,
+          })) as string;
         } catch (error: any) {
+          // A cancelled run is not a tool failure: reporting it as a tool
+          // result would have the calling agent carry on with the very run
+          // that was just cancelled.
+          if (isAbortError(error, options?.signal)) {
+            throw error;
+          }
           return JSON.stringify({
             error: "Failed to execute instructions: " + error.message,
           });
@@ -123,13 +141,19 @@ export class Tool<T> extends EventEmitter {
     this.description = config.description;
     this.schema = config.inputSchema;
   }
+  /**
+   * @param options Per-call options. `options.signal` is the agent run's
+   *                `AbortSignal`, forwarded to the tool's own `execute` so it
+   *                can cancel whatever work it started.
+   */
   async execute(
     agentId: string,
     agentName: string,
     input: Record<string, any>,
     id: string,
     agentModel?: string,
-    agentVendor?: AgentVendor
+    agentVendor?: AgentVendor,
+    options?: ToolExecuteOptions
   ): Promise<T> {
     const event = new ToolEvent(this, input, id, agentId, agentName);
 
@@ -153,7 +177,7 @@ export class Tool<T> extends EventEmitter {
     }
 
     try {
-      const result = await this.executeFn(input, this.context);
+      const result = await this.executeFn(input, this.context, options);
       const resultEvent = new ToolResultEvent(
         this,
         input,

@@ -171,21 +171,27 @@ const mcp = MCPClient.fromUrl('https://my-mcp-server.com/mcp', {
 });
 ```
 
-Pass a **function** to resolve them per call — this is how you scope a signal to
-the current agent turn, since the same `Tool` instances are reused across turns:
+To cancel MCP calls along with the agent turn that made them, pass the signal to
+`execute()` — it reaches the MCP call on its own, overriding any default
+`signal` set here:
 
 ```typescript
-let turn = new AbortController();
+const turn = new AbortController();
 
-const mcp = MCPClient.fromUrl('https://my-mcp-server.com/mcp', {
-  callOptions: ({ toolName }) => ({
-    signal: turn.signal,
-    timeout: toolName === 'deep_research' ? 120_000 : 20_000,
-  }),
-});
+await agent.execute('Find me a place to stay', { signal: turn.signal });
 
 // Aborting the turn rejects any in-flight MCP call immediately
 turn.abort();
+```
+
+Pass a **function** to resolve the other options per call, e.g. by tool name:
+
+```typescript
+const mcp = MCPClient.fromUrl('https://my-mcp-server.com/mcp', {
+  callOptions: ({ toolName }) => ({
+    timeout: toolName === 'deep_research' ? 120_000 : 20_000,
+  }),
+});
 ```
 
 `setCallOptions()` replaces the defaults later, and `mcp.callTool(name, input, options)`

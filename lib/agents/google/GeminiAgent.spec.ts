@@ -1,7 +1,19 @@
 // @ts-nocheck
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GeminiAgent } from "./GeminiAgent";
-import { ExecutionError } from "../errors/AgentError";
+import { AbortError, ExecutionError } from "../errors/AgentError";
+import { AgentEvent } from "../AgentEvent";
+
+/** Minimal tool prompt, enough for the agents' tool-definition builders. */
+const toolPrompt = {
+  name: "test_tool",
+  description: "A test tool",
+  input_schema: {
+    type: "object",
+    properties: { param: { type: "string" } },
+    required: ["param"],
+  },
+};
 
 // Mock the Google Generative AI SDK
 jest.mock("@google/generative-ai");
@@ -290,16 +302,19 @@ describe("GeminiAgent", () => {
 
       await agent.execute("test input");
 
-      expect(mockModel.generateContent).toHaveBeenCalledWith({
-        contents: [{ role: "user", parts: [{ text: "test input" }] }],
-        systemInstruction:
-          "You are an agent called TestAgent and should follow these instructions: Test Description",
-        tools: undefined,
-        generationConfig: {
-          maxOutputTokens: 1024,
-          temperature: 0,
+      expect(mockModel.generateContent).toHaveBeenCalledWith(
+        {
+          contents: [{ role: "user", parts: [{ text: "test input" }] }],
+          systemInstruction:
+            "You are an agent called TestAgent and should follow these instructions: Test Description",
+          tools: undefined,
+          generationConfig: {
+            maxOutputTokens: 1024,
+            temperature: 0,
+          },
         },
-      });
+        { signal: undefined }
+      );
     });
 
     it("should call history.setSessionAnchor() once per execute()", async () => {
@@ -499,6 +514,124 @@ describe("GeminiAgent", () => {
 
       await expect(agent["handleResponse"](mockResponse, [])).rejects.toThrow(
         "Response exceeded maximum token limit"
+      );
+    });
+  });
+
+  describe("cancellation", () => {
+    const textResponse = {
+      response: {
+        candidates: [
+          { content: { parts: [{ text: "Hello" }] }, finishReason: "STOP" },
+        ],
+        usageMetadata: {
+          promptTokenCount: 5,
+          candidatesTokenCount: 5,
+          totalTokenCount: 10,
+        },
+      },
+    };
+
+    const functionCallResponse = {
+      response: {
+        candidates: [
+          {
+            content: {
+              parts: [
+                { functionCall: { name: "test_tool", args: { param: "value" } } },
+              ],
+            },
+            finishReason: "STOP",
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 5,
+          candidatesTokenCount: 5,
+          totalTokenCount: 10,
+        },
+      },
+    };
+
+    it("forwards the signal to the API call", async () => {
+      const controller = new AbortController();
+      mockModel.generateContent.mockResolvedValue(textResponse);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(mockModel.generateContent).toHaveBeenCalledWith(
+        expect.any(Object),
+        { signal: controller.signal }
+      );
+    });
+
+    it("throws an AbortError when the SDK reports the request was aborted", async () => {
+      const controller = new AbortController();
+      agent.on(AgentEvent.ERROR, () => {});
+      mockModel.generateContent.mockImplementation(async () => {
+        controller.abort();
+        throw Object.assign(new Error("Request aborted."), {
+          name: "GoogleGenerativeAIAbortError",
+        });
+      });
+
+      const error = await agent
+        .execute("test input", { signal: controller.signal })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(AbortError);
+      expect(error.message).toBe("Execution of agent TestAgent was aborted");
+    });
+
+    it("does not run tools, or write an unanswered call, when aborted mid-turn", async () => {
+      const controller = new AbortController();
+      agent.on(AgentEvent.ERROR, () => {});
+      const toolExecute = jest.fn().mockResolvedValue("never called");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockModel.generateContent.mockImplementation(async () => {
+        controller.abort();
+        return functionCallResponse;
+      });
+
+      await expect(
+        agent.execute("test input", { signal: controller.signal })
+      ).rejects.toBeInstanceOf(AbortError);
+
+      expect(toolExecute).not.toHaveBeenCalled();
+      expect(mockModel.generateContent).toHaveBeenCalledTimes(1);
+      const entries = agent.getHistoryEntries();
+      expect(
+        entries.some((entry) =>
+          entry.content.some((block: any) => block.type === "tool_use")
+        )
+      ).toBe(false);
+    });
+
+    it("passes the signal on to the tools it runs", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue("sunny");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockModel.generateContent
+        .mockResolvedValueOnce(functionCallResponse)
+        .mockResolvedValueOnce(textResponse);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(toolExecute).toHaveBeenCalledWith(
+        "1",
+        "TestAgent",
+        { param: "value" },
+        "test_tool",
+        "gemini-flash-latest",
+        "gemini",
+        { signal: controller.signal }
       );
     });
   });

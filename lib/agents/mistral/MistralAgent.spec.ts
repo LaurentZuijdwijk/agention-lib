@@ -1,7 +1,18 @@
 // @ts-nocheck
 import { Mistral } from "@mistralai/mistralai";
 import { MistralAgent, defaultHeadersHook } from "./MistralAgent";
-import { ExecutionError } from "../errors/AgentError";
+import { AbortError, ExecutionError } from "../errors/AgentError";
+
+/** Minimal tool prompt, enough for the agent's tool-definition builder. */
+const toolPrompt = {
+  name: "test_tool",
+  description: "A test tool",
+  input_schema: {
+    type: "object",
+    properties: { param: { type: "string" } },
+    required: ["param"],
+  },
+};
 
 // Mock the Mistral SDK. `@mistralai/mistralai/lib/http` is a separate module
 // and stays real, so `defaultHeadersHook` is still exercised against a real
@@ -153,6 +164,169 @@ describe("MistralAgent", () => {
       await expect(agent.listModels()).rejects.toThrow(
         /Failed to list Mistral models: 401 unauthorized/
       );
+    });
+  });
+
+  describe("cancellation", () => {
+    let mockClient: any;
+    let agent: MistralAgent;
+
+    const textResponse = {
+      choices: [
+        {
+          finishReason: "stop",
+          message: { role: "assistant", content: "Hello" },
+        },
+      ],
+      usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+    };
+
+    const toolCallResponse = {
+      choices: [
+        {
+          finishReason: "tool_calls",
+          message: {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "call_1",
+                function: {
+                  name: "test_tool",
+                  arguments: JSON.stringify({ param: "value" }),
+                },
+              },
+            ],
+          },
+        },
+      ],
+      usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+    };
+
+    beforeEach(() => {
+      mockClient = { chat: { complete: jest.fn() } };
+      (Mistral as jest.Mock).mockImplementation(() => mockClient);
+
+      agent = new MistralAgent({
+        apiKey: "test-api-key",
+        id: "1",
+        name: "TestAgent",
+        description: "Test Description",
+        // Keeps the tool round-trip's rate-limit wait out of the test. Note 0
+        // would not: the agent reads it as `rateLimitDelay || 1500`.
+        rateLimitDelay: 1,
+      });
+      agent.on("error", () => {});
+    });
+
+    it("forwards the signal to the API call", async () => {
+      const controller = new AbortController();
+      mockClient.chat.complete.mockResolvedValue(textResponse);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(mockClient.chat.complete).toHaveBeenCalledWith(
+        expect.any(Object),
+        { signal: controller.signal }
+      );
+    });
+
+    it("throws an AbortError when the SDK reports the request was aborted", async () => {
+      const controller = new AbortController();
+      mockClient.chat.complete.mockImplementation(async () => {
+        controller.abort();
+        throw Object.assign(new Error("request aborted"), {
+          name: "RequestAbortedError",
+        });
+      });
+
+      const error = await agent
+        .execute("test input", { signal: controller.signal })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(AbortError);
+      expect(error.message).toBe("Execution of agent TestAgent was aborted");
+    });
+
+    it("does not run tools, or write an unanswered call, when aborted mid-turn", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue("never called");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockClient.chat.complete.mockImplementation(async () => {
+        controller.abort();
+        return toolCallResponse;
+      });
+
+      await expect(
+        agent.execute("test input", { signal: controller.signal })
+      ).rejects.toBeInstanceOf(AbortError);
+
+      expect(toolExecute).not.toHaveBeenCalled();
+      expect(mockClient.chat.complete).toHaveBeenCalledTimes(1);
+      const entries = agent.getHistoryEntries();
+      expect(
+        entries.some((entry) =>
+          entry.content.some((block: any) => block.type === "tool_use")
+        )
+      ).toBe(false);
+    });
+
+    it("passes the signal on to the tools it runs", async () => {
+      const controller = new AbortController();
+      const toolExecute = jest.fn().mockResolvedValue("sunny");
+      agent["tools"].set("test_tool", {
+        execute: toolExecute,
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      mockClient.chat.complete
+        .mockResolvedValueOnce(toolCallResponse)
+        .mockResolvedValueOnce(textResponse);
+
+      await agent.execute("test input", { signal: controller.signal });
+
+      expect(toolExecute).toHaveBeenCalledWith(
+        "1",
+        "TestAgent",
+        { param: "value" },
+        "call_1",
+        "mistral-small-latest",
+        "mistral",
+        { signal: controller.signal }
+      );
+    });
+
+    it("rejects during the inter-call rate-limit wait rather than sitting it out", async () => {
+      const controller = new AbortController();
+      const slowAgent = new MistralAgent({
+        apiKey: "test-api-key",
+        id: "1",
+        name: "TestAgent",
+        description: "Test Description",
+        rateLimitDelay: 60_000,
+      });
+      slowAgent.on("error", () => {});
+      slowAgent["tools"].set("test_tool", {
+        // Aborts while the tool runs, so the wait is what gets interrupted
+        execute: jest.fn().mockImplementation(async () => {
+          controller.abort();
+          return "sunny";
+        }),
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+      mockClient.chat.complete.mockResolvedValue(toolCallResponse);
+
+      const started = Date.now();
+      await expect(
+        slowAgent.execute("test input", { signal: controller.signal })
+      ).rejects.toBeInstanceOf(AbortError);
+
+      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(mockClient.chat.complete).toHaveBeenCalledTimes(1);
     });
   });
 });

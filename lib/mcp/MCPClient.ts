@@ -773,8 +773,18 @@ export class MCPClient extends EventEmitter {
       name: mcpTool.name,
       description: mcpTool.description ?? mcpTool.name,
       inputSchema,
-      execute: async (input: Record<string, unknown>) => {
-        const result = await this.invokeTool(mcpTool.name, input ?? {});
+      execute: async (
+        input: Record<string, unknown>,
+        _context,
+        options
+      ) => {
+        // The agent run's signal, when it supplied one, overrides the client's
+        // default `callOptions.signal` for this call.
+        const result = await this.invokeTool(
+          mcpTool.name,
+          input ?? {},
+          options?.signal ? { signal: options.signal } : undefined
+        );
         const context: MCPToolCallContext = { toolName: mcpTool.name, input: input ?? {} };
 
         if (result?.isError && this.throwOnToolError) {

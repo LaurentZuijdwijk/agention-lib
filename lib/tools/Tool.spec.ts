@@ -77,6 +77,101 @@ describe("Tool", () => {
         tool.execute("agentId1", "agentNameJames", input, "error-id")
       ).rejects.toThrow("Test error");
     });
+
+    it("should forward the run's signal to the tool's own execute", async () => {
+      const controller = new AbortController();
+      const execute = jest.fn(async () => "done");
+      const tool = new Tool({
+        name: "SignalTool",
+        description: "Reads the signal it is given",
+        inputSchema: mockInputSchema,
+        execute,
+        context: { some: "context" },
+      });
+
+      await tool.execute(
+        "agentId1",
+        "agentName1",
+        { query: "q" },
+        "id",
+        "some-model",
+        "anthropic",
+        { signal: controller.signal }
+      );
+
+      expect(execute).toHaveBeenCalledWith(
+        { query: "q" },
+        { some: "context" },
+        { signal: controller.signal }
+      );
+    });
+  });
+
+  describe("fromAgent", () => {
+    const agentStub = (execute: jest.Mock) =>
+      ({
+        getName: () => "Sub Agent",
+        getDescription: () => "A sub agent",
+        execute,
+      } as any);
+
+    it("should pass the signal through to the wrapped agent", async () => {
+      const controller = new AbortController();
+      const execute = jest.fn().mockResolvedValue("sub-agent answer");
+      const tool = Tool.fromAgent(agentStub(execute), "Delegate work");
+
+      const result = await tool.execute(
+        "agentId1",
+        "agentName1",
+        { instructions: "do the thing" },
+        "id",
+        undefined,
+        undefined,
+        { signal: controller.signal }
+      );
+
+      expect(result).toBe("sub-agent answer");
+      expect(execute).toHaveBeenCalledWith("do the thing", {
+        signal: controller.signal,
+      });
+    });
+
+    it("should rethrow a cancellation instead of reporting it as a tool result", async () => {
+      // Swallowing it would have the calling agent carry on with the very run
+      // that was just cancelled.
+      const controller = new AbortController();
+      const execute = jest.fn().mockImplementation(async () => {
+        controller.abort();
+        throw Object.assign(new Error("aborted"), { name: "AbortError" });
+      });
+      const tool = Tool.fromAgent(agentStub(execute), "Delegate work");
+
+      await expect(
+        tool.execute(
+          "agentId1",
+          "agentName1",
+          { instructions: "do the thing" },
+          "id",
+          undefined,
+          undefined,
+          { signal: controller.signal }
+        )
+      ).rejects.toThrow("aborted");
+    });
+
+    it("should still report ordinary sub-agent failures as a tool result", async () => {
+      const execute = jest.fn().mockRejectedValue(new Error("model exploded"));
+      const tool = Tool.fromAgent(agentStub(execute), "Delegate work");
+
+      const result = await tool.execute(
+        "agentId1",
+        "agentName1",
+        { instructions: "do the thing" },
+        "id"
+      );
+
+      expect(JSON.parse(result).error).toContain("model exploded");
+    });
   });
 
   describe("getPrompt", () => {

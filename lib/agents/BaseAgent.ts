@@ -12,11 +12,14 @@ import {
   CommonAgentConfig,
   VendorSpecificConfig,
 } from "./AgentConfig";
-import { ExecutionError } from "./errors/AgentError";
+import { AbortError, ExecutionError } from "./errors/AgentError";
+import { ExecuteOptions } from "./cancellation";
+import { AgentEvent } from "./AgentEvent";
 
 // Re-export for convenience
 export type { HistoryEntry, MessageRole, MessageContent, ImageMimeType };
 export type { AgentVendor };
+export type { ExecuteOptions };
 
 /**
  * Agent config as used across all agents
@@ -235,11 +238,21 @@ export abstract class BaseAgent<
     this.tools = new Map((config.tools || []).map((tool) => [tool.name, tool]));
   }
 
-  abstract execute(input: TInput): Promise<TOutput>;
+  /**
+   * Run the agent on `input`.
+   *
+   * @param options Per-run options. `options.signal` cancels the run: the
+   *                in-flight provider request is aborted and the promise
+   *                rejects with an {@link AbortError}.
+   */
+  abstract execute(input: TInput, options?: ExecuteOptions): Promise<TOutput>;
 
   protected abstract process(input: TInput): Promise<TOutput>;
 
-  protected abstract handleResponse(response: unknown): Promise<unknown>;
+  protected abstract handleResponse(
+    response: unknown,
+    options?: ExecuteOptions
+  ): Promise<unknown>;
 
   protected getToolDefinitions(): unknown[] {
     return Array.from(this.tools.values()).map((tool) => tool.getPrompt());
@@ -350,6 +363,26 @@ export abstract class BaseAgent<
 
   clearHistory(): void {
     this.history.clear();
+  }
+
+  /**
+   * Build the {@link AbortError} for a cancelled run and emit it as an
+   * `AgentEvent.ERROR`, so a cancellation reaches error listeners the same way
+   * every other failure does.
+   *
+   * Returns the error rather than throwing it, leaving the caller to report it
+   * to whatever visualization event is open before rethrowing.
+   *
+   * @param error  What the provider threw once the signal fired.
+   * @param signal The signal supplied to this run, if any.
+   */
+  protected abortError(error: unknown, signal?: AbortSignal): AbortError {
+    const abortError = new AbortError(
+      `Execution of agent ${this.getName()} was aborted`,
+      signal?.reason ?? error
+    );
+    this.emit(AgentEvent.ERROR, abortError);
+    return abortError;
   }
 
   protected abstract parseUsage(input: unknown): TokenUsage;

@@ -6,7 +6,7 @@ import {
   parseRetryAfter,
   parseResetAt,
 } from "./OpenRouterAgent";
-import { ExecutionError, RateLimitError } from "../errors/AgentError";
+import { ApiError, ExecutionError, RateLimitError } from "../errors/AgentError";
 
 jest.mock("@openrouter/sdk", () => {
   const addHook = jest.fn();
@@ -388,6 +388,96 @@ describe("OpenRouterAgent", () => {
 
       expect(mapped).not.toBeInstanceOf(RateLimitError);
       expect(mapped.statusCode).toBe(502);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Unwrapping the upstream provider's message out of OpenRouter's own
+  // generic wrapper ("Provider returned error")
+  // ---------------------------------------------------------------------------
+
+  describe("mapProviderError message unwrapping", () => {
+    /** Builds the same nested body shape `@openrouter/sdk` throws for a proxied provider error. */
+    function bodyWith(rawMessage: string) {
+      return JSON.stringify({
+        error: {
+          message: "Provider returned error",
+          code: 400,
+          metadata: {
+            raw: JSON.stringify({
+              error: { message: rawMessage, type: "invalid_request_error" },
+            }),
+            provider_name: "Azure",
+          },
+        },
+      });
+    }
+
+    it("surfaces the upstream provider's message instead of the generic wrapper", () => {
+      const agent = makeAgent();
+      const mapped = agent["mapProviderError"]({
+        statusCode: 400,
+        message: "Provider returned error",
+        body: bodyWith("No tool output found for function call call_real_id_123."),
+      });
+
+      expect(mapped).toBeInstanceOf(ApiError);
+      expect(mapped.statusCode).toBe(400);
+      expect(mapped.message).toBe(
+        "OpenRouter API error: No tool output found for function call call_real_id_123."
+      );
+    });
+
+    it("falls back to the top-level message when there is no body", () => {
+      const agent = makeAgent();
+      const mapped = agent["mapProviderError"]({
+        statusCode: 400,
+        message: "Bad request",
+      });
+
+      expect(mapped.message).toBe("OpenRouter API error: Bad request");
+    });
+
+    it("falls back to the top-level message when the body isn't JSON", () => {
+      const agent = makeAgent();
+      const mapped = agent["mapProviderError"]({
+        statusCode: 400,
+        message: "Bad request",
+        body: "<html>not json</html>",
+      });
+
+      expect(mapped.message).toBe("OpenRouter API error: Bad request");
+    });
+
+    it("falls back to the top-level message when metadata.raw isn't JSON but is short", () => {
+      const agent = makeAgent();
+      const mapped = agent["mapProviderError"]({
+        statusCode: 400,
+        message: "Provider returned error",
+        body: JSON.stringify({
+          error: {
+            message: "Provider returned error",
+            metadata: { raw: "plain text upstream error" },
+          },
+        }),
+      });
+
+      expect(mapped.message).toBe("OpenRouter API error: plain text upstream error");
+    });
+
+    it("also unwraps the upstream message on a rate-limited (429) response", () => {
+      const agent = makeAgent();
+      const mapped = agent["mapProviderError"]({
+        statusCode: 429,
+        message: "Provider returned error",
+        headers: new Headers({ "retry-after": "5" }),
+        body: bodyWith("Rate limit exceeded for this model."),
+      });
+
+      expect(mapped).toBeInstanceOf(RateLimitError);
+      expect(mapped.message).toBe(
+        "OpenRouter rate limit: Rate limit exceeded for this model."
+      );
     });
   });
 

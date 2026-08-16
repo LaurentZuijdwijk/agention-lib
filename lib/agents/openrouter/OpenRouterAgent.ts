@@ -426,17 +426,19 @@ export class OpenRouterAgent extends BaseAgent {
       statusCode?: number;
       headers?: Headers;
       message?: string;
+      body?: string;
     };
 
     if (typeof err?.statusCode === "number") {
-      if (err.statusCode === 429) {
-        return this.rateLimitError(err);
-      }
-      return new ApiError(
-        `OpenRouter API error: ${err.message ?? "Unknown error"}`,
-        err.statusCode,
-        error
+      const message = unwrapOpenRouterMessage(
+        parseOpenRouterErrorBody(err.body),
+        err.message ?? "Unknown error"
       );
+
+      if (err.statusCode === 429) {
+        return this.rateLimitError(err, message);
+      }
+      return new ApiError(`OpenRouter API error: ${message}`, err.statusCode, error);
     }
 
     return new ExecutionError(
@@ -452,10 +454,10 @@ export class OpenRouterAgent extends BaseAgent {
    * a 429 passed through from an upstream provider carries neither, which is why
    * every field is optional.
    */
-  private rateLimitError(err: {
-    headers?: Headers;
-    message?: string;
-  }): RateLimitError {
+  private rateLimitError(
+    err: { headers?: Headers },
+    message: string
+  ): RateLimitError {
     const headers = err.headers;
     const num = (name: string): number | undefined => {
       const raw = headers?.get(name);
@@ -471,7 +473,7 @@ export class OpenRouterAgent extends BaseAgent {
     const retryAfterMs = parseRetryAfter(retryAfterRaw);
 
     return new RateLimitError(
-      `OpenRouter rate limit: ${err.message ?? "Too many requests"}`,
+      `OpenRouter rate limit: ${message}`,
       retryAfterMs,
       num("x-ratelimit-limit"),
       num("x-ratelimit-remaining"),
@@ -650,7 +652,7 @@ export class OpenRouterAgent extends BaseAgent {
     >();
     let finishReason: string | null = null;
     let streamUsage: any;
-    let streamError: { code?: number; message?: string } | undefined;
+    let streamError: OpenRouterErrorPayload | undefined;
 
     for await (const chunk of stream as AsyncIterable<any>) {
       // Once the first token is out the 200 and its headers are committed, so a
@@ -717,7 +719,7 @@ export class OpenRouterAgent extends BaseAgent {
 
     if (streamError) {
       throw new ApiError(
-        `OpenRouter stream error: ${streamError.message ?? "no message"}`,
+        `OpenRouter stream error: ${unwrapOpenRouterMessage(streamError, streamError.message ?? "no message")}`,
         streamError.code,
         streamError
       );
@@ -949,4 +951,59 @@ export function parseResetAt(value: number | undefined): Date | undefined {
   if (value < 1e9) return new Date(Date.now() + value * 1000);
   if (value < 1e11) return new Date(value * 1000);
   return new Date(value);
+}
+
+/**
+ * Shape of the `error` object OpenRouter embeds both in an HTTP error body and
+ * in an SSE error chunk. `metadata.raw` is the upstream provider's own error,
+ * JSON-encoded as a string — OpenRouter's own `message` is a generic wrapper
+ * ("Provider returned error") that says nothing about what actually went
+ * wrong.
+ */
+type OpenRouterErrorPayload = {
+  message?: string;
+  code?: number;
+  metadata?: { raw?: string; provider_name?: string; [key: string]: unknown } | null;
+};
+
+/**
+ * Parse an OpenRouter HTTP error body (`OpenRouterError.body`) down to its
+ * `error` field. Returns `undefined` for a missing or non-JSON body rather
+ * than throwing, since a malformed body is itself just something to fall back
+ * from, not a reason to lose the original error.
+ */
+function parseOpenRouterErrorBody(body: string | undefined): OpenRouterErrorPayload | undefined {
+  if (!body) return undefined;
+  try {
+    return JSON.parse(body)?.error;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Best-effort extraction of the most specific message an OpenRouter error
+ * payload carries, unwrapping `metadata.raw` when present. `raw` holds the
+ * upstream provider's exact error text (e.g. OpenAI's own `{error: {message}}`
+ * shape) — falls back to the payload's own `message`, then to `fallback`, so an
+ * unfamiliar or non-JSON `raw` still yields something rather than throwing.
+ */
+function unwrapOpenRouterMessage(
+  payload: OpenRouterErrorPayload | undefined,
+  fallback: string
+): string {
+  const topMessage = payload?.message ?? fallback;
+  const raw = payload?.metadata?.raw;
+  if (typeof raw !== "string" || !raw) return topMessage;
+
+  try {
+    const parsedRaw = JSON.parse(raw);
+    const upstreamMessage = parsedRaw?.error?.message ?? parsedRaw?.message;
+    if (typeof upstreamMessage === "string" && upstreamMessage) return upstreamMessage;
+  } catch {
+    // Not JSON — some upstreams return plain text. Use it directly if short
+    // enough to be a message rather than a stack trace or HTML error page.
+    if (raw.length < 500) return raw;
+  }
+  return topMessage;
 }

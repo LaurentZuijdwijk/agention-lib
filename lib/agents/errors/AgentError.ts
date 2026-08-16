@@ -72,7 +72,14 @@ export class RateLimitError extends ApiError {
  * Error thrown when maximum token limit is exceeded
  */
 export class MaxTokensExceededError extends AgentError {
-  constructor(message: string, public tokenLimit: number) {
+  /**
+   * @param message    Error message
+   * @param tokenLimit The configured `maxTokens` that was hit. Undefined when
+   *                   no limit was configured and the model's own output cap
+   *                   is what ended the response — reporting a number the
+   *                   caller never set would just be misleading.
+   */
+  constructor(message: string, public tokenLimit?: number) {
     super(message);
     this.name = "MaxTokensExceededError";
   }

@@ -150,7 +150,12 @@ export class GeminiAgent extends BaseAgent {
 
     this.config = {
       model: config.model || "gemini-flash-latest",
-      maxTokens: config.maxTokens || 1024,
+      // No default: `maxOutputTokens` is optional on Gemini, and omitting it
+      // lets the model use its full output budget. A default here silently
+      // truncated every response — and on thinking models it was worse, since
+      // thoughts count against the same budget and a small cap could be spent
+      // entirely on them.
+      maxTokens: config.maxTokens,
       apiKey: config.apiKey,
       temperature: config.temperature,
       topP: config.topP,
@@ -542,7 +547,7 @@ export class GeminiAgent extends BaseAgent {
     if (candidate.finishReason === "MAX_TOKENS") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);

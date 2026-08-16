@@ -390,7 +390,7 @@ export class ClaudeAgent extends BaseAgent {
     if (response.stop_reason === "max_tokens") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);
@@ -824,7 +824,7 @@ export class ClaudeAgent extends BaseAgent {
     if (stopReason === "max_tokens") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);

@@ -121,7 +121,10 @@ export class MistralAgent extends BaseAgent {
 
     this.config = {
       model: config.model || "mistral-small-latest",
-      maxTokens: config.maxTokens || 1024,
+      // No default: `maxTokens` is optional on Mistral's API, and omitting it
+      // lets the model use its full output budget. A default here silently
+      // truncated every response.
+      maxTokens: config.maxTokens,
       disableParallelToolUse,
       safePrompt,
       randomSeed,
@@ -335,7 +338,7 @@ export class MistralAgent extends BaseAgent {
     if (choice.finishReason === "length") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);

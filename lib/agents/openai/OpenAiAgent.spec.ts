@@ -64,10 +64,16 @@ describe("OpenAiAgent", () => {
       expect(agent["config"]).toMatchObject({
         apiKey: "test-api-key",
         model: "gpt-4.1-mini",
-        maxTokens: 1024,
         disableParallelToolUse: false,
         disableReasoning: false,
       });
+    });
+
+    it("leaves maxTokens unset so the model uses its full output budget", () => {
+      // `max_output_tokens` is optional on the Responses API. Defaulting it
+      // silently truncated every response, and on reasoning models a small cap
+      // could be spent entirely on thinking, returning no text at all.
+      expect(agent["config"].maxTokens).toBeUndefined();
     });
 
     it("should accept custom config values", () => {
@@ -265,7 +271,7 @@ describe("OpenAiAgent", () => {
       expect(mockClient.responses.create).toHaveBeenCalledWith(
         expect.objectContaining({
           model: "gpt-4.1-mini",
-          max_output_tokens: 1024,
+          max_output_tokens: undefined,
           input: expect.any(Array),
           tools: [],
           store: false,

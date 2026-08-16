@@ -592,7 +592,7 @@ export class OpenRouterAgent extends BaseAgent {
     if (choice.finishReason === "length") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       throw error;
@@ -726,7 +726,7 @@ export class OpenRouterAgent extends BaseAgent {
     if (finishReason === "length") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       throw error;

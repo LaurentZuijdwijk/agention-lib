@@ -118,6 +118,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `chat`/`thinking`, llama.cpp `vision`; OpenAI and Ollama report none.
 
 ### Fixed
+- **`maxTokens` defaulted to 1024, silently truncating every response.**
+  `OpenAiAgent`, `MistralAgent` and `GeminiAgent` each did
+  `maxTokens: config.maxTokens || 1024` in their constructor. The parameter is
+  optional on all three APIs, so the default was capping output that would
+  otherwise have run to the model's own budget — nothing in the response says
+  the cap came from the client rather than the model.
+
+  It was worse than a truncation on reasoning models, where thinking tokens
+  count against the same budget: a 1024 cap could be spent entirely on reasoning
+  and return `status: "incomplete"` with no text at all. `OpenAiAgent`'s own
+  error message for that case advised "try increasing maxTokens" — against a
+  limit the caller never set.
+
+  All three now leave `maxTokens` unset unless you pass one. **`ClaudeAgent` is
+  unchanged**: Anthropic's Messages API requires `max_tokens`, so its default
+  has to stay.
+
+  `MaxTokensExceededError.tokenLimit` is now optional, and reports the
+  configured limit or `undefined` when the model's own cap ended the response.
+  Previously every agent passed `this.config.maxTokens || 1024`, so the error
+  named a 1024 limit even on the OpenAI-compatible and OpenRouter paths, which
+  never had a default to begin with.
+
 - **`contextLength` was always undefined on `ClaudeAgent`.** Anthropic's `/v1/models`
   does return `max_input_tokens` and `max_tokens`, along with a capability tree covering
   thinking, effort levels, image and PDF input, citations, code execution, structured

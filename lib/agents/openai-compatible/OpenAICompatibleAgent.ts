@@ -287,7 +287,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     if (choice.finish_reason === "length") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);
@@ -626,7 +626,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     if (finishReason === "length") {
       const error = new MaxTokensExceededError(
         "Response exceeded maximum token limit",
-        this.config.maxTokens || 1024
+        this.config.maxTokens
       );
       this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
       this.emit(AgentEvent.ERROR, error);

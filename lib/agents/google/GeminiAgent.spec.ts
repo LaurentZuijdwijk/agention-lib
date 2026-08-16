@@ -71,12 +71,14 @@ describe("GeminiAgent", () => {
         // No defaultHeaders configured, so no requestOptions are passed
         undefined
       );
-      expect(agent["config"]).toEqual({
+      // `maxTokens` is deliberately left unset — `maxOutputTokens` is optional
+      // on Gemini, and defaulting it silently truncated every response.
+      expect(agent["config"]).toMatchObject({
         apiKey: "test-api-key",
         model: "gemini-flash-latest",
         temperature: 0,
-        maxTokens: 1024,
       });
+      expect(agent["config"].maxTokens).toBeUndefined();
     });
 
     it("should accept custom config values", () => {
@@ -308,10 +310,11 @@ describe("GeminiAgent", () => {
           systemInstruction:
             "You are an agent called TestAgent and should follow these instructions: Test Description",
           tools: undefined,
-          generationConfig: {
-            maxOutputTokens: 1024,
+          generationConfig: expect.objectContaining({
+            // Unset, so Gemini uses the model's own output budget.
+            maxOutputTokens: undefined,
             temperature: 0,
-          },
+          }),
         },
         { signal: undefined }
       );

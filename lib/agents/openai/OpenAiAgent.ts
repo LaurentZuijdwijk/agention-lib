@@ -141,7 +141,13 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     this.config = {
       model: config.model || "gpt-4.1-mini",
-      maxTokens: config.maxTokens || 1024,
+      // No default. `max_output_tokens` is optional on the Responses API, and
+      // omitting it lets the model use its full output budget. A default here
+      // silently truncated every response — and on reasoning models it was
+      // worse than a truncation, since reasoning tokens count against the same
+      // budget: a small cap could be spent entirely on thinking, returning
+      // `status: "incomplete"` with no text at all.
+      maxTokens: config.maxTokens,
       disableParallelToolUse,
       disableReasoning,
       reasoningEffort,
@@ -820,7 +826,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       if (event.type === "response.incomplete") {
         throw new MaxTokensExceededError(
           "Response incomplete: max tokens reached",
-          this.config.maxTokens || 1024
+          this.config.maxTokens
         );
       }
     }

@@ -37,6 +37,38 @@ export class ApiError extends AgentError {
 }
 
 /**
+ * Error thrown when the provider rate limits a request and the agent's retry
+ * policy did not manage to get past it.
+ *
+ * Extends {@link ApiError}, so existing `catch (e) { if (e instanceof ApiError) }`
+ * handling keeps working; the extra fields carry what the provider said about
+ * when to come back.
+ */
+export class RateLimitError extends ApiError {
+  /**
+   * @param message      Error message
+   * @param retryAfterMs How long the provider asked you to wait, in
+   *                     milliseconds, from its `Retry-After` header. Undefined
+   *                     when it sent no hint.
+   * @param limit        Requests permitted in the window (`X-RateLimit-Limit`).
+   * @param remaining    Requests left in the window (`X-RateLimit-Remaining`).
+   * @param resetAt      When the window resets (`X-RateLimit-Reset`).
+   * @param response     The underlying provider error.
+   */
+  constructor(
+    message: string,
+    public retryAfterMs?: number,
+    public limit?: number,
+    public remaining?: number,
+    public resetAt?: Date,
+    response?: unknown
+  ) {
+    super(message, 429, response);
+    this.name = "RateLimitError";
+  }
+}
+
+/**
  * Error thrown when maximum token limit is exceeded
  */
 export class MaxTokensExceededError extends AgentError {

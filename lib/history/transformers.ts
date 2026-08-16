@@ -964,6 +964,215 @@ export const chatCompletionsTransformer = {
   },
 };
 
+// =============================================================================
+// OpenRouter Transformer
+// =============================================================================
+
+/**
+ * Convert normalized entries to/from the message format `@openrouter/sdk`
+ * accepts.
+ *
+ * The wire format is OpenAI Chat Completions, but the SDK's TypeScript surface
+ * is camelCase (`toolCalls`, `toolCallId`, `reasoningDetails`) and it
+ * zod-serializes to snake_case on the way out — so this cannot reuse
+ * {@link chatCompletionsTransformer}, whose output is already snake_case.
+ *
+ * Beyond the casing it also carries `reasoning_details` through the round trip,
+ * which the OpenAI-compatible path has no equivalent for.
+ */
+export const openRouterTransformer = {
+  /**
+   * Convert normalized entries to OpenRouter message format.
+   * Tool results become role:"tool" messages; tool calls ride on the assistant message.
+   */
+  toProvider(entries: HistoryEntry[]): OpenRouterMessage[] {
+    const messages: OpenRouterMessage[] = [];
+
+    for (const entry of entries) {
+      const textBlocks = entry.content.filter(isTextContent);
+      const toolUseBlocks = entry.content.filter(isToolUseContent);
+      const toolResultBlocks = entry.content.filter(isToolResultContent);
+      const thinkingBlocks = entry.content.filter(isThinkingContent);
+      const imageUrlBlocks = entry.content.filter(isImageUrlContent);
+      const imageBase64Blocks = entry.content.filter(isImageBase64Content);
+      const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
+
+      if (entry.role === "system") {
+        messages.push({
+          role: "system",
+          content: textBlocks.map((c) => c.text).join("\n"),
+        });
+        continue;
+      }
+
+      if (entry.role === "assistant") {
+        const msg: Extract<OpenRouterMessage, { role: "assistant" }> = {
+          role: "assistant",
+          content: textBlocks.map((c) => c.text).join("\n") || null,
+        };
+
+        const reasoning = thinkingBlocks
+          .map((block) => block.thinking)
+          .filter((thought) => thought.length > 0)
+          .join("\n");
+        if (reasoning) {
+          msg.reasoning = reasoning;
+        }
+
+        // The signed/encrypted blocks matter more than the text: OpenRouter
+        // rebuilds the upstream provider's native thinking blocks from these,
+        // and Anthropic and OpenAI models reject a tool-using turn whose
+        // signature did not come back. Only set the key when there is one, so
+        // requests for non-reasoning models stay byte-identical.
+        const reasoningDetails = thinkingBlocks.flatMap(
+          (block) => block.reasoningDetails ?? []
+        );
+        if (reasoningDetails.length > 0) {
+          msg.reasoningDetails = reasoningDetails;
+        }
+
+        if (toolUseBlocks.length > 0) {
+          msg.toolCalls = toolUseBlocks.map((block) => ({
+            id: block.id,
+            type: "function" as const,
+            function: {
+              name: block.name,
+              arguments: JSON.stringify(block.input),
+            },
+          }));
+        }
+        messages.push(msg);
+        continue;
+      }
+
+      // User role — text, images, or tool results
+      if (toolResultBlocks.length > 0) {
+        for (const result of toolResultBlocks) {
+          messages.push({
+            role: "tool",
+            toolCallId: result.tool_use_id,
+            content: result.content,
+          });
+        }
+      } else if (hasImages) {
+        const parts: OpenRouterContentPart[] = [];
+        for (const block of entry.content) {
+          if (isTextContent(block)) {
+            parts.push({ type: "text", text: block.text });
+          } else if (isImageUrlContent(block)) {
+            parts.push({
+              type: "image_url",
+              imageUrl: {
+                url: block.url,
+                ...(block.detail ? { detail: block.detail } : {}),
+              },
+            });
+          } else if (isImageBase64Content(block)) {
+            parts.push({
+              type: "image_url",
+              imageUrl: { url: `data:${block.mimeType};base64,${block.data}` },
+            });
+          }
+        }
+        messages.push({ role: "user", content: parts });
+      } else if (textBlocks.length > 0) {
+        messages.push({
+          role: "user",
+          content: textBlocks.map((c) => c.text).join("\n"),
+        });
+      }
+    }
+
+    return messages;
+  },
+
+  /**
+   * Convert an OpenRouter assistant message to a normalized HistoryEntry.
+   */
+  fromProviderMessage(message: OpenRouterResponseMessage): HistoryEntry {
+    const content: MessageContent[] = [];
+
+    // Reasoning first, matching the order the model produced it in. Both the
+    // plain text and the opaque details are kept: the text is what a caller
+    // reads, the details are what the next request has to echo back.
+    const reasoningText = typeof message.reasoning === "string" ? message.reasoning : "";
+    const reasoningDetails = message.reasoningDetails ?? [];
+    if (reasoningText || reasoningDetails.length > 0) {
+      content.push(thinking(reasoningText, undefined, undefined, reasoningDetails));
+    }
+
+    if (typeof message.content === "string" && message.content) {
+      content.push(text(message.content));
+    }
+
+    if (message.toolCalls) {
+      message.toolCalls.forEach((call) => {
+        if (!call.function) return;
+        const args = JSON.parse(call.function.arguments || "{}");
+        content.push(toolUse(call.id, call.function.name, args as Record<string, unknown>));
+      });
+    }
+
+    return {
+      role: "assistant",
+      content,
+      meta: { provider: "openrouter" },
+    };
+  },
+
+  /**
+   * Create a normalized tool result entry for an OpenRouter tool call
+   */
+  toolResultEntry(tool_call_id: string, output: string): HistoryEntry {
+    return {
+      role: "user",
+      content: [toolResult(tool_call_id, output)],
+      meta: { provider: "openrouter", tool_call_id },
+    };
+  },
+};
+
+type OpenRouterToolCallParam = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
+type OpenRouterContentPart =
+  | { type: "text"; text: string }
+  | {
+      type: "image_url";
+      imageUrl: { url: string; detail?: "auto" | "low" | "high" };
+    };
+
+export type OpenRouterMessage =
+  | { role: "system"; content: string }
+  | { role: "user"; content: string | OpenRouterContentPart[] }
+  | {
+      role: "assistant";
+      content: string | null;
+      toolCalls?: OpenRouterToolCallParam[];
+      /** Plain reasoning text replayed from a previous turn. */
+      reasoning?: string;
+      /**
+       * Opaque reasoning blocks replayed verbatim. Omitted entirely when the
+       * turn carried none.
+       */
+      reasoningDetails?: unknown[];
+    }
+  | { role: "tool"; toolCallId: string; content: string };
+
+type OpenRouterResponseMessage = {
+  role: string;
+  content?: string | null;
+  toolCalls?: Array<{
+    id: string;
+    function?: { name: string; arguments: string };
+  }>;
+  reasoning?: string | null;
+  reasoningDetails?: unknown[];
+};
+
 type ChatCompletionToolCallParam = {
   id: string;
   type: "function";

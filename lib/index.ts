@@ -30,6 +30,20 @@ export type {
 } from "./agents/llamacpp/LlamaCppAgent";
 export { OpenAICompatibleAgent } from "./agents/openai-compatible/OpenAICompatibleAgent";
 export type { OpenAICompatibleConfig, StreamChunk } from "./agents/openai-compatible/OpenAICompatibleAgent";
+export { OpenRouterAgent } from "./agents/openrouter/OpenRouterAgent";
+export type {
+  OpenRouterConfig,
+  OpenRouterModelCard,
+} from "./agents/openrouter/OpenRouterAgent";
+export type {
+  OpenRouterProviderPreferences,
+  OpenRouterProviderSort,
+  OpenRouterMaxPrice,
+  OpenRouterReasoningConfig,
+  OpenRouterReasoningEffort,
+  OpenRouterRetryConfig,
+  OpenRouterGenerationInfo,
+} from "./agents/openrouter/types";
 export * from "./agents/model-types";
 export * from "./agents/AgentConfig";
 export * from "./agents/AgentEvent";
@@ -46,6 +60,7 @@ export {
   geminiTransformer,
   ollamaTransformer,
   chatCompletionsTransformer,
+  openRouterTransformer,
 } from "./history/transformers";
 
 // Graph

@@ -7,6 +7,7 @@ import {
   mistralTransformer,
   geminiTransformer,
   chatCompletionsTransformer,
+  openRouterTransformer,
 } from "./transformers";
 import { imageUrl, imageBase64, text, thinking, toolUse, toolResult } from "./types";
 import type { HistoryEntry } from "./types";
@@ -567,5 +568,105 @@ describe("geminiTransformer — thought signatures", () => {
       "sig-a",
       "sig-b",
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OpenRouter — reasoning_details round trip
+// ---------------------------------------------------------------------------
+
+/**
+ * OpenRouter rebuilds the upstream provider's native thinking blocks from
+ * `reasoning_details`. The `reasoning.encrypted` variant carries Anthropic's
+ * signature and OpenAI's encrypted reasoning, neither of which can be
+ * reconstructed from the plain text — so a turn that drops them fails on the
+ * *next* request, not the one that lost them.
+ */
+describe("openRouterTransformer reasoning details", () => {
+  const ENCRYPTED = { type: "reasoning.encrypted", data: "opaque-blob", id: "rd-1" };
+  const TEXT_DETAIL = { type: "reasoning.text", text: "step one", signature: "sig-1" };
+
+  it("carries reasoning details from the response back onto the next request", () => {
+    const entry = openRouterTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "Answer",
+      reasoning: "step one",
+      reasoningDetails: [TEXT_DETAIL, ENCRYPTED],
+    } as any);
+
+    const [message] = openRouterTransformer.toProvider([entry]) as any[];
+
+    expect(message.reasoningDetails).toEqual([TEXT_DETAIL, ENCRYPTED]);
+    expect(message.reasoning).toBe("step one");
+  });
+
+  it("keeps details alongside tool calls, which is where dropping them breaks", () => {
+    const entry = openRouterTransformer.fromProviderMessage({
+      role: "assistant",
+      content: null,
+      reasoning: "I should check the weather",
+      reasoningDetails: [ENCRYPTED],
+      toolCalls: [
+        {
+          id: "call_1",
+          function: { name: "get_weather", arguments: '{"city":"Paris"}' },
+        },
+      ],
+    } as any);
+
+    const [message] = openRouterTransformer.toProvider([entry]) as any[];
+
+    expect(message.reasoningDetails).toEqual([ENCRYPTED]);
+    expect(message.toolCalls).toEqual([
+      {
+        id: "call_1",
+        type: "function",
+        function: { name: "get_weather", arguments: '{"city":"Paris"}' },
+      },
+    ]);
+  });
+
+  it("survives details arriving with no accompanying reasoning text", () => {
+    // Anthropic returns redacted thinking this way: opaque payload, no text.
+    const entry = openRouterTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "Answer",
+      reasoningDetails: [ENCRYPTED],
+    } as any);
+
+    const [message] = openRouterTransformer.toProvider([entry]) as any[];
+
+    expect(message.reasoningDetails).toEqual([ENCRYPTED]);
+    expect(message.reasoning).toBeUndefined();
+  });
+
+  it("omits the key entirely when the turn carried no reasoning", () => {
+    // Non-reasoning models must produce a byte-identical request to before the
+    // field existed, so servers that reject unknown keys keep working.
+    const entry = openRouterTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "Plain answer",
+    } as any);
+
+    const [message] = openRouterTransformer.toProvider([entry]) as any[];
+
+    expect(message).not.toHaveProperty("reasoningDetails");
+    expect(message).not.toHaveProperty("reasoning");
+  });
+
+  it("merges details from several thinking blocks in order", () => {
+    const entry = {
+      role: "assistant" as const,
+      content: [
+        thinking("first", undefined, undefined, [TEXT_DETAIL]),
+        thinking("second", undefined, undefined, [ENCRYPTED]),
+        text("Answer"),
+      ],
+    };
+
+    const [message] = openRouterTransformer.toProvider([entry]) as any[];
+
+    expect(message.reasoningDetails).toEqual([TEXT_DETAIL, ENCRYPTED]);
+    expect(message.reasoning).toBe("first\nsecond");
   });
 });

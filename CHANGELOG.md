@@ -7,7 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-16
+
 ### Added
+- **Cancel a run with an `AbortSignal`.** `execute(input, { signal })` and
+  `executeStream(input, { signal })` on every agent, plus `ExecuteOptions` /
+  `ToolExecuteOptions` and the `isAbortError` / `throwIfAborted` /
+  `combineSignals` helpers in `lib/agents/cancellation.ts`. An aborted run
+  rejects with the new `AbortError` (`name: "AbortError"`, `reason` from the
+  signal) and emits it as `AgentEvent.ERROR`.
+
+  ```typescript
+  const controller = new AbortController();
+  setTimeout(() => controller.abort("took too long"), 5_000);
+
+  await agent.execute("Summarize this", { signal: controller.signal });
+  ```
+
+  Each SDK takes the signal its own way: per-request options on
+  Anthropic/OpenAI/Mistral/OpenRouter/OpenAI-compatible, `SingleRequestOptions`
+  on Gemini (client-side only — Google still runs and bills the request), and a
+  per-run client with a wrapped `fetch` on Ollama, whose package has no
+  per-request options and whose `abort()` would otherwise cancel every stream on
+  the client at once. Mistral's inter-call rate-limit wait takes the signal too,
+  so an abort does not sit it out.
+
+  Streaming needed an explicit check: the Anthropic and OpenAI stream iterators
+  swallow the abort and simply stop yielding, so an interrupted stream otherwise
+  looked like a short but complete turn. Cancellation is also re-checked just
+  before each tool loop begins, ahead of the assistant turn being written, so a
+  cancelled run never leaves a tool call in history with no result to answer it.
+
+  `Tool.execute()` takes an options argument and forwards `{ signal }` to the
+  tool's own `execute`; `Tool.fromAgent()` passes it to the sub-agent and
+  rethrows aborts rather than turning them into a tool result. **Not covered:**
+  graph executors and `Team.execute()` still take no signal.
+
+- **OpenRouter agent.** One API key, dozens of upstream providers, behind the
+  same `BaseAgent` interface. `OpenRouterAgent` (import from
+  `@agentionai/agents/openrouter`, requires the optional `@openrouter/sdk` peer)
+  adds what a plain OpenAI-compatible endpoint cannot: routing control
+  (`provider: { sort, order, only, ignore, allowFallbacks, maxPrice, ... }`),
+  fallback `models` tried when the primary is rate limited or out of quota,
+  per-run credit `cost` on `lastGeneration`, and `reasoning_details` that
+  round-trip across tool calls.
+
+  ```typescript
+  import { OpenRouterAgent } from "@agentionai/agents/openrouter";
+
+  const agent = new OpenRouterAgent({
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    model: "anthropic/claude-opus-4-20250514",
+    models: ["openai/gpt-5.6"],               // fallbacks on failure
+    provider: { sort: "throughput", allowFallbacks: true },
+  });
+
+  const answer = await agent.execute("Explain recursion");
+  console.log(agent.lastGeneration?.cost, "credits");
+  ```
+
+  `listModels()` flattens OpenRouter's paginated `/models` response into the
+  shared `ModelInfo` shape, filling `contextLength`, `maxOutputTokens` and
+  `capabilities` from `supported_parameters` / `architecture.input_modalities`,
+  with per-token pricing and the full card on `raw`.
+
+- **Rate-limit handling on OpenRouter.** `@openrouter/sdk` knows how to honour
+  `Retry-After` and `retry-after-ms`, but `chat.send()` defaults to
+  `retryCodes: ["5XX"]` — so a 429 never reaches that backoff — and its default
+  `maxElapsedTime` is an hour. `OpenRouterAgent` overrides both per request,
+  retrying `408`/`409`/`429`/`5XX` with a two-minute ceiling, and passes
+  `retryCodes` on every call because the SDK reads it only from call options,
+  never from the client's. Configure with `retry` / `retryCodes`, or opt out
+  with `retry: { strategy: "none" }`.
+
+  A 429 that survives the retries throws the new `RateLimitError` (extends
+  `ApiError`, so existing handling keeps working) carrying `retryAfterMs`,
+  `limit`, `remaining` and `resetAt` from OpenRouter's headers. Note that
+  client-side backoff cannot wait out a `:free` model's **daily** quota — 50
+  requests/day under $10 of credit purchased, 1000 above — so use fallback
+  `models` for that case.
+
+  Two silent failure modes are also caught now: OpenRouter reports a provider
+  failure mid-generation inside an HTTP 200 body with `finish_reason: "error"`,
+  and once streaming has committed its headers the same failure arrives as an
+  SSE payload. Both previously looked like a short but successful turn; both now
+  raise an `ApiError`.
+
+  `Retry-After` is read in both forms RFC 9110 allows (delay-seconds and
+  HTTP-date). `X-RateLimit-Reset` is not documented by OpenRouter, so its three
+  plausible encodings — a duration in seconds, Unix seconds, Unix milliseconds —
+  are told apart by magnitude rather than assumed; an unparseable value gives
+  `undefined` instead of a date in 1970. Prefer `retryAfterMs`, which is
+  unambiguous.
+
 - **Capability and limit data on `ModelInfo`.** Providers report more about their models
   than `listModels()` was surfacing, so four fields join the neutral shape:
   `maxOutputTokens`, `capabilities` (`{ chat, tools, vision, thinking }`), `deprecatedAt`

@@ -9,7 +9,8 @@ export type VizVendor =
   | "mistral"
   | "gemini"
   | "ollama"
-  | "llamacpp";
+  | "llamacpp"
+  | "openrouter";
 
 export type VizEventType =
   | "session.start"

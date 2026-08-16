@@ -10,6 +10,7 @@ Agents are the core building block of Agention. Each agent wraps an LLM and prov
 | Google | `GeminiAgent` | `gemini-2.0-flash` |
 | OpenAI | `OpenAiAgent` | `gpt-4o`, `gpt-4-turbo` |
 | Mistral | `MistralAgent` | `mistral-large-latest`, `mistral-medium` |
+| OpenRouter | `OpenRouterAgent` | `anthropic/claude-opus-4-20250514`, `openai/gpt-5.6`, `openrouter/auto` |
 | Ollama (local) | `OllamaAgent` | `llama3.2`, `qwen2.5`, `deepseek-r1` |
 | llama.cpp (local) | `LlamaCppAgent` | any GGUF model loaded by `llama-server` |
 
@@ -30,6 +31,9 @@ npm install @agentionai/agents @google/generative-ai
 # Mistral only
 npm install @agentionai/agents @mistralai/mistralai
 
+# OpenRouter (one key, many providers)
+npm install @agentionai/agents @openrouter/sdk
+
 # Ollama (local — no API key needed, requires Ollama running on your machine)
 npm install @agentionai/agents ollama
 
@@ -44,6 +48,7 @@ import { ClaudeAgent } from '@agentionai/agents/claude';
 import { OpenAiAgent } from '@agentionai/agents/openai';
 import { GeminiAgent } from '@agentionai/agents/gemini';
 import { MistralAgent } from '@agentionai/agents/mistral';
+import { OpenRouterAgent } from '@agentionai/agents/openrouter';
 import { OllamaAgent } from '@agentionai/agents/ollama';
 import { LlamaCppAgent } from '@agentionai/agents/llamacpp';
 ```
@@ -269,6 +274,7 @@ const vision = models.filter((m) => m.capabilities?.vision === true);
 | Claude | — | — | ✓ | ✓ |
 | OpenAI | — | — | — | — |
 | Mistral | ✓ | ✓ | ✓ | — |
+| OpenRouter | ✓ | ✓ | ✓ | ✓ |
 | Gemini | ✓ | — | — | ✓ |
 | Ollama | — | — | — | — |
 | llama.cpp | — | — | ✓ | — |
@@ -285,6 +291,7 @@ Only `id` is guaranteed — no two providers report the same set of fields:
 | Claude | `displayName`, `created` | Fully paginated; no context window in the response |
 | OpenAI | `created`, `ownedBy` | Includes embedding, audio and image models |
 | Mistral | `displayName`, `created`, `ownedBy`, `contextLength` | Base and fine-tuned models; `raw.capabilities` has the feature flags |
+| OpenRouter | `displayName`, `created`, `contextLength`, `maxOutputTokens` | `raw` is the full `OpenRouterModelCard` — per-token pricing, `supportedParameters`, architecture |
 | Gemini | `displayName`, `contextLength` | Direct call to `/v1beta/models`; the `models/` prefix is stripped from `id` |
 | Ollama | `displayName`, `created` | `created` is the local `modified_at` — when the model was last pulled |
 | llama.cpp | `created`, `ownedBy`, plus `contextLength` and `loaded` in router mode | See [below](#listing-models-on-llama-cpp) |
@@ -493,6 +500,209 @@ const visionModels = models.filter((m) =>
 console.log(models[0].raw.status?.args, models[0].raw.meta?.ftype);
 ```
 
+## OpenRouter (Multi-Provider Router)
+
+[OpenRouter](https://openrouter.ai) fronts dozens of upstream providers behind one
+API key and one chat-completions-compatible endpoint. `OpenRouterAgent` drives it
+through the official `@openrouter/sdk`, and adds what that endpoint alone cannot
+give you: routing controls, per-run cost reporting, and reasoning that survives
+tool calls.
+
+**Setup:**
+
+```bash
+npm install @agentionai/agents @openrouter/sdk
+```
+
+```typescript
+import { OpenRouterAgent } from '@agentionai/agents/openrouter';
+```
+
+The SDK is **ESM-only**, so it is loaded through a dynamic import. On CommonJS
+that requires Node 20.19+ or 22.12+, where `require()` of an ES module works.
+
+**Basic usage — model ids are prefixed by their upstream provider:**
+
+```typescript
+const agent = new OpenRouterAgent({
+  id: 'router',
+  name: 'Router',
+  description: 'You are a helpful assistant.',
+  apiKey: process.env.OPENROUTER_API_KEY!,
+  model: 'anthropic/claude-opus-4-20250514',
+});
+
+const response = await agent.execute('Explain recursion');
+```
+
+`model: 'openrouter/auto'` (the default) routes automatically; anything missing
+falls back to it.
+
+### Routing control
+
+OpenRouter's reason for existing is *routing* — choosing which upstream provider
+serves a request. `vendorConfig.openrouter` (or the equivalent flat fields)
+exposes that:
+
+```typescript
+const agent = new OpenRouterAgent({
+  id: 'router',
+  name: 'Router',
+  description: 'You are a helpful assistant.',
+  apiKey: process.env.OPENROUTER_API_KEY!,
+  model: 'deepseek/deepseek-chat-v3:free',
+  provider: {
+    sort: 'throughput',              // price | throughput | latency | exacto
+    // order: ['together', 'fireworks'], // explicit ordered provider slugs
+    // only: ['together'],               // restrict to these providers
+    // ignore: ['perplexity'],           // skip these providers
+    allowFallbacks: true,            // move on when the primary is rate limited
+    maxPrice: { prompt: '2', completion: '8' }, // USD per million tokens
+    dataCollection: 'deny',          // only providers that don't store prompts
+    zdr: true,                       // Zero Data Retention endpoints only
+    quantizations: ['fp8'],          // quantization levels to accept
+    preferredMaxLatency: 4,          // deprioritize p50 > 4s
+    preferredMinThroughput: 100,     // deprioritize p50 < 100 tok/s
+  },
+});
+```
+
+The default `allowFallbacks: true` is what lets the router move past a provider
+that is rate limited or down; set `false` when `order` names the only provider
+you will accept. `retry` and `retryCodes` tune the client-side backoff policy (the
+agent retries `408`/`409`/`429`/`5XX` with a two-minute ceiling, overriding the
+SDK's default of `5XX` only and an hour-long loop; pass `{ strategy: 'none' }` to
+opt out and handle 429s yourself).
+
+### Fallback models and reasoning
+
+When the primary model cannot serve the request — including a `:free` model's
+daily quota — the router tries `models` in order:
+
+```typescript
+model: 'deepseek/deepseek-chat-v3:free',
+models: ['qwen/qwen3-235b-a22b', 'openai/gpt-5.6'], // tried on failure
+```
+
+This is the one throttle that client-side backoff cannot fix. Reasoning models
+are configured the same way:
+
+```typescript
+reasoning: { effort: 'high' },       // none | minimal | low | medium | high | xhigh | max
+```
+
+`reasoning_details` are round-tripped across tool calls, so multi-turn tool use
+keeps working on reasoning models whose thinking blocks are signed — the same
+guarantee DeepSeek's `reasoning_content` needs on the OpenAI-compatible path.
+
+### Rate limits and retries
+
+OpenRouter returns `429` from two places, and they need different answers.
+
+**Its own platform limits.** `:free` models are capped at 20 requests/minute and
+50 requests/day (1000/day once you have purchased $10 of credit). These 429s
+carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`.
+
+**Upstream provider limits**, passed through. These carry a `Retry-After` header
+when every attempted provider gave a retry hint, and no `X-RateLimit-*`.
+
+The agent retries `408`/`409`/`429`/`5XX` with exponential backoff that honours
+`Retry-After` and `retry-after-ms`, capped at two minutes total:
+
+```typescript
+retry: {
+  strategy: 'backoff',
+  backoff: {
+    initialInterval: 500,
+    maxInterval: 30_000,
+    exponent: 1.5,
+    maxElapsedTime: 120_000,
+  },
+  retryConnectionErrors: true,
+},
+retryCodes: ['408', '409', '429', '5XX'],
+```
+
+Both are overridable; `retry: { strategy: 'none' }` opts out entirely. These
+defaults deliberately replace the SDK's own: `@openrouter/sdk` retries only
+`5XX` on `chat.send()`, so a 429 never reaches the backoff it already
+implements, and its default `maxElapsedTime` is an hour.
+
+A 429 that outlives the retries throws a `RateLimitError`:
+
+```typescript
+import { RateLimitError } from '@agentionai/agents/openrouter';
+
+try {
+  await agent.execute('Hello');
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    console.log(error.retryAfterMs, error.limit, error.remaining, error.resetAt);
+  }
+}
+```
+
+It extends `ApiError` with `statusCode: 429`, so code that already catches
+`ApiError` keeps working. Every field is optional — an upstream 429 carries no
+rate-limit headers to fill them from.
+
+Backoff cannot wait out a **daily** quota, whose reset is hours away. Use
+fallback `models` for that, and note that a run rejected while a provider is
+merely busy is usually better served by `provider.allowFallbacks` than by
+waiting.
+
+### Plugins, attribution, and other options
+
+```typescript
+plugins: [],             // OpenRouter plugins — web search, file parsing, etc.
+sessionId: 'user-42',    // sticky routing — keeps prompt caching hitting
+user: 'end-user-7',      // stable per-end-user id for abuse isolation
+serviceTier: 'priority', // auto | default | fast | flex | priority | scale ('fast' aliases 'priority')
+httpReferer: 'https://example.com',  // sent as HTTP-Referer
+appTitle: 'My App',                  // sent as X-Title (leaderboards)
+disableParallelToolUse: false,
+```
+
+### Cost reporting
+
+`lastGeneration` records what OpenRouter reported for the most recent run —
+something no other provider in this library exposes:
+
+```typescript
+await agent.execute('Hello');
+
+console.log(agent.lastGeneration?.cost, 'credits'); // e.g. 0.0032
+console.log(agent.lastGeneration?.model);           // what actually answered
+console.log(agent.lastGeneration?.attempts);        // providers tried before success
+```
+
+`cost` is summed across the turn's API calls (a tool loop bills once per hop) and
+is `undefined` for BYOK requests, which OpenRouter does not price.
+
+### Listing available models
+
+`listModels()` follows OpenRouter's pagination and fills the standard fields from
+OpenRouter's own metadata — `supportedParameters` and input modalities:
+
+```typescript
+const models = await agent.listModels();
+
+const vision = models.filter((m) => m.capabilities?.vision === true);
+console.log(models[0].raw.pricing?.prompt); // USD per million prompt tokens
+```
+
+### Streaming
+
+`executeStream()` works like the other providers, with tool calls transparently
+pausing and resuming the stream. Models that emit reasoning yield `"reasoning"`
+chunks without extra config:
+
+```typescript
+for await (const chunk of agent.executeStream('What is 17 * 13?')) {
+  if (chunk.type === 'text') process.stdout.write(chunk.content);
+}
+```
+
 ## Custom OpenAI-Compatible Agents
 
 `OpenAICompatibleAgent` is the abstract base class that powers `LlamaCppAgent`. Use it directly to build your own typed agent for any server that speaks the OpenAI `/v1/chat/completions` protocol — vLLM, LM Studio, Together AI, Groq, Fireworks, and more.
@@ -625,14 +835,14 @@ MCP tools do this for you — the run's signal is passed to the MCP call, overri
 
 | Provider | How the signal is applied |
 |----------|---------------------------|
-| Anthropic, OpenAI, llama.cpp / OpenAI-compatible | The SDK's per-request `signal` |
+| Anthropic, OpenAI, OpenRouter, llama.cpp / OpenAI-compatible | The SDK's per-request `signal` |
 | Mistral | The SDK's per-request options — this also cuts short the inter-call rate-limit wait |
 | Gemini | `SingleRequestOptions.signal`. Client-side only: Google still runs and bills the request |
 | Ollama | The `ollama` package takes no per-request options, so a run with a signal gets its own client whose `fetch` attaches it |
 
 ## Streaming
 
-`executeStream()` is available on `ClaudeAgent`, `OpenAiAgent`, and any `OpenAICompatibleAgent` subclass (including `LlamaCppAgent`). It returns an `AsyncGenerator<StreamChunk>` — the same type across all providers:
+`executeStream()` is available on `ClaudeAgent`, `OpenAiAgent`, `OpenRouterAgent`, and any `OpenAICompatibleAgent` subclass (including `LlamaCppAgent`). It returns an `AsyncGenerator<StreamChunk>` — the same type across all providers:
 
 ```typescript
 type StreamChunk = {
@@ -781,6 +991,7 @@ for await (const chunk of agent.executeStream('Weather in Amsterdam and Paris?')
 |-------|:---------:|:----------------:|
 | `ClaudeAgent` | ✅ | ✅ — set `thinkingBudgetTokens` |
 | `OpenAiAgent` | ✅ | ✅ — set `reasoningEffort` (reasoning models) |
+| `OpenRouterAgent` | ✅ | ✅ — emitted automatically by reasoning models |
 | `LlamaCppAgent` | ✅ | ✅ (DeepSeek R1 / `reasoning_content`) |
 | `OpenAICompatibleAgent` subclasses | ✅ | ✅ |
 | `OllamaAgent` | ❌ | — |
@@ -830,6 +1041,7 @@ const response2 = await agent.execute([
 | OpenAI | ✅ | ✅ |
 | Gemini | ✅ | ✅ |
 | Mistral | ✅ | ❌ |
+| OpenRouter | ✅ | ✅ |
 | Ollama | ❌ | ❌ |
 
 [Full multimodal guide →](/guide/multimodal)

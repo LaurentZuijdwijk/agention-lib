@@ -2,6 +2,11 @@ import { Tool } from "../tools/Tool";
 import { BuiltInTool } from "../tools/BuiltInTool";
 import { BaseAgent } from "./BaseAgent";
 import type { ReasoningEffort } from "./model-types";
+import type {
+  OpenRouterProviderPreferences,
+  OpenRouterReasoningConfig,
+  OpenRouterRetryConfig,
+} from "./openrouter/types";
 
 /** Supported LLM vendors */
 export type AgentVendor =
@@ -10,7 +15,8 @@ export type AgentVendor =
   | "mistral"
   | "gemini"
   | "ollama"
-  | "llamacpp";
+  | "llamacpp"
+  | "openrouter";
 
 /**
  * Common configuration shared by all agents
@@ -207,6 +213,89 @@ export interface LlamaCppSpecificConfig {
   baseURL?: string;
 }
 
+/** Vendor-specific configuration for Cerebras */
+export interface CerebrasSpecificConfig {
+  /** Cerebras OpenAI-compatible API base URL. */
+  baseURL?: string;
+}
+
+/**
+ * Vendor-specific configuration for OpenRouter
+ *
+ * @see https://openrouter.ai/docs/api-reference/chat/send-a-chat-completion-request
+ */
+export interface OpenRouterSpecificConfig {
+  /**
+   * Fallback models, tried in order when the primary `model` cannot serve the
+   * request — including when it is rate limited.
+   *
+   * This is the one throttling mitigation that works against a `:free` model's
+   * daily quota, which no amount of client-side backoff will wait out. Put a
+   * paid model last if you want the run to finish regardless.
+   *
+   * @example
+   * ```typescript
+   * model: "deepseek/deepseek-chat-v3:free",
+   * vendorConfig: { openrouter: { models: ["qwen/qwen3-235b-a22b", "openai/gpt-5.6"] } }
+   * ```
+   */
+  models?: string[];
+
+  /** Where OpenRouter may route the request. */
+  provider?: OpenRouterProviderPreferences;
+
+  /**
+   * Retry policy for the chat request.
+   *
+   * Overriding the SDK's own default is deliberate. `@openrouter/sdk` retries
+   * only `5XX` on this endpoint, so a 429 fails on the first response even
+   * though its backoff already knows how to honour `Retry-After`; and its
+   * default `maxElapsedTime` is an hour. The agent instead retries
+   * `429`/`408`/`409`/`5XX` with a two-minute ceiling. Pass
+   * `{ strategy: "none" }` to opt out entirely and handle 429s yourself.
+   */
+  retry?: OpenRouterRetryConfig;
+
+  /**
+   * HTTP status codes the retry policy applies to. Accepts exact codes
+   * (`"429"`) and families (`"5XX"`). Defaults to
+   * `["408", "409", "429", "5XX"]`.
+   */
+  retryCodes?: string[];
+
+  /** Reasoning configuration for models that support it. */
+  reasoning?: OpenRouterReasoningConfig;
+
+  /**
+   * OpenRouter plugins to enable — web search, file parsing, context
+   * compression, moderation. Passed through untouched; see
+   * https://openrouter.ai/docs/guides/features/plugins for the shapes.
+   */
+  plugins?: unknown[];
+
+  /**
+   * Sticky routing key. Requests sharing one are pinned to the same upstream
+   * provider, which is what makes prompt caching hit across a conversation.
+   * Also groups the requests in OpenRouter's observability views.
+   */
+  sessionId?: string;
+
+  /** Stable per-end-user identifier used for abuse isolation. Never forwarded raw. */
+  user?: string;
+
+  /** Processing tier; `"fast"` is an accepted alias for `"priority"`. */
+  serviceTier?: string;
+
+  /** Sent as `HTTP-Referer` — how OpenRouter attributes traffic to your app. */
+  httpReferer?: string;
+
+  /** Sent as `X-Title` — the app name shown on OpenRouter's leaderboards. */
+  appTitle?: string;
+
+  /** Disable parallel tool calling (sends `parallel_tool_calls: false`). */
+  disableParallelToolUse?: boolean;
+}
+
 /**
  * Generic vendor-specific configuration container
  * This allows any vendor to add custom config without modifying base types
@@ -218,6 +307,7 @@ export interface VendorSpecificConfig {
   gemini?: GeminiSpecificConfig;
   ollama?: OllamaSpecificConfig;
   llamacpp?: LlamaCppSpecificConfig;
+  openrouter?: OpenRouterSpecificConfig;
 }
 
 /**
@@ -263,6 +353,8 @@ export type TypedAgentConfig<V extends AgentVendor> = CommonAgentConfig & {
     ? { ollama?: OllamaSpecificConfig }
     : V extends "llamacpp"
     ? { llamacpp?: LlamaCppSpecificConfig }
+    : V extends "openrouter"
+    ? { openrouter?: OpenRouterSpecificConfig }
     : never;
 };
 
@@ -281,4 +373,6 @@ export type VendorConfigFor<V extends AgentVendor> = V extends "anthropic"
   ? OllamaSpecificConfig
   : V extends "llamacpp"
   ? LlamaCppSpecificConfig
+  : V extends "openrouter"
+  ? OpenRouterSpecificConfig
   : never;

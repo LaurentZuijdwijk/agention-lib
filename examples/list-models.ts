@@ -17,6 +17,7 @@ import { ClaudeAgent } from "../lib/agents/anthropic/ClaudeAgent";
 import { OpenAiAgent } from "../lib/agents/openai/OpenAiAgent";
 import { MistralAgent } from "../lib/agents/mistral/MistralAgent";
 import { GeminiAgent } from "../lib/agents/google/GeminiAgent";
+import { OpenRouterAgent } from "../lib/agents/openrouter/OpenRouterAgent";
 import { OllamaAgent } from "../lib/agents/ollama/OllamaAgent";
 import { LlamaCppAgent } from "../lib/agents/llamacpp/LlamaCppAgent";
 
@@ -95,6 +96,13 @@ async function main(): Promise<void> {
     await show(
       "Gemini",
       new GeminiAgent({ ...identity, apiKey: process.env.GOOGLE_API_KEY })
+    );
+  }
+
+  if (process.env.OPENROUTER_API_KEY) {
+    await show(
+      "OpenRouter",
+      new OpenRouterAgent({ ...identity, apiKey: process.env.OPENROUTER_API_KEY })
     );
   }
 

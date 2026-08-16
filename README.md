@@ -27,6 +27,7 @@ Get an API key from your chosen provider:
 - **OpenAI**: [platform.openai.com](https://platform.openai.com/api-keys)
 - **Gemini**: [aistudio.google.com](https://aistudio.google.com/app/apikey)
 - **Mistral**: [console.mistral.ai](https://console.mistral.ai/)
+- **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys) — one key, dozens of upstream providers
 - **Ollama** / **llama.cpp**: no API key needed — run models locally (see [Agents guide](https://docs.agention.ai/guide/agents))
 
 Set it as an environment variable:
@@ -62,6 +63,7 @@ import { ClaudeAgent } from '@agentionai/agents/claude';     // Requires @anthro
 import { OpenAiAgent } from '@agentionai/agents/openai';     // Requires openai
 import { GeminiAgent } from '@agentionai/agents/gemini';     // Requires @google/generative-ai
 import { MistralAgent } from '@agentionai/agents/mistral';   // Requires @mistralai/mistralai
+import { OpenRouterAgent } from '@agentionai/agents/openrouter'; // Requires @openrouter/sdk
 import { OllamaAgent } from '@agentionai/agents/ollama';     // Requires ollama (local, no API key)
 import { LlamaCppAgent } from '@agentionai/agents/llamacpp'; // Requires openai (local, no API key)
 ```
@@ -75,9 +77,9 @@ import { ClaudeAgent, OpenAiAgent } from '@agentionai/agents';
 
 ## Features
 
-- **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral, plus local models via Ollama and llama.cpp—same interface. Switch models with one line. `listModels()` asks any provider what it currently offers, in one shared shape.
+- **Multi-Provider, No Lock-in** - Claude, OpenAI, Gemini, Mistral, OpenRouter (one key, dozens of upstream providers), plus local models via Ollama and llama.cpp—same interface. Switch models with one line. `listModels()` asks any provider what it currently offers, in one shared shape.
 - **Composable Context Management** - Tool result masking (lossless, free) + rolling summarization (auto-firing) + sub-agent delegation (token isolation by architecture).
-- **Streaming** - `executeStream()` on Claude, OpenAI, and all OpenAI-compatible agents. Yields `{ type: "text" | "reasoning" }` chunks; tool calls handled transparently.
+- **Streaming** - `executeStream()` on Claude, OpenAI, OpenRouter, and all OpenAI-compatible agents. Yields `{ type: "text" | "reasoning" }` chunks; tool calls handled transparently.
 - **Built-In Tools** - Use provider-defined server-side tools (e.g. Anthropic's web search, bash, text editor) alongside your own.
 - **Composable, Not Magical** - Agents are objects. Pipelines are arrays. No hidden state, no surprises.
 - **Multimodal / Vision** - Send images alongside text with a unified `MessageContent[]` API across all providers.

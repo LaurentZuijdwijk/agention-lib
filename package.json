@@ -1,7 +1,7 @@
 {
   "name": "@agentionai/agents",
   "author": "Laurent Zuijdwijk",
-  "version": "1.7.0-beta.0",
+  "version": "1.8.0",
   "description": "Agent Library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -37,6 +37,10 @@
     "./llamacpp": {
       "types": "./dist/llamacpp.d.ts",
       "default": "./dist/llamacpp.js"
+    },
+    "./openrouter": {
+      "types": "./dist/openrouter.d.ts",
+      "default": "./dist/openrouter.js"
     },
     "./embeddings": {
       "types": "./dist/embeddings/index.d.ts",
@@ -114,6 +118,7 @@
     "@lancedb/lancedb": "^0.23.0",
     "@mistralai/mistralai": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@openrouter/sdk": "^1.2.37",
     "@types/jest": "^29.5.0",
     "@types/node": "^18.15.11",
     "apache-arrow": "^18.1.0",
@@ -145,6 +150,7 @@
     "@lancedb/lancedb": "^0.23.0",
     "@mistralai/mistralai": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@openrouter/sdk": "^1.2.29",
     "apache-arrow": "^18.0.0",
     "ollama": "^0.5.18",
     "openai": "^6.16.0",
@@ -179,6 +185,9 @@
       "optional": true
     },
     "ollama": {
+      "optional": true
+    },
+    "@openrouter/sdk": {
       "optional": true
     }
   },

@@ -59,6 +59,19 @@ export type ThinkingContent = {
   thinking: string;
   signature?: string;
   redactedData?: string;
+  /**
+   * Provider-opaque reasoning blocks that have to be echoed back verbatim.
+   *
+   * OpenRouter returns `reasoning_details` beside the plain `reasoning` text and
+   * requires them back on the next request — the `reasoning.encrypted` variant
+   * carries the upstream provider's signed thinking (Anthropic's `signature`,
+   * OpenAI's encrypted reasoning), which cannot be reconstructed from the text.
+   * Dropping them makes a multi-turn tool call fail on those models.
+   *
+   * Nothing here reads the contents; they only have to survive the round trip,
+   * so they stay untyped rather than modelling every provider's block shapes.
+   */
+  reasoningDetails?: unknown[];
 };
 
 /**
@@ -156,6 +169,14 @@ export type LlamaCppMeta = {
 };
 
 /**
+ * OpenRouter-specific metadata
+ */
+export type OpenRouterMeta = {
+  provider: "openrouter";
+  tool_call_id?: string;
+};
+
+/**
  * Union of all provider metadata types
  */
 export type ProviderMeta =
@@ -164,7 +185,8 @@ export type ProviderMeta =
   | MistralMeta
   | GeminiMeta
   | OllamaMeta
-  | LlamaCppMeta;
+  | LlamaCppMeta
+  | OpenRouterMeta;
 
 // =============================================================================
 // History Entry
@@ -294,9 +316,21 @@ export function toolUse(
 export function thinking(
   thinkingText: string,
   signature?: string,
-  redactedData?: string
+  redactedData?: string,
+  reasoningDetails?: unknown[]
 ): ThinkingContent {
-  return { type: "thinking", thinking: thinkingText, signature, redactedData };
+  // As in `toolUse()`, only set the passthrough key when there is something in
+  // it, so a block stored without details serializes exactly as it did before
+  // the field existed.
+  return {
+    type: "thinking",
+    thinking: thinkingText,
+    signature,
+    redactedData,
+    ...(reasoningDetails && reasoningDetails.length > 0
+      ? { reasoningDetails }
+      : {}),
+  };
 }
 
 /**

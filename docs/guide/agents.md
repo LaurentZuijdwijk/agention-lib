@@ -514,7 +514,7 @@ for await (const chunk of stream) {
 }
 ```
 
-It targets whichever streamed completion is currently in flight, so call it while iterating `executeStream()`'s output. It's a no-op before the first stream has produced a chunk, and a failed request is logged (when `debug: true`) rather than thrown — it's a best-effort side channel to a turn that should otherwise proceed normally. Specific to `LlamaCppAgent`: other `OpenAICompatibleAgent` subclasses (vLLM, LM Studio, Cerebras, …) don't implement this endpoint.
+It targets whichever streamed completion is currently in flight, so call it while iterating `executeStream()`'s output. It's a no-op before the first stream has produced a chunk, and a failure is logged (when `debug: true`) rather than thrown — it's a best-effort side channel to a turn that should otherwise proceed normally. Failure includes both a network/HTTP error and the server's own rejection, which arrives as `{success: false, message: "..."}` inside an HTTP 200 (e.g. calling it after the completion already finished) — `skipReasoning()` checks the response body, not just `res.ok`, to catch that case too. Specific to `LlamaCppAgent`: other `OpenAICompatibleAgent` subclasses (vLLM, LM Studio, Cerebras, …) don't implement this endpoint.
 
 `LlamaCppAgent` sends `reasoning_control: true` on every chat completions request (its `buildExtraRequestParams()`) — without it, `llama-server` silently ignores the `reasoning_end` control call and the model keeps thinking to completion. Nothing to configure; if you subclass `OpenAICompatibleAgent` directly for a llama.cpp server instead of using `LlamaCppAgent`, you'll need to set that field yourself.
 

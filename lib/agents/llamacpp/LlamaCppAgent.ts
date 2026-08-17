@@ -157,13 +157,15 @@ export class LlamaCppAgent extends OpenAICompatibleAgent {
    * A no-op if no streamed completion is in flight yet (`lastChunkId` unset).
    * Best-effort: a failed request is logged (when `debug` is on) rather than
    * thrown, since this is a side channel to a turn that should otherwise
-   * proceed normally.
+   * proceed normally. The endpoint reports failure (e.g. a completion that
+   * already finished) as `{success: false}` inside a 200 response rather than
+   * an HTTP error, so a non-throwing rejection has to be read from the body.
    */
   async skipReasoning(): Promise<void> {
     if (!this.lastChunkId) return;
 
     try {
-      await fetch(`${this.config.baseURL}/chat/completions/control`, {
+      const res = await fetch(`${this.config.baseURL}/chat/completions/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -172,14 +174,28 @@ export class LlamaCppAgent extends OpenAICompatibleAgent {
           model: this.config.model,
         }),
       });
-    } catch (error: unknown) {
-      if (this.debug) {
-        console.error(
-          `Failed to signal reasoning_end to ${this.getVendorName()}: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
+
+      const body = (await res.json().catch(() => undefined)) as
+        | { success?: boolean; message?: string }
+        | undefined;
+
+      if (!res.ok || body?.success === false) {
+        this.logSkipReasoningFailure(
+          body?.message ?? `HTTP ${res.status}`
         );
       }
+    } catch (error: unknown) {
+      this.logSkipReasoningFailure(
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    }
+  }
+
+  private logSkipReasoningFailure(reason: string): void {
+    if (this.debug) {
+      console.error(
+        `Failed to signal reasoning_end to ${this.getVendorName()}: ${reason}`
+      );
     }
   }
 }

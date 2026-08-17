@@ -263,8 +263,19 @@ describe("LlamaCppAgent", () => {
   describe("skipReasoning", () => {
     let fetchSpy: jest.SpyInstance;
 
+    // Helper: a fetch Response whose body is the given JSON.
+    function jsonResponse(status: number, body: unknown): Response {
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        json: () => Promise.resolve(body),
+      } as unknown as Response;
+    }
+
     beforeEach(() => {
-      fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({ ok: true } as Response);
+      fetchSpy = jest
+        .spyOn(global, "fetch")
+        .mockResolvedValue(jsonResponse(200, { success: true }));
     });
 
     afterEach(() => {
@@ -301,6 +312,41 @@ describe("LlamaCppAgent", () => {
       fetchSpy.mockRejectedValue(new Error("connection refused"));
 
       await expect(agent.skipReasoning()).resolves.toBeUndefined();
+    });
+
+    it("logs when the server reports success: false in a 200 response", async () => {
+      // llama-server's control endpoint reports a rejected control call this
+      // way — e.g. the completion already finished — rather than as an HTTP
+      // error, so this can't be caught by checking res.ok alone.
+      agent["debug"] = true;
+      agent["lastChunkId"] = "chatcmpl-123";
+      fetchSpy.mockResolvedValue(
+        jsonResponse(200, {
+          success: false,
+          message: "no active completion for this id",
+        })
+      );
+      const errorSpy = jest.spyOn(console, "error").mockImplementation();
+
+      await agent.skipReasoning();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("no active completion for this id")
+      );
+      errorSpy.mockRestore();
+    });
+
+    it("does not log a success: false failure when debug is off", async () => {
+      agent["lastChunkId"] = "chatcmpl-123";
+      fetchSpy.mockResolvedValue(
+        jsonResponse(200, { success: false, message: "nope" })
+      );
+      const errorSpy = jest.spyOn(console, "error").mockImplementation();
+
+      await agent.skipReasoning();
+
+      expect(errorSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
     });
   });
 

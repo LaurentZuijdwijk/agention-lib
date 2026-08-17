@@ -236,6 +236,30 @@ describe("LlamaCppAgent", () => {
     });
   });
 
+  describe("buildExtraRequestParams", () => {
+    it("opts every request into reasoning_control, without which reasoning_end is silently ignored", () => {
+      expect(agent["buildExtraRequestParams"]()).toEqual({
+        reasoning_control: true,
+      });
+    });
+
+    it("sends reasoning_control on the outgoing chat completions request", async () => {
+      mockClient.chat.completions.create.mockResolvedValue({
+        choices: [
+          { finish_reason: "stop", message: { role: "assistant", content: "hi" } },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      });
+
+      await agent.execute("Hi");
+
+      expect(mockClient.chat.completions.create).toHaveBeenCalledWith(
+        expect.objectContaining({ reasoning_control: true }),
+        { signal: undefined }
+      );
+    });
+  });
+
   describe("skipReasoning", () => {
     let fetchSpy: jest.SpyInstance;
 

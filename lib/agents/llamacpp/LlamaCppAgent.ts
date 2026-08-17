@@ -108,6 +108,16 @@ export class LlamaCppAgent extends OpenAICompatibleAgent {
   }
 
   /**
+   * `reasoning_control: true` opts the completion into `llama-server`'s
+   * `/chat/completions/control` endpoint — without it, a `reasoning_end`
+   * control call is silently ignored and the model keeps thinking. See
+   * {@link skipReasoning}.
+   */
+  protected buildExtraRequestParams(): Record<string, unknown> {
+    return { reasoning_control: true };
+  }
+
+  /**
    * List the models the server offers, adding the two things llama.cpp reports
    * beyond the OpenAI-standard fields:
    *

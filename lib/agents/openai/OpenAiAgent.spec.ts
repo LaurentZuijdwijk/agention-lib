@@ -242,6 +242,63 @@ describe("OpenAiAgent", () => {
     });
   });
 
+  describe("getAllToolDefinitions", () => {
+    it("appends built-in tools after function tools", () => {
+      const mockTool = {
+        getPrompt: jest.fn().mockReturnValue({
+          name: "test_tool",
+          description: "Test tool description",
+          input_schema: {
+            type: "object",
+            properties: { param1: { type: "string" } },
+            required: ["param1"],
+          },
+        }),
+      };
+      agent["tools"].set("test_tool", mockTool as any);
+      agent["config"].builtInTools = [{ type: "web_search" }];
+
+      const definitions = agent["getAllToolDefinitions"]();
+
+      expect(definitions).toEqual([
+        expect.objectContaining({ type: "function", name: "test_tool" }),
+        { type: "web_search" },
+      ]);
+    });
+
+    it("returns just the built-in tools when there are no function tools", () => {
+      agent["config"].builtInTools = [{ type: "file_search", vector_store_ids: ["vs_1"] }];
+
+      expect(agent["getAllToolDefinitions"]()).toEqual([
+        { type: "file_search", vector_store_ids: ["vs_1"] },
+      ]);
+    });
+
+    it("passes builtInTools from flat config into the request", () => {
+      const customAgent = new OpenAiAgent({
+        apiKey: "test-api-key",
+        id: "2",
+        name: "Agent",
+        description: "d",
+        builtInTools: [{ type: "web_search" }],
+      });
+
+      expect(customAgent["getAllToolDefinitions"]()).toEqual([{ type: "web_search" }]);
+    });
+
+    it("passes builtInTools from vendorConfig.openai into the request", () => {
+      const customAgent = new OpenAiAgent({
+        apiKey: "test-api-key",
+        id: "3",
+        name: "Agent",
+        description: "d",
+        vendorConfig: { openai: { builtInTools: [{ type: "web_search" }] } },
+      });
+
+      expect(customAgent["getAllToolDefinitions"]()).toEqual([{ type: "web_search" }]);
+    });
+  });
+
   describe("execute", () => {
     it("should call client.responses.create with correct parameters", async () => {
       const mockResponse = {

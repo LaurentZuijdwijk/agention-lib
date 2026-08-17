@@ -826,8 +826,19 @@ export const chatCompletionsTransformer = {
   /**
    * Convert normalized entries to Chat Completions message format.
    * Tool results become role:"tool" messages; tool calls are embedded in assistant messages.
+   *
+   * `includeReasoning` (default `true`) controls whether a prior assistant
+   * turn's reasoning is replayed as `reasoning_content`. DeepSeek's thinking
+   * mode requires it; some OpenAI-compatible servers (Cerebras) reject the
+   * field outright with a 400 on any message that carries it. Callers that
+   * have detected the latter pass `false` to fall back to the OpenAI-standard
+   * message shape.
    */
-  toProvider(entries: HistoryEntry[]): ChatCompletionMessage[] {
+  toProvider(
+    entries: HistoryEntry[],
+    options?: { includeReasoning?: boolean }
+  ): ChatCompletionMessage[] {
+    const includeReasoning = options?.includeReasoning ?? true;
     const messages: ChatCompletionMessage[] = [];
 
     for (const entry of entries) {
@@ -861,7 +872,7 @@ export const chatCompletionsTransformer = {
           .map((block) => block.thinking)
           .filter((thought) => thought.length > 0)
           .join("\n");
-        if (reasoning) {
+        if (reasoning && includeReasoning) {
           msg.reasoning_content = reasoning;
         }
 

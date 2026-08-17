@@ -439,6 +439,131 @@ describe("OpenAICompatibleAgent", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // reasoning replay fallback
+  //
+  // Some OpenAI-compatible servers (Cerebras, verified live 2026-08-17) 400 on
+  // any message carrying a replayed `reasoning_content` field, while others
+  // (DeepSeek, llama.cpp) require it. These use the same tool-call round trip
+  // as "replays non-streamed reasoning_content on the follow-up request" above
+  // to get a reasoning-bearing assistant turn into history within one
+  // execute() call, since the default TestAgent's history is transient.
+  // ---------------------------------------------------------------------------
+
+  describe("reasoning replay fallback", () => {
+    const toolCallResponse = {
+      choices: [
+        {
+          finish_reason: "tool_calls",
+          message: {
+            role: "assistant",
+            content: null,
+            reasoning_content: "The user wants Paris weather.",
+            tool_calls: [
+              {
+                id: "call_1",
+                type: "function",
+                function: { name: "get_weather", arguments: '{"city":"Paris"}' },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const finalResponse = {
+      choices: [
+        { finish_reason: "stop", message: { role: "assistant", content: "It's sunny in Paris." } },
+      ],
+    };
+
+    beforeEach(() => {
+      agent["tools"].set("get_weather", {
+        execute: jest.fn().mockResolvedValue({ tempC: 22 }),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "get_weather",
+          description: "Look up the weather",
+          input_schema: { type: "object", properties: { city: { type: "string" } } },
+        }),
+      } as any);
+    });
+
+    it("retries without reasoning_content when the provider 400s on the replay, and remembers it", async () => {
+      const reasoningRejected = Object.assign(
+        new OpenAI.APIError(
+          400,
+          { message: "messages.2.assistant.reasoning_content: unsupported" },
+          "unsupported field",
+          {}
+        ),
+        { status: 400 } // jest.mock("openai") automocks the constructor body away
+      );
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(toolCallResponse) // initial turn — produces the reasoning
+        .mockRejectedValueOnce(reasoningRejected) // follow-up, replays reasoning_content — 400
+        .mockResolvedValueOnce(finalResponse); // retry without it — succeeds
+
+      const result = await agent.execute("What's the weather in Paris?");
+
+      expect(result).toBe("It's sunny in Paris.");
+      expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(3);
+
+      const failedAttempt = mockClient.chat.completions.create.mock.calls[1][0];
+      const retryAttempt = mockClient.chat.completions.create.mock.calls[2][0];
+      const failedAssistantMsg = failedAttempt.messages.find((m: any) => m.role === "assistant");
+      const retryAssistantMsg = retryAttempt.messages.find((m: any) => m.role === "assistant");
+
+      expect(failedAssistantMsg.reasoning_content).toBe("The user wants Paris weather.");
+      expect(retryAssistantMsg).not.toHaveProperty("reasoning_content");
+      expect(agent["reasoningReplaySupported"]).toBe(false);
+    });
+
+    it("does not retry a 400 when there is no reasoning in history to replay", async () => {
+      const plainRejection = Object.assign(
+        new OpenAI.APIError(400, { message: "bad request" }, "bad request", {}),
+        { status: 400 }
+      );
+      mockClient.chat.completions.create.mockRejectedValue(plainRejection);
+
+      const { ApiError } = await import("../errors/AgentError");
+      await expect(agent.execute("Hi")).rejects.toThrow(ApiError);
+      expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("surfaces the original error when the retry fails too", async () => {
+      const reasoningRejected = Object.assign(
+        new OpenAI.APIError(
+          400,
+          { message: "messages.2.assistant.reasoning_content: unsupported" },
+          "unsupported field",
+          {}
+        ),
+        { status: 400 }
+      );
+      const unrelatedRejection = Object.assign(
+        new OpenAI.APIError(400, { message: "still broken" }, "still broken", {}),
+        { status: 400 }
+      );
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(toolCallResponse)
+        .mockRejectedValueOnce(reasoningRejected)
+        .mockRejectedValueOnce(unrelatedRejection);
+
+      // The tool-follow-up path always wraps its error in ExecutionError (see
+      // handleResponse's second try/catch), so the wrapper type can't
+      // distinguish which of the two 400s propagated. What this asserts is
+      // that both attempts actually happened (the initial call plus one
+      // retry, not more) and that failing the retry did not leave the agent
+      // thinking reasoning replay is supported.
+      await expect(agent.execute("What's the weather in Paris?")).rejects.toThrow(
+        ExecutionError
+      );
+      expect(mockClient.chat.completions.create).toHaveBeenCalledTimes(3);
+      expect(agent["reasoningReplaySupported"]).toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // cancellation
   // ---------------------------------------------------------------------------
 

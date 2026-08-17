@@ -188,6 +188,7 @@ export class OpenRouterAgent extends BaseAgent {
       retryCodes: config.retryCodes ?? nested.retryCodes,
       reasoning: config.reasoning ?? nested.reasoning,
       plugins: config.plugins ?? nested.plugins,
+      builtInTools: config.builtInTools ?? nested.builtInTools,
       sessionId: config.sessionId ?? nested.sessionId,
       user: config.user ?? nested.user,
       serviceTier: config.serviceTier ?? nested.serviceTier,
@@ -264,6 +265,18 @@ export class OpenRouterAgent extends BaseAgent {
         },
       };
     });
+  }
+
+  /**
+   * Combine locally-executed tool definitions with provider-defined
+   * (server-side) built-in tools (e.g. `openrouter:web_search`). Both sit in
+   * the same flat `tools` array OpenRouter's OpenAI-compatible endpoint takes.
+   */
+  protected getAllToolDefinitions(): Array<Record<string, unknown>> {
+    return [
+      ...this.getToolDefinitions(),
+      ...(this.config.builtInTools ?? []),
+    ];
   }
 
   protected async process(_input: string): Promise<string> {
@@ -503,7 +516,8 @@ export class OpenRouterAgent extends BaseAgent {
   /** The `ChatRequest` body, identical for the streaming and buffered paths. */
   private buildRequest(stream: boolean): Record<string, unknown> {
     const messages = openRouterTransformer.toProvider(this.history.getEntries());
-    const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
+    const allTools = this.getAllToolDefinitions();
+    const tools = allTools.length > 0 ? allTools : undefined;
 
     return {
       model: this.config.model!,

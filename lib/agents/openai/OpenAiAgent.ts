@@ -15,6 +15,7 @@ import {
 } from "../errors/AgentError";
 import { History, MessageContent } from "../../history/History";
 import { openAiTransformer } from "../../history/transformers";
+import { type BuiltInTool } from "../../tools/BuiltInTool";
 import {
   Tool,
   Response,
@@ -55,6 +56,12 @@ type AgentConfig<M extends OpenAIModel = OpenAIModel> = BaseAgentConfig & {
    */
   reasoningEffort?: ReasoningEffortFor<M>;
   user?: string;
+  /**
+   * Provider-defined / server-side tools (e.g. web search, file search, code
+   * interpreter). These run on OpenAI's infrastructure rather than locally.
+   * @see lib/tools/BuiltInTool.ts
+   */
+  builtInTools?: BuiltInTool[];
 };
 
 /**
@@ -138,6 +145,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
     const reasoningEffort =
       config.reasoningEffort ?? vendorConfig.reasoningEffort;
     const user = config.user ?? vendorConfig.user;
+    const builtInTools = config.builtInTools ?? vendorConfig.builtInTools;
 
     this.config = {
       model: config.model || "gpt-4.1-mini",
@@ -152,6 +160,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       disableReasoning,
       reasoningEffort,
       user,
+      builtInTools,
       apiKey: config.apiKey,
       temperature: config.temperature,
       topP: config.topP,
@@ -211,6 +220,21 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         strict: canUseStrictSchema(parameters),
       };
     });
+  }
+
+  /**
+   * Combine locally-executed tool definitions with provider-defined
+   * (server-side) built-in tools, in the shape the Responses API expects.
+   * Cast to `Tool[]`: built-in tool objects (e.g. `{ type: "web_search" }`)
+   * don't fit the SDK's `Tool` union, which only names `function` tools plus
+   * the specific built-ins it has typed — the same passthrough `ClaudeAgent`
+   * uses for its own `ToolUnion[]`.
+   */
+  protected getAllToolDefinitions(): Tool[] {
+    return [
+      ...this.getToolDefinitions(),
+      ...(this.config.builtInTools ?? []),
+    ] as Tool[];
   }
 
   /**
@@ -302,7 +326,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           model: this.config.model!,
           max_output_tokens: this.config.maxTokens,
           input: inputMessages,
-          tools: this.getToolDefinitions(),
+          tools: this.getAllToolDefinitions(),
           store: false,
           temperature: this.config.temperature,
           top_p: this.config.topP,
@@ -521,7 +545,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
               model: this.config.model!,
               max_output_tokens: this.config.maxTokens,
               input: inputMessages,
-              tools: this.getToolDefinitions(),
+              tools: this.getAllToolDefinitions(),
               store: false,
               temperature: this.config.temperature,
               top_p: this.config.topP,
@@ -793,7 +817,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         model: this.config.model!,
         max_output_tokens: this.config.maxTokens,
         input: inputMessages,
-        tools: this.getToolDefinitions(),
+        tools: this.getAllToolDefinitions(),
         store: false,
         stream: true,
         temperature: this.config.temperature,

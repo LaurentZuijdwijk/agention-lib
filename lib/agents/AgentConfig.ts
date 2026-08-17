@@ -175,6 +175,12 @@ export interface OpenAISpecificConfig {
   reasoningEffort?: ReasoningEffort;
   seed?: number;
   user?: string;
+  /**
+   * Provider-defined / server-side tools (e.g. web search, file search, code
+   * interpreter). These run on OpenAI's infrastructure rather than locally —
+   * see `lib/tools/BuiltInTool.ts`.
+   */
+  builtInTools?: BuiltInTool[];
 }
 
 /**
@@ -210,12 +216,6 @@ export interface OllamaSpecificConfig {
  */
 export interface LlamaCppSpecificConfig {
   /** Base URL of the llama.cpp server's OpenAI-compatible API (default: `http://localhost:8080/v1`) */
-  baseURL?: string;
-}
-
-/** Vendor-specific configuration for Cerebras */
-export interface CerebrasSpecificConfig {
-  /** Cerebras OpenAI-compatible API base URL. */
   baseURL?: string;
 }
 
@@ -267,9 +267,13 @@ export interface OpenRouterSpecificConfig {
   reasoning?: OpenRouterReasoningConfig;
 
   /**
-   * OpenRouter plugins to enable — web search, file parsing, context
-   * compression, moderation. Passed through untouched; see
+   * OpenRouter plugins to enable — file parsing, context compression,
+   * moderation. Passed through untouched; see
    * https://openrouter.ai/docs/guides/features/plugins for the shapes.
+   *
+   * The `{ id: "web" }` web search plugin is deprecated in favour of the
+   * `openrouter:web_search` server tool — use {@link builtInTools} /
+   * `openRouterWebSearchTool()` instead.
    */
   plugins?: unknown[];
 
@@ -294,6 +298,14 @@ export interface OpenRouterSpecificConfig {
 
   /** Disable parallel tool calling (sends `parallel_tool_calls: false`). */
   disableParallelToolUse?: boolean;
+
+  /**
+   * Provider-defined / server-side tools (e.g. `openrouter:web_search`,
+   * `openrouter:web_fetch`). These run on OpenRouter's infrastructure rather
+   * than locally — see `lib/tools/BuiltInTool.ts`. Prefer these over the
+   * deprecated {@link OpenRouterSpecificConfig.plugins} web search plugin.
+   */
+  builtInTools?: BuiltInTool[];
 }
 
 /**

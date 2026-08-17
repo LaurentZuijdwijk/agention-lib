@@ -22,6 +22,7 @@ import {
   ToolExecutionError,
 } from "../errors/AgentError";
 import { History, MessageContent } from "../../history/History";
+import { isThinkingContent } from "../../history/types";
 import { chatCompletionsTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
@@ -59,6 +60,13 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
 
   private vizEventId?: string;
   private currentToolCallCount: number = 0;
+
+  /**
+   * Whether this server accepts a replayed `reasoning_content` field on an
+   * assistant message. `undefined` until proven otherwise — see
+   * {@link withReasoningReplayFallback}.
+   */
+  private reasoningReplaySupported?: boolean;
 
   constructor(
     config: OpenAICompatibleConfig & { vendor: AgentVendor },
@@ -249,30 +257,84 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   private async callProvider(
     options?: ExecuteOptions
   ): Promise<ChatCompletion> {
-    const messages = chatCompletionsTransformer.toProvider(
-      this.history.getEntries()
-    );
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
 
     this.startTurnTimer();
 
-    return this.client.chat.completions.create(
-      {
-        model: this.config.model!,
-        messages,
-        tools,
-        stream: false,
-        max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
-        top_p: this.config.topP,
-        stop: this.config.stopSequences,
-        seed: this.config.seed,
-        presence_penalty: this.config.presencePenalty,
-        frequency_penalty: this.config.frequencyPenalty,
-        ...this.buildExtraRequestParams(),
-      },
-      { signal: options?.signal }
+    return this.withReasoningReplayFallback((includeReasoning) =>
+      this.client.chat.completions.create(
+        {
+          model: this.config.model!,
+          messages: chatCompletionsTransformer.toProvider(
+            this.history.getEntries(),
+            { includeReasoning }
+          ),
+          tools,
+          stream: false,
+          max_tokens: this.config.maxTokens,
+          temperature: this.config.temperature,
+          top_p: this.config.topP,
+          stop: this.config.stopSequences,
+          seed: this.config.seed,
+          presence_penalty: this.config.presencePenalty,
+          frequency_penalty: this.config.frequencyPenalty,
+          ...this.buildExtraRequestParams(),
+        },
+        { signal: options?.signal }
+      )
     );
+  }
+
+  /**
+   * Some OpenAI-compatible servers (Cerebras, at least as of 2026-08) reject
+   * any message carrying `reasoning_content` with a plain 400 — no per-field
+   * detail worth parsing, and other servers *require* the field (DeepSeek's
+   * thinking mode), so it can't just be dropped unconditionally either.
+   *
+   * Runs `request` normally first. On a 400 that could plausibly be caused by
+   * a replayed reasoning field, retries once with it stripped; if that
+   * succeeds, remembers the result so every later call in this agent's
+   * lifetime skips straight to the working shape instead of paying for the
+   * failed attempt again. If the retry also fails, the original error is
+   * what surfaces — it's more likely to point at the real problem.
+   */
+  private async withReasoningReplayFallback<T>(
+    request: (includeReasoning: boolean) => Promise<T>
+  ): Promise<T> {
+    const includeReasoning = this.reasoningReplaySupported !== false;
+
+    try {
+      return await request(includeReasoning);
+    } catch (error: unknown) {
+      const worthRetrying =
+        includeReasoning &&
+        this.hasReplayableReasoning() &&
+        error instanceof OpenAI.APIError &&
+        error.status === 400;
+
+      if (!worthRetrying) throw error;
+
+      try {
+        const result = await request(false);
+        this.reasoningReplaySupported = false;
+        return result;
+      } catch {
+        throw error;
+      }
+    }
+  }
+
+  /** Whether any assistant turn in history carries reasoning that would be replayed. */
+  private hasReplayableReasoning(): boolean {
+    return this.history
+      .getEntries()
+      .some(
+        (entry) =>
+          entry.role === "assistant" &&
+          entry.content.some(
+            (block) => isThinkingContent(block) && block.thinking.length > 0
+          )
+      );
   }
 
   protected async handleResponse(
@@ -534,28 +596,32 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   private async *streamTurn(
     options?: ExecuteOptions
   ): AsyncGenerator<StreamChunk> {
-    const messages = chatCompletionsTransformer.toProvider(this.history.getEntries());
     const tools = this.tools.size > 0 ? this.getToolDefinitions() : undefined;
 
     this.startTurnTimer();
 
-    const stream = await this.client.chat.completions.create(
-      {
-        model: this.config.model!,
-        messages,
-        tools,
-        stream: true,
-        stream_options: { include_usage: true },
-        max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
-        top_p: this.config.topP,
-        stop: this.config.stopSequences,
-        seed: this.config.seed,
-        presence_penalty: this.config.presencePenalty,
-        frequency_penalty: this.config.frequencyPenalty,
-        ...this.buildExtraRequestParams(),
-      },
-      { signal: options?.signal }
+    const stream = await this.withReasoningReplayFallback((includeReasoning) =>
+      this.client.chat.completions.create(
+        {
+          model: this.config.model!,
+          messages: chatCompletionsTransformer.toProvider(
+            this.history.getEntries(),
+            { includeReasoning }
+          ),
+          tools,
+          stream: true,
+          stream_options: { include_usage: true },
+          max_tokens: this.config.maxTokens,
+          temperature: this.config.temperature,
+          top_p: this.config.topP,
+          stop: this.config.stopSequences,
+          seed: this.config.seed,
+          presence_penalty: this.config.presencePenalty,
+          frequency_penalty: this.config.frequencyPenalty,
+          ...this.buildExtraRequestParams(),
+        },
+        { signal: options?.signal }
+      )
     );
 
     let textContent = "";

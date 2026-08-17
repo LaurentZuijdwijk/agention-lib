@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-17
+
+### Added
+- **Server-side built-in tools for OpenAI and OpenRouter**, extending the
+  `BuiltInTool` passthrough (`lib/tools/BuiltInTool.ts`) that previously only
+  covered Anthropic. New helpers: `openAiWebSearchTool()`,
+  `openAiFileSearchTool()`, `openAiCodeInterpreterTool()` for the OpenAI
+  Responses API, and `openRouterWebSearchTool()` / `openRouterWebFetchTool()`
+  for OpenRouter's provider-agnostic server tools. `BuiltInTool.name` is now
+  optional — Anthropic's tools need it, OpenAI's and OpenRouter's generally
+  don't. `OpenAiAgent` and `OpenRouterAgent` both accept `builtInTools` (flat
+  config or `vendorConfig.<vendor>.builtInTools`) and merge them with regular
+  tool definitions via a new `getAllToolDefinitions()`.
+
+### Fixed
+- **OpenAI-compatible agents failing multi-turn conversations against strict
+  servers with a bare 400.** `chatCompletionsTransformer.toProvider()` always
+  replayed a prior turn's reasoning back as `reasoning_content` — required by
+  DeepSeek's thinking mode and accepted by OpenRouter as an alias, but
+  rejected outright by Cerebras's `/v1/chat/completions` endpoint. Rather than
+  special-case another vendor, `OpenAICompatibleAgent` now self-heals: on a
+  400 where history actually has reasoning to replay, it retries once with
+  `reasoning_content` omitted, and if that fixes it, remembers the result so
+  later turns in the same agent's lifetime skip straight to the working
+  request shape. Verified live against Cerebras (`gpt-oss-120b`).
+- Removed `CerebrasSpecificConfig` from `AgentConfig.ts` — added alongside the
+  OpenRouter agent but never wired into `AgentVendor` or `VendorSpecificConfig`,
+  so it was dead code; the fix above needs no per-vendor config anyway.
+
 ## [1.8.0] - 2026-08-16
 
 ### Added

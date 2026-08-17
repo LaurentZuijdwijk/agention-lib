@@ -852,6 +852,20 @@ describe("OpenAICompatibleAgent", () => {
       expect(spy).toHaveBeenCalledWith(AgentEvent.CHUNK, " world");
     });
 
+    it("captures the id of the most recent chunk onto lastChunkId", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          { id: "chatcmpl-1", choices: [{ finish_reason: null, delta: { content: "Hi" } }] },
+          { id: "chatcmpl-1", choices: [{ finish_reason: "stop", delta: {} }] },
+          { choices: [], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+        ])
+      );
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent["lastChunkId"]).toBe("chatcmpl-1");
+    });
+
     it("accumulates token usage from the final usage chunk", async () => {
       mockClient.chat.completions.create.mockResolvedValue(
         makeStream([

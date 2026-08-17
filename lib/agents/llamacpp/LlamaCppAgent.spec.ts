@@ -236,6 +236,50 @@ describe("LlamaCppAgent", () => {
     });
   });
 
+  describe("skipReasoning", () => {
+    let fetchSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({ ok: true } as Response);
+    });
+
+    afterEach(() => {
+      fetchSpy.mockRestore();
+    });
+
+    it("is a no-op when no streamed completion is in flight", async () => {
+      await agent.skipReasoning();
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("posts a reasoning_end control message for the current chunk id", async () => {
+      agent["lastChunkId"] = "chatcmpl-123";
+
+      await agent.skipReasoning();
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "http://localhost:8080/v1/chat/completions/control",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "reasoning_end",
+            id: "chatcmpl-123",
+            model: "default",
+          }),
+        }
+      );
+    });
+
+    it("swallows fetch failures instead of throwing", async () => {
+      agent["lastChunkId"] = "chatcmpl-123";
+      fetchSpy.mockRejectedValue(new Error("connection refused"));
+
+      await expect(agent.skipReasoning()).resolves.toBeUndefined();
+    });
+  });
+
   describe("execute", () => {
     it("should call chat.completions.create and return the response text", async () => {
       const mockResponse = {

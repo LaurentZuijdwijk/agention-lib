@@ -136,6 +136,7 @@ The graph module provides workflow orchestration patterns:
   - Example: `examples/cancellation.ts`. Docs: "Cancellation" in `docs/guide/agents.md`.
   - **Not done:** graph executors (`Pipeline`, `SequentialExecutor`, …) and `Team.execute()` still take no signal, so cancelling a whole pipeline means threading it in yourself.
 - [x] Added explicit OAuth token support to `ClaudeAgent` — new `authType?: "apiKey" | "oauth"` on `ClaudeSpecificConfig`/flat config (default `"apiKey"`). When `"oauth"`, `apiKey` is passed to the Anthropic SDK as `authToken` (bearer) instead of `apiKey` (`x-api-key` header), for OAuth access tokens like Claude Code's `sk-ant-oat...` tokens. Deliberately explicit rather than sniffing the token prefix, since prefixes are an implementation detail.
+- [x] Added `LlamaCppAgent.skipReasoning()` (1.10.0, `model` field fixed in 1.10.1) — POSTs to llama.cpp's proprietary `{baseURL}/chat/completions/control` with `{action: "reasoning_end", id, model}` to end a model's reasoning phase early, mid-stream. Needed `OpenAICompatibleAgent.streamTurn()` to capture each streamed chunk's `id` onto a new protected `lastChunkId` field — internal only, not added to the public `StreamChunk` type since other subclasses (vLLM, LM Studio) don't have this endpoint. No-op if no stream has run yet; fetch failures are logged (`debug`) rather than thrown, since this is a best-effort side channel.
 
 ---
 

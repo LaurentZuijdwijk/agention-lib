@@ -137,4 +137,39 @@ export class LlamaCppAgent extends OpenAICompatibleAgent {
       },
     }));
   }
+
+  /**
+   * Tells the server to end the model's reasoning phase early, mid-stream,
+   * via llama.cpp's proprietary `/chat/completions/control` endpoint. Useful
+   * for cutting off a model that is thinking for too long without waiting
+   * for it to decide to stop on its own.
+   *
+   * A no-op if no streamed completion is in flight yet (`lastChunkId` unset).
+   * Best-effort: a failed request is logged (when `debug` is on) rather than
+   * thrown, since this is a side channel to a turn that should otherwise
+   * proceed normally.
+   */
+  async skipReasoning(): Promise<void> {
+    if (!this.lastChunkId) return;
+
+    try {
+      await fetch(`${this.config.baseURL}/chat/completions/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reasoning_end",
+          id: this.lastChunkId,
+          model: this.config.model,
+        }),
+      });
+    } catch (error: unknown) {
+      if (this.debug) {
+        console.error(
+          `Failed to signal reasoning_end to ${this.getVendorName()}: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      }
+    }
+  }
 }

@@ -174,11 +174,11 @@ The main agent sees sub-agents as tools and decides when to invoke them based on
 
 ## Built-In (Provider-Defined) Tools
 
-Some providers offer server-side tools that the model can call directly — the provider runs them as part of generating its response, rather than the agent executing them locally. Anthropic's web search, bash, and text editor tools are examples.
+Some providers offer server-side tools that the model can call directly — the provider runs them as part of generating its response, rather than the agent executing them locally. Anthropic's web search, bash, and text editor tools are examples; OpenAI's web search, file search, and code interpreter, and OpenRouter's provider-agnostic web search/fetch tools work the same way.
 
 These differ from regular `Tool` instances: they have no `execute` function or input schema, since the agent never runs them — it just forwards the tool's definition to the provider.
 
-`ClaudeAgent` accepts them via `builtInTools`. Use the helpers from `lib/tools/BuiltInTool.ts`:
+`ClaudeAgent`, `OpenAiAgent`, and `OpenRouterAgent` all accept them via `builtInTools` (flat config, or `vendorConfig.<vendor>.builtInTools`). Use the helpers from `lib/tools/BuiltInTool.ts`:
 
 ```typescript
 import { ClaudeAgent } from '@agentionai/agents/claude';
@@ -197,7 +197,47 @@ const agent = new ClaudeAgent({
 const response = await agent.execute('What happened in the news today?');
 ```
 
-You can mix built-in tools with regular locally-executed tools:
+**OpenAI** (Responses API) — web search, file search over vector stores you've already uploaded to, and a sandboxed Python code interpreter:
+
+```typescript
+import { OpenAiAgent } from '@agentionai/agents/openai';
+import {
+  openAiWebSearchTool,
+  openAiFileSearchTool,
+  openAiCodeInterpreterTool,
+} from '@agentionai/agents/openai';
+
+const agent = new OpenAiAgent({
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'You are a helpful research assistant.',
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'gpt-5.6-luna',
+  builtInTools: [
+    openAiWebSearchTool({ allowedDomains: ['wikipedia.org'] }),
+    openAiFileSearchTool(['vs_abc123']),
+    openAiCodeInterpreterTool(), // provisions its own sandboxed container
+  ],
+});
+```
+
+**OpenRouter** — `openRouterWebSearchTool()` and `openRouterWebFetchTool()` work identically across every tool-calling model OpenRouter fronts, unlike each upstream provider's own (differently-shaped) web search tool:
+
+```typescript
+import { OpenRouterAgent } from '@agentionai/agents/openrouter';
+import { openRouterWebSearchTool } from '@agentionai/agents/openrouter';
+
+const agent = new OpenRouterAgent({
+  id: 'researcher',
+  name: 'Researcher',
+  description: 'You are a helpful research assistant.',
+  apiKey: process.env.OPENROUTER_API_KEY,
+  model: 'anthropic/claude-sonnet-4-6',
+  builtInTools: [openRouterWebSearchTool({ maxResults: 5 })],
+});
+```
+
+You can mix built-in tools with regular locally-executed tools on any of the three:
 
 ```typescript
 const agent = new ClaudeAgent({
@@ -210,13 +250,14 @@ const agent = new ClaudeAgent({
 });
 ```
 
-If a provider adds a built-in tool not covered by the helpers, define it directly — only `type` and `name` are required, any other fields are passed through as-is:
+If a provider adds a built-in tool not covered by the helpers, define it directly with `builtInTool()` — only `type` is required. Anthropic's tools also need `name` (the model's label for the tool); OpenAI's and OpenRouter's generally omit it:
 
 ```typescript
 import { builtInTool } from '@agentionai/agents/claude';
 
 builtInTools: [
-  builtInTool({ type: 'code_execution_20250522', name: 'code_execution' }),
+  builtInTool({ type: 'code_execution_20250522', name: 'code_execution' }), // Anthropic
+  builtInTool({ type: 'image_generation' }),                                // OpenAI — no name
 ],
 ```
 

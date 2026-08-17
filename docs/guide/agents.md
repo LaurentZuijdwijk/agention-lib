@@ -500,6 +500,22 @@ const visionModels = models.filter((m) =>
 console.log(models[0].raw.status?.args, models[0].raw.meta?.ftype);
 ```
 
+### Cutting reasoning short
+
+`llama-server` exposes a proprietary control endpoint that can end a reasoning model's thinking phase early, mid-stream, instead of waiting for it to decide to stop on its own. `LlamaCppAgent.skipReasoning()` calls it for you:
+
+```typescript
+const stream = agent.executeStream('Solve this step by step: ...');
+
+for await (const chunk of stream) {
+  if (chunk.type === 'reasoning' && tookTooLong()) {
+    await agent.skipReasoning();
+  }
+}
+```
+
+It targets whichever streamed completion is currently in flight, so call it while iterating `executeStream()`'s output. It's a no-op before the first stream has produced a chunk, and a failed request is logged (when `debug: true`) rather than thrown — it's a best-effort side channel to a turn that should otherwise proceed normally. Specific to `LlamaCppAgent`: other `OpenAICompatibleAgent` subclasses (vLLM, LM Studio, Cerebras, …) don't implement this endpoint.
+
 ## OpenRouter (Multi-Provider Router)
 
 [OpenRouter](https://openrouter.ai) fronts dozens of upstream providers behind one
@@ -752,6 +768,27 @@ const agent = new VLLMAgent({
 const response = await agent.execute('What is 2 + 2?');
 ```
 
+Verified live end-to-end against [Cerebras](https://inference-docs.cerebras.ai/), which speaks the same protocol:
+
+```typescript
+class CerebrasAgent extends OpenAICompatibleAgent {
+  constructor(config: Omit<OpenAICompatibleConfig, 'baseURL' | 'vendor'>, history?: History) {
+    super({
+      ...config,
+      vendor: 'llamacpp',
+      baseURL: 'https://api.cerebras.ai/v1',
+      model: config.model ?? 'gpt-oss-120b',
+    }, history);
+  }
+
+  protected getVendorName(): string {
+    return 'Cerebras';
+  }
+}
+```
+
+No special handling needed for Cerebras's reasoning-replay rejection (see [Reasoning](#reasoning) above) — the base class retries and adapts automatically.
+
 **Adding vendor-specific request params:**
 
 Override `buildExtraRequestParams()` to inject fields the OpenAI SDK will merge into the completions call. Useful for sampling options or provider-specific headers your server supports:
@@ -883,6 +920,8 @@ for await (const chunk of agent.executeStream('What is 17 * 13?')) {
 }
 ```
 
+**Cutting reasoning short on llama.cpp.** `LlamaCppAgent.skipReasoning()` can end the thinking phase early, mid-stream — see [Cutting reasoning short](#cutting-reasoning-short).
+
 **Enabling reasoning.** Reasoning chunks are only produced when the model is configured to emit them — otherwise you get `"text"` chunks only:
 
 ```typescript
@@ -917,6 +956,8 @@ const openai = new OpenAiAgent({
 ```
 
 Nothing to configure. The field is only sent when the model actually produced reasoning, so non-reasoning models are unaffected.
+
+**Some servers reject it instead.** Cerebras's `/v1/chat/completions` 400s on any message carrying `reasoning_content` at all — the opposite requirement from DeepSeek, on the same OpenAI-compatible path. `OpenAICompatibleAgent` (and therefore any subclass, including `LlamaCppAgent`) handles this automatically: on a 400 where the request actually replayed reasoning, it retries once with the field stripped, and if that fixes it, remembers the result so later turns in the same agent's lifetime skip straight to the working request shape. No configuration or vendor-specific subclass needed — this makes any OpenAI-compatible server usable regardless of which way it disagrees with DeepSeek.
 
 Note that with Claude thinking on, `temperature`/`topP`/`topK` are not sent — the API mandates default sampling.
 

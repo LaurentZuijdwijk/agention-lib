@@ -62,6 +62,15 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   private currentToolCallCount: number = 0;
 
   /**
+   * The `id` of the most recently seen streamed `ChatCompletionChunk`
+   * (`chatcmpl-...`). Internal only — some servers key control-plane calls
+   * (e.g. llama.cpp's `/chat/completions/control`) off the in-flight
+   * completion's id, so it needs to be captured somewhere subclasses can
+   * reach it, but it isn't part of the public `StreamChunk` shape.
+   */
+  protected lastChunkId?: string;
+
+  /**
    * Whether this server accepts a replayed `reasoning_content` field on an
    * assistant message. `undefined` until proven otherwise — see
    * {@link withReasoningReplayFallback}.
@@ -637,6 +646,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
       // stream ends — it is a running total for the turn, not a delta, so
       // taking the last one covers both layouts without double-counting.
       if (chunk.usage) streamUsage = chunk.usage;
+      if (chunk.id) this.lastChunkId = chunk.id;
 
       if (chunk.choices.length === 0) continue;
 

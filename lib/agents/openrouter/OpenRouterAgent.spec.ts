@@ -346,6 +346,49 @@ describe("OpenRouterAgent", () => {
     });
   });
 
+  describe("getAllToolDefinitions", () => {
+    it("appends built-in tools after function tools", () => {
+      const agent = makeAgent({ builtInTools: [{ type: "openrouter:web_search" }] });
+      agent["tools"].set("test_tool", { getPrompt: () => toolPrompt });
+
+      expect(agent["getAllToolDefinitions"]()).toEqual([
+        {
+          type: "function",
+          function: {
+            name: "test_tool",
+            description: "A test tool",
+            parameters: toolPrompt.input_schema,
+          },
+        },
+        { type: "openrouter:web_search" },
+      ]);
+    });
+
+    it("reads builtInTools from vendorConfig.openrouter", () => {
+      const agent = new OpenRouterAgent({
+        apiKey: "test-api-key",
+        id: "1",
+        name: "TestAgent",
+        description: "Test Description",
+        vendorConfig: { openrouter: { builtInTools: [{ type: "openrouter:web_fetch" }] } },
+      });
+
+      expect(agent["getAllToolDefinitions"]()).toEqual([{ type: "openrouter:web_fetch" }]);
+    });
+
+    it("puts the merged tools on the request body", () => {
+      const agent = makeAgent({ builtInTools: [{ type: "openrouter:web_search" }] });
+
+      expect(agent["buildRequest"](false).tools).toEqual([{ type: "openrouter:web_search" }]);
+    });
+
+    it("omits tools from the request body when there are none", () => {
+      const agent = makeAgent();
+
+      expect(agent["buildRequest"](false).tools).toBeUndefined();
+    });
+  });
+
   // ---------------------------------------------------------------------------
   // Rate limit header parsing
   // ---------------------------------------------------------------------------

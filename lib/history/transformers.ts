@@ -991,12 +991,53 @@ export const chatCompletionsTransformer = {
  * Beyond the casing it also carries `reasoning_details` through the round trip,
  * which the OpenAI-compatible path has no equivalent for.
  */
+/**
+ * Marks the *last* message carrying plain string content with an Anthropic
+ * cache breakpoint, mutating it in place.
+ *
+ * The system-prompt breakpoint alone only caches the fixed part of a request
+ * — an agentic loop's growing tool-call history is not fixed, and without a
+ * second breakpoint it is resent as fresh, full-price input on every turn.
+ * Marking the tail instead: turn N's breakpoint lands on its newest message,
+ * so turn N+1's *identical, longer prefix up to that point* is a cache hit,
+ * and only the new content past it needs to be freshly priced (and gets its
+ * own breakpoint in turn). Anthropic allows up to 4 breakpoints total; this
+ * is the second, after the one on the system message — see
+ * {@link OpenRouterSpecificConfig.promptCaching}.
+ *
+ * Skips a message whose content isn't a non-empty string — `null` (an
+ * assistant turn that's purely a tool call, nothing to attach a text block
+ * to) or an already-structured array (images). Landing one message later
+ * than ideal in that case is a smaller loss than the alternative of writing
+ * this for every content shape up front.
+ */
+function markLatestCacheBreakpoint(messages: OpenRouterMessage[]): void {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (typeof message.content === "string" && message.content.length > 0) {
+      (message as { content: unknown }).content = [
+        { type: "text", text: message.content, cacheControl: { type: "ephemeral" } },
+      ];
+      return;
+    }
+  }
+}
+
 export const openRouterTransformer = {
   /**
    * Convert normalized entries to OpenRouter message format.
    * Tool results become role:"tool" messages; tool calls ride on the assistant message.
+   *
+   * `cacheSystemPrompt` marks the system message *and* the latest eligible
+   * message with a cache breakpoint each — see
+   * {@link markLatestCacheBreakpoint} for why it's both ends, not just the
+   * front, and {@link OpenRouterSpecificConfig.promptCaching} for why this is
+   * opt-in rather than automatic.
    */
-  toProvider(entries: HistoryEntry[]): OpenRouterMessage[] {
+  toProvider(
+    entries: HistoryEntry[],
+    options?: { cacheSystemPrompt?: boolean }
+  ): OpenRouterMessage[] {
     const messages: OpenRouterMessage[] = [];
 
     for (const entry of entries) {
@@ -1009,9 +1050,12 @@ export const openRouterTransformer = {
       const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
 
       if (entry.role === "system") {
+        const text = textBlocks.map((c) => c.text).join("\n");
         messages.push({
           role: "system",
-          content: textBlocks.map((c) => c.text).join("\n"),
+          content: options?.cacheSystemPrompt
+            ? [{ type: "text", text, cacheControl: { type: "ephemeral" } }]
+            : text,
         });
         continue;
       }
@@ -1094,6 +1138,7 @@ export const openRouterTransformer = {
       }
     }
 
+    if (options?.cacheSystemPrompt) markLatestCacheBreakpoint(messages);
     return messages;
   },
 
@@ -1150,18 +1195,25 @@ type OpenRouterToolCallParam = {
 };
 
 type OpenRouterContentPart =
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; cacheControl?: OpenRouterCacheControl }
   | {
       type: "image_url";
       imageUrl: { url: string; detail?: "auto" | "low" | "high" };
     };
 
+/**
+ * A cache breakpoint on one content block. `cacheControl` (camelCase, per
+ * this file's header) rather than the wire's `cache_control` — the SDK
+ * zod-serializes the rename on the way out.
+ */
+export type OpenRouterCacheControl = { type: "ephemeral" };
+
 export type OpenRouterMessage =
-  | { role: "system"; content: string }
+  | { role: "system"; content: string | OpenRouterContentPart[] }
   | { role: "user"; content: string | OpenRouterContentPart[] }
   | {
       role: "assistant";
-      content: string | null;
+      content: string | null | OpenRouterContentPart[];
       toolCalls?: OpenRouterToolCallParam[];
       /** Plain reasoning text replayed from a previous turn. */
       reasoning?: string;
@@ -1171,7 +1223,7 @@ export type OpenRouterMessage =
        */
       reasoningDetails?: unknown[];
     }
-  | { role: "tool"; toolCallId: string; content: string };
+  | { role: "tool"; toolCallId: string; content: string | OpenRouterContentPart[] };
 
 type OpenRouterResponseMessage = {
   role: string;

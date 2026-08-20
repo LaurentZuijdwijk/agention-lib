@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-08-20
+
+### Added
+- **Opt-in prompt caching for `OpenRouterAgent`.** New `promptCaching` flag
+  (flat config or `vendorConfig.openrouter.promptCaching`) marks the system
+  prompt and the last tool definition with Anthropic's
+  `cache_control: { type: "ephemeral" }` breakpoint. Anthropic caches
+  everything up through a marked block, so one marker at the end of the tool
+  array covers the whole tool list in a single cached segment — the stable
+  prefix of a request (system prompt + tool schemas) is billed once and read
+  from cache on later requests in the same conversation instead of paid in
+  full every time. Off by default: a cache write costs more than a plain
+  input token, and a one-shot or few-call agent never reads enough times
+  after it to recoup that. Pair with the existing `sessionId` for sticky
+  routing — a cache breakpoint with no sticky routing key can land on a
+  different upstream instance on the very next request, with nothing to hit.
+  Written in Anthropic's `cache_control` shape, but not Anthropic-only —
+  OpenRouter translates it for other providers it fronts (e.g. into OpenAI's
+  `prompt_cache_breakpoint`) rather than passing it through as-is; some of
+  those providers (OpenAI, DeepSeek, Gemini 2.5) already cache automatically
+  with no marker needed, so the translated breakpoint is redundant there
+  rather than load-bearing. `openRouterTransformer.toProvider()` takes a new
+  `{ cacheSystemPrompt }` option to wrap the system message's text in a
+  cache-marked content block instead of a plain string.
+
+  The system-prompt breakpoint alone only caches the fixed part of a
+  request — an agentic loop's growing tool-call history is not fixed, so
+  `cacheSystemPrompt` also marks the *latest* message with a second
+  breakpoint (`markLatestCacheBreakpoint` in `lib/history/transformers.ts`).
+  Turn N's breakpoint lands on its newest message, so turn N+1's identical,
+  longer prefix up to that point is a cache hit, and only the content past
+  it needs pricing (and gets its own breakpoint in turn). Skips a message
+  whose content isn't a non-empty string — an assistant turn that's purely a
+  tool call (`content: null`), or an already-structured array (images) —
+  and falls back to the nearest eligible message instead.
+- **`cost_usd` on `TokenUsage`** (`lib/agents/BaseAgent.ts`), summed across
+  calls the same way as the other usage fields. Populated from OpenRouter's
+  own per-response accounting (`usage.cost`); `undefined` on every other
+  provider, none of which report cost today. A generic, cross-provider
+  companion to `OpenRouterAgent`'s existing `lastGeneration.cost` (which also
+  carries the generation id, model, and attempt count that `TokenUsage` has
+  no room for).
+
 ## [1.9.0] - 2026-08-17
 
 ### Added

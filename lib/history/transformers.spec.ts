@@ -670,3 +670,127 @@ describe("openRouterTransformer reasoning details", () => {
     expect(message.reasoning).toBe("first\nsecond");
   });
 });
+
+describe("openRouterTransformer prompt caching", () => {
+  const SYSTEM_ENTRY: HistoryEntry = {
+    role: "system",
+    content: [{ type: "text", text: "You are a helpful assistant." }],
+  };
+
+  it("leaves the system message a plain string when cacheSystemPrompt is not set", () => {
+    const [message] = openRouterTransformer.toProvider([SYSTEM_ENTRY]) as any[];
+    expect(message.content).toBe("You are a helpful assistant.");
+  });
+
+  it("leaves the system message a plain string when cacheSystemPrompt is explicitly false", () => {
+    const [message] = openRouterTransformer.toProvider([SYSTEM_ENTRY], {
+      cacheSystemPrompt: false,
+    }) as any[];
+    expect(message.content).toBe("You are a helpful assistant.");
+  });
+
+  it("wraps the system message in a cache-marked content block when cacheSystemPrompt is true", () => {
+    const [message] = openRouterTransformer.toProvider([SYSTEM_ENTRY], {
+      cacheSystemPrompt: true,
+    }) as any[];
+
+    expect(message.content).toEqual([
+      {
+        type: "text",
+        text: "You are a helpful assistant.",
+        cacheControl: { type: "ephemeral" },
+      },
+    ]);
+  });
+
+  it("does not mark any message when cacheSystemPrompt is unset, even with real history", () => {
+    const entries: HistoryEntry[] = [
+      SYSTEM_ENTRY,
+      { role: "user", content: [{ type: "text", text: "hi" }] },
+    ];
+    const [systemMsg, userMsg] = openRouterTransformer.toProvider(entries) as any[];
+
+    expect(systemMsg.content).toBe("You are a helpful assistant.");
+    expect(userMsg.content).toBe("hi");
+  });
+
+  // The system-prompt breakpoint alone only caches the fixed part of a
+  // request. An agentic loop's growing tool-call history is not fixed, so a
+  // second breakpoint has to land on the *latest* message each turn — that's
+  // what makes the next turn's longer-but-still-matching prefix a cache hit
+  // instead of paid for again in full. See markLatestCacheBreakpoint's own
+  // comment for the mechanics.
+  it("marks the latest message too, not just the system prompt", () => {
+    const entries: HistoryEntry[] = [
+      SYSTEM_ENTRY,
+      { role: "user", content: [text("hi")] },
+    ];
+    const [systemMsg, userMsg] = openRouterTransformer.toProvider(entries, {
+      cacheSystemPrompt: true,
+    }) as any[];
+
+    expect(systemMsg.content).toEqual([
+      { type: "text", text: "You are a helpful assistant.", cacheControl: { type: "ephemeral" } },
+    ]);
+    expect(userMsg.content).toEqual([
+      { type: "text", text: "hi", cacheControl: { type: "ephemeral" } },
+    ]);
+  });
+
+  it("marks only the latest message in a multi-turn history, not every message", () => {
+    const entries: HistoryEntry[] = [
+      SYSTEM_ENTRY,
+      { role: "user", content: [text("first")] },
+      { role: "assistant", content: [text("reply one")] },
+      { role: "user", content: [text("second")] },
+    ];
+    const messages = openRouterTransformer.toProvider(entries, { cacheSystemPrompt: true }) as any[];
+
+    // Marked: the system prompt (always) and the last message (index 3).
+    expect(messages[0].content[0].cacheControl).toEqual({ type: "ephemeral" });
+    expect(messages[3].content).toEqual([
+      { type: "text", text: "second", cacheControl: { type: "ephemeral" } },
+    ]);
+    // Untouched: everything in between — plain strings, no breakpoint.
+    expect(messages[1].content).toBe("first");
+    expect(messages[2].content).toBe("reply one");
+  });
+
+  it("marks a trailing tool result when that's the latest message", () => {
+    const entries: HistoryEntry[] = [
+      SYSTEM_ENTRY,
+      { role: "user", content: [text("run it")] },
+      { role: "assistant", content: [toolUse("call_1", "run_shell", { command: "echo hi" })] },
+      { role: "user", content: [toolResult("call_1", "hi\n")] },
+    ];
+    const messages = openRouterTransformer.toProvider(entries, { cacheSystemPrompt: true }) as any[];
+
+    const toolMsg = messages[messages.length - 1];
+    expect(toolMsg.role).toBe("tool");
+    expect(toolMsg.content).toEqual([
+      { type: "text", text: "hi\n", cacheControl: { type: "ephemeral" } },
+    ]);
+  });
+
+  it("falls back to the nearest message with real content when the latest one is a bare tool call", () => {
+    // An assistant turn that's purely a tool call has content: null — nothing
+    // for a text-block breakpoint to attach to, so this must not throw, and
+    // must land on the closest eligible message instead (here, the user
+    // turn one entry back) rather than silently marking nothing.
+    const entries: HistoryEntry[] = [
+      SYSTEM_ENTRY,
+      { role: "user", content: [text("run it")] },
+      { role: "assistant", content: [toolUse("call_1", "run_shell", { command: "echo hi" })] },
+    ];
+    const messages = openRouterTransformer.toProvider(entries, { cacheSystemPrompt: true }) as any[];
+
+    const assistantMsg = messages[messages.length - 1];
+    expect(assistantMsg.content).toBeNull();
+    expect(assistantMsg.toolCalls).toBeDefined();
+
+    const userMsg = messages[messages.length - 2];
+    expect(userMsg.content).toEqual([
+      { type: "text", text: "run it", cacheControl: { type: "ephemeral" } },
+    ]);
+  });
+});

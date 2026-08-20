@@ -674,6 +674,7 @@ waiting.
 ```typescript
 plugins: [],             // OpenRouter plugins — web search, file parsing, etc.
 sessionId: 'user-42',    // sticky routing — keeps prompt caching hitting
+promptCaching: true,     // cache system prompt + tools; OpenRouter translates the marker per backend
 user: 'end-user-7',      // stable per-end-user id for abuse isolation
 serviceTier: 'priority', // auto | default | fast | flex | priority | scale ('fast' aliases 'priority')
 httpReferer: 'https://example.com',  // sent as HTTP-Referer
@@ -696,6 +697,13 @@ console.log(agent.lastGeneration?.attempts);        // providers tried before su
 
 `cost` is summed across the turn's API calls (a tool loop bills once per hop) and
 is `undefined` for BYOK requests, which OpenRouter does not price.
+
+The same figure is also on `agent.lastTokenUsage?.cost_usd` — the generic,
+cross-provider field, alongside `input_tokens`/`output_tokens`/etc. Use
+`lastGeneration` when you also need the generation id, model, or attempt
+count; use `lastTokenUsage.cost_usd` for code that shouldn't care which
+provider it's running against. Every other provider leaves it `undefined` —
+none report cost today.
 
 ### Listing available models
 

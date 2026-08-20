@@ -289,8 +289,22 @@ describe("OpenRouterAgent", () => {
           input_tokens: 10,
           output_tokens: 5,
           total_tokens: 15,
+          cost_usd: 0.002,
         })
       );
+    });
+
+    it("omits cost_usd when the response carries no usage.cost", async () => {
+      const agent = makeAgent();
+      const response = textResponse("ok");
+      delete (response as { usage?: { cost?: number } }).usage?.cost;
+      agent["clientPromise"] = Promise.resolve({
+        chat: { send: jest.fn().mockResolvedValue(response) },
+      });
+
+      await agent.execute("hi");
+
+      expect(agent.lastTokenUsage?.cost_usd).toBeUndefined();
     });
   });
 
@@ -386,6 +400,80 @@ describe("OpenRouterAgent", () => {
       const agent = makeAgent();
 
       expect(agent["buildRequest"](false).tools).toBeUndefined();
+    });
+  });
+
+  describe("promptCaching", () => {
+    it("leaves tools unmarked when promptCaching is not set", () => {
+      const agent = makeAgent({ builtInTools: [{ type: "openrouter:web_search" }] });
+      agent["tools"].set("test_tool", { getPrompt: () => toolPrompt });
+
+      const { tools } = agent["buildRequest"](false);
+
+      expect(tools).toEqual([
+        {
+          type: "function",
+          function: {
+            name: "test_tool",
+            description: "A test tool",
+            parameters: toolPrompt.input_schema,
+          },
+        },
+        { type: "openrouter:web_search" },
+      ]);
+    });
+
+    it("marks only the last tool when promptCaching is true, leaving earlier ones untouched", () => {
+      const agent = makeAgent({
+        promptCaching: true,
+        builtInTools: [{ type: "openrouter:web_search" }],
+      });
+      agent["tools"].set("test_tool", { getPrompt: () => toolPrompt });
+
+      const { tools } = agent["buildRequest"](false) as { tools: Record<string, unknown>[] };
+
+      expect(tools[0]).not.toHaveProperty("cacheControl");
+      expect(tools[1]).toEqual({
+        type: "openrouter:web_search",
+        cacheControl: { type: "ephemeral" },
+      });
+    });
+
+    it("does not add a tools array from promptCaching alone — nothing to mark with no tools", () => {
+      const agent = makeAgent({ promptCaching: true });
+
+      expect(agent["buildRequest"](false).tools).toBeUndefined();
+    });
+
+    it("marks the system message as a cache breakpoint on the request body", () => {
+      // The constructor seeds a system message from name/description on its
+      // own (OpenRouterAgent.ts:202) — asserting against that, rather than
+      // adding a second one, is what the agent actually sends.
+      const agent = makeAgent({ promptCaching: true });
+
+      const { messages } = agent["buildRequest"](false) as { messages: Record<string, unknown>[] };
+
+      expect(messages[0]).toEqual({
+        role: "system",
+        content: [
+          {
+            type: "text",
+            text: agent["getSystemMessage"](),
+            cacheControl: { type: "ephemeral" },
+          },
+        ],
+      });
+    });
+
+    it("leaves the system message a plain string when promptCaching is not set", () => {
+      const agent = makeAgent();
+
+      const { messages } = agent["buildRequest"](false) as { messages: Record<string, unknown>[] };
+
+      expect(messages[0]).toEqual({
+        role: "system",
+        content: agent["getSystemMessage"](),
+      });
     });
   });
 

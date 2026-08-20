@@ -284,6 +284,30 @@ export interface OpenRouterSpecificConfig {
    */
   sessionId?: string;
 
+  /**
+   * Mark the system prompt and the last tool definition with an Anthropic
+   * `cache_control: { type: "ephemeral" }` breakpoint, so the stable prefix of
+   * a request — system prompt plus tool schemas — is billed once and read
+   * from cache on later requests in the same conversation instead of paid in
+   * full every time.
+   *
+   * Worth it for an agent whose system prompt and tools are reused across
+   * several calls in a session. Not worth it for a one-shot or few-call
+   * agent: a cache write costs more than a plain input token, and there are
+   * too few reads after it to recoup that. Pair with {@link sessionId} — a
+   * cache breakpoint with no sticky routing key can land on a different
+   * upstream instance on the very next request, with nothing to hit.
+   *
+   * Written in Anthropic's `cache_control` shape, but not Anthropic-only:
+   * OpenRouter translates it for other providers it fronts (e.g. into
+   * OpenAI's `prompt_cache_breakpoint`), rather than passing it through
+   * as-is or dropping it. Some of those providers (OpenAI, DeepSeek,
+   * Gemini 2.5) already cache automatically with no marker needed, so the
+   * translated breakpoint is redundant there rather than load-bearing.
+   * `ttl` on `cache_control` does not survive translation to OpenAI.
+   */
+  promptCaching?: boolean;
+
   /** Stable per-end-user identifier used for abuse isolation. Never forwarded raw. */
   user?: string;
 

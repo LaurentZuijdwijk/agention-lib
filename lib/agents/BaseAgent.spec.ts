@@ -298,6 +298,17 @@ describe("BaseAgent", () => {
       });
     });
 
+    it("sums cost_usd across calls, staying undefined until a call reports it", () => {
+      agent["accumulateUsage"](usage(10, 25));
+      expect(agent.lastTokenUsage?.cost_usd).toBeUndefined();
+
+      agent["accumulateUsage"](usage(10, 25, { cost_usd: 0.002 }));
+      expect(agent.lastTokenUsage?.cost_usd).toBeCloseTo(0.002);
+
+      agent["accumulateUsage"](usage(10, 25, { cost_usd: 0.0015 }));
+      expect(agent.lastTokenUsage?.cost_usd).toBeCloseTo(0.0035);
+    });
+
     it("returns the single call's usage while lastTokenUsage keeps the total", () => {
       at(0);
       agent["startTurnTimer"]();

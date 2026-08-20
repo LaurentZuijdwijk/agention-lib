@@ -57,6 +57,12 @@ export type TokenUsage = {
    */
   reasoning_tokens?: number;
   /**
+   * USD billed for this usage, straight from the provider's own accounting —
+   * not derived from a local price table. Undefined where the provider
+   * doesn't report it (most do not; OpenRouter does, per response).
+   */
+  cost_usd?: number;
+  /**
    * Milliseconds from sending the request to the first token of the response —
    * prompt upload plus prompt processing.
    */
@@ -440,6 +446,7 @@ export abstract class BaseAgent<
             previous.reasoning_tokens,
             timed.reasoning_tokens
           ),
+          cost_usd: sumOptional(previous.cost_usd, timed.cost_usd),
           timeToFirstTokenMs: sumOptional(
             previous.timeToFirstTokenMs,
             timed.timeToFirstTokenMs

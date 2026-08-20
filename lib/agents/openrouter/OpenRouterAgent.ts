@@ -515,9 +515,25 @@ export class OpenRouterAgent extends BaseAgent {
 
   /** The `ChatRequest` body, identical for the streaming and buffered paths. */
   private buildRequest(stream: boolean): Record<string, unknown> {
-    const messages = openRouterTransformer.toProvider(this.history.getEntries());
+    const cachePrompt = this.config.promptCaching === true;
+    const messages = openRouterTransformer.toProvider(this.history.getEntries(), {
+      cacheSystemPrompt: cachePrompt,
+    });
     const allTools = this.getAllToolDefinitions();
-    const tools = allTools.length > 0 ? allTools : undefined;
+    // The breakpoint goes on the *last* tool: Anthropic (and OpenRouter's
+    // translation of this marker for other providers, see
+    // OpenRouterSpecificConfig.promptCaching) caches everything up through a
+    // marked block, so one marker at the end of the array covers the whole
+    // tool list in one cached segment. Marking every tool would just spend
+    // more cache-write budget for the same coverage.
+    const cacheableTools =
+      cachePrompt && allTools.length > 0
+        ? [
+            ...allTools.slice(0, -1),
+            { ...allTools[allTools.length - 1], cacheControl: { type: "ephemeral" } },
+          ]
+        : allTools;
+    const tools = cacheableTools.length > 0 ? cacheableTools : undefined;
 
     return {
       model: this.config.model!,
@@ -891,6 +907,7 @@ export class OpenRouterAgent extends BaseAgent {
       total_tokens: usage?.totalTokens ?? 0,
       reasoning_tokens:
         usage?.completionTokensDetails?.reasoningTokens ?? undefined,
+      cost_usd: typeof usage?.cost === "number" ? usage.cost : undefined,
     };
   }
 

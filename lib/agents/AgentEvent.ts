@@ -12,6 +12,11 @@ export class AgentEvent {
   public static TOOL_ERROR = "tool_error";
   public static CHUNK = "chunk";
   public static REASONING_CHUNK = "reasoning_chunk";
+  /**
+   * A streamed turn was cut short before its assistant message could be written
+   * to history. The listener receives the `PartialTurn` that was salvaged.
+   */
+  public static PARTIAL_TURN = "partial_turn";
 
   private defaultPrevented = false;
 

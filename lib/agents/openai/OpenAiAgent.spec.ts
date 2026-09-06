@@ -989,4 +989,90 @@ describe("OpenAiAgent", () => {
       );
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Partial turn capture
+  // ---------------------------------------------------------------------------
+
+  describe("partial turn capture", () => {
+    // Node's EventEmitter rethrows an "error" event that nobody listens for,
+    // which would mask the error the agent means to throw.
+    beforeEach(() => agent.on(AgentEvent.ERROR, () => {}));
+
+    async function collectStream(gen: AsyncGenerator<any>): Promise<any[]> {
+      const results: any[] = [];
+      for await (const chunk of gen) results.push(chunk);
+      return results;
+    }
+
+    it("salvages the reasoning summary when the stream dies before response.completed", async () => {
+      mockClient.responses.create.mockResolvedValue(
+        (async function* () {
+          yield { type: "response.reasoning_summary_text.delta", delta: "Weighing " };
+          yield { type: "response.reasoning_summary_text.delta", delta: "the options" };
+          yield { type: "response.output_text.delta", delta: "The answer" };
+          throw new Error("socket hang up");
+        })()
+      );
+
+      const error = await collectStream(agent.executeStream("Hi")).catch((e) => e);
+
+      expect(agent.lastPartialTurn).toEqual(
+        expect.objectContaining({
+          text: "The answer",
+          reasoning: "Weighing the options",
+          toolCalls: [],
+          reason: "error",
+        })
+      );
+      expect(error.partial).toBe(agent.lastPartialTurn);
+      expect(
+        agent.getHistoryEntries().some((entry) => entry.role === "assistant")
+      ).toBe(false);
+    });
+
+    it("keeps a half-streamed function call", async () => {
+      mockClient.responses.create.mockResolvedValue(
+        (async function* () {
+          yield {
+            type: "response.output_item.added",
+            output_index: 0,
+            item: { type: "function_call", call_id: "call_1", name: "search" },
+          };
+          yield {
+            type: "response.function_call_arguments.delta",
+            output_index: 0,
+            delta: '{"q":"wea',
+          };
+          throw new Error("socket hang up");
+        })()
+      );
+
+      await collectStream(agent.executeStream("Hi")).catch(() => undefined);
+
+      expect(agent.lastPartialTurn?.toolCalls).toEqual([
+        { id: "call_1", name: "search", arguments: '{"q":"wea' },
+      ]);
+    });
+
+    it("leaves lastPartialTurn unset when the stream completes", async () => {
+      mockClient.responses.create.mockResolvedValue(
+        (async function* () {
+          yield { type: "response.output_text.delta", delta: "Hello" };
+          yield {
+            type: "response.completed",
+            response: {
+              output: [],
+              output_text: "Hello",
+              usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
+            },
+          };
+        })()
+      );
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent.lastPartialTurn).toBeUndefined();
+    });
+  });
 });

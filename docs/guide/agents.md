@@ -971,6 +971,51 @@ Nothing to configure. The field is only sent when the model actually produced re
 
 Note that with Claude thinking on, `temperature`/`topP`/`topK` are not sent — the API mandates default sampling.
 
+### Recovering an interrupted turn
+
+Streaming agents accumulate a turn as it arrives and only write it to history once the stream ends cleanly. That is the right default — a half-finished turn is frequently not replayable — but it means a dropped connection, a provider-side error or a token-limit stop would otherwise discard everything generated up to that point. On a local reasoning model that can be twenty minutes of compute.
+
+So whatever was generated is always handed back, on `agent.lastPartialTurn` and on the thrown error's `partial`:
+
+```typescript
+try {
+  for await (const chunk of agent.executeStream('Prove it rigorously')) {
+    process.stdout.write(chunk.content);
+  }
+} catch (err) {
+  const salvaged = agent.lastPartialTurn;   // also: (err as AgentError).partial
+  if (salvaged) {
+    console.error(`lost the turn after ${salvaged.reasoning.length} chars of reasoning`);
+    fs.writeFileSync('trail.md', salvaged.reasoning);
+  }
+  throw err;
+}
+```
+
+```typescript
+type PartialTurn = {
+  text: string;              // assistant text so far
+  reasoning: string;         // reasoning/thinking text so far
+  toolCalls: PartialToolCall[];  // arguments likely truncated mid-token
+  reason: 'error' | 'aborted' | 'max_tokens' | 'abandoned';
+  error?: unknown;           // the error that ended it, where one did
+  meta?: Record<string, unknown>;
+  at: Date;
+};
+```
+
+`lastPartialTurn` is cleared at the start of every execution and only set when there is something to recover, so a set value always means unsaved work from the current run. The same object is emitted as `AgentEvent.PARTIAL_TURN` if you would rather be pushed it than poll:
+
+```typescript
+agent.on(AgentEvent.PARTIAL_TURN, (partial) => archive.write(partial));
+```
+
+`reason` says why the turn stopped. `"abandoned"` covers the case where nothing failed at all and the consumer simply stopped iterating (a `break` out of the `for await`) — the generator's cleanup still runs, so the trail is captured there too.
+
+**It is deliberately not written to history.** A partial turn is often not replayable: Anthropic thinking blocks need the `signature` that arrives *after* the thinking text, so an interrupted block has none (`meta.signatures` reports what was received, so you can tell), and truncated tool-call JSON does not parse. Persisting that automatically would turn a recoverable error into a permanently broken conversation, so what to do with the trail is left to you — log it, show it, or feed it back as plain text in the next prompt.
+
+Only the streaming path has this. `execute()` gets the whole turn or an error, with nothing in between.
+
 #### Reasoning effort (OpenAI)
 
 `reasoningEffort` is typed against the model you configured, because **which values a model accepts is model-dependent** — the families reject each other's minimum:

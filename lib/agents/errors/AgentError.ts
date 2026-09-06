@@ -1,7 +1,21 @@
+import type { PartialTurn } from "../BaseAgent";
+
 /**
  * Base error class for all agent-related errors
  */
 export class AgentError extends Error {
+  /**
+   * What a streamed turn had generated when this error cut it short, where the
+   * error came out of `executeStream()`. Streaming agents only write an
+   * assistant turn to history once the stream ends cleanly, so without this the
+   * text and the reasoning trail generated up to the failure would be lost —
+   * cheap for a short answer, expensive for a local reasoning model.
+   *
+   * Also available as `agent.lastPartialTurn`. See {@link PartialTurn} for why
+   * it is handed back rather than written to history.
+   */
+  public partial?: PartialTurn;
+
   /**
    * @param message Error message
    * @param options Additional error options

@@ -282,6 +282,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     // Reset token usage for this execution
     this.resetTokenUsage();
+    this.resetPartialTurn();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -730,6 +731,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
   ): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
+    this.resetPartialTurn();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -768,7 +770,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           vizReporter.agentError(this.vizEventId, "AbortError", abortError.message, false);
           this.vizEventId = undefined;
         }
-        throw abortError;
+        throw this.withPartialTurn(abortError);
       }
       if (error instanceof AgentError) {
         this.emit(AgentEvent.ERROR, error);
@@ -776,7 +778,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           vizReporter.agentError(this.vizEventId, error.constructor.name, error.message, false);
           this.vizEventId = undefined;
         }
-        throw error;
+        throw this.withPartialTurn(error);
       }
       if (error && typeof error === "object" && "error" in error) {
         const openAIError = error as { error: { message?: string; code?: string }; status?: number };
@@ -790,7 +792,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, openAIError.error.code === "rate_limit_exceeded");
           this.vizEventId = undefined;
         }
-        throw apiError;
+        throw this.withPartialTurn(apiError);
       }
       const executionError = new ExecutionError(
         `OpenAI error: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -800,7 +802,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         vizReporter.agentError(this.vizEventId, "ExecutionError", executionError.message, false);
         this.vizEventId = undefined;
       }
-      throw executionError;
+      throw this.withPartialTurn(executionError);
     } finally {
       this.history.endExecution();
     }
@@ -830,93 +832,156 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     let completedEvent: ResponseCompletedEvent | null = null;
 
-    for await (const event of stream) {
-      if (event.type === "response.output_text.delta") {
-        this.markFirstToken();
-        this.emit(AgentEvent.CHUNK, event.delta);
-        yield { type: "text", content: event.delta };
-      }
-      if (event.type === "response.reasoning_summary_text.delta") {
-        this.markFirstToken();
-        this.emit(AgentEvent.REASONING_CHUNK, event.delta);
-        yield { type: "reasoning", content: event.delta };
-      }
-      if (event.type === "response.completed") {
-        completedEvent = event;
-        if (event.response.usage) {
-          this.accumulateUsage(this.parseUsage(event.response.usage));
+    // The Responses API builds the committed turn out of `response.completed`,
+    // which only arrives on success, so the deltas are mirrored here as well:
+    // without them a stream that dies mid-flight leaves nothing behind at all,
+    // and a reasoning summary can be minutes of generation.
+    let textDelta = "";
+    let reasoningDelta = "";
+    const partialCalls = new Map<
+      number,
+      { id: string; name: string; arguments: string }
+    >();
+
+    // Set once this frame's assistant message reaches history.
+    let committed = false;
+    let failure: unknown;
+
+    try {
+
+      for await (const event of stream) {
+        if (event.type === "response.output_text.delta") {
+          this.markFirstToken();
+          // Accumulated as well as yielded purely so the `finally` below can hand
+          // it back if the stream dies: the committed turn is rebuilt from
+          // `response.completed`, which never arrives on a failure.
+          textDelta += event.delta;
+          this.emit(AgentEvent.CHUNK, event.delta);
+          yield { type: "text", content: event.delta };
+        }
+        if (event.type === "response.reasoning_summary_text.delta") {
+          this.markFirstToken();
+          reasoningDelta += event.delta;
+          this.emit(AgentEvent.REASONING_CHUNK, event.delta);
+          yield { type: "reasoning", content: event.delta };
+        }
+        if (event.type === "response.output_item.added") {
+          const item = event.item as {
+            type?: string;
+            id?: string;
+            call_id?: string;
+            name?: string;
+          };
+          if (item.type === "function_call") {
+            partialCalls.set(event.output_index, {
+              id: item.call_id || item.id || "",
+              name: item.name ?? "",
+              arguments: "",
+            });
+          }
+        }
+        if (event.type === "response.function_call_arguments.delta") {
+          const acc = partialCalls.get(event.output_index);
+          if (acc) acc.arguments += event.delta;
+        }
+        if (event.type === "response.completed") {
+          completedEvent = event;
+          if (event.response.usage) {
+            this.accumulateUsage(this.parseUsage(event.response.usage));
+          }
+        }
+        if (event.type === "response.incomplete") {
+          throw new MaxTokensExceededError(
+            "Response incomplete: max tokens reached",
+            this.config.maxTokens
+          );
         }
       }
-      if (event.type === "response.incomplete") {
-        throw new MaxTokensExceededError(
-          "Response incomplete: max tokens reached",
-          this.config.maxTokens
-        );
-      }
-    }
 
-    // The SDK's stream iterator swallows the abort and simply stops yielding.
-    // Without this the turn would fail as a malformed stream instead of a
-    // cancellation — checked here so the tokens already spent are reported.
-    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
-
-    if (!completedEvent) {
-      throw new ExecutionError("OpenAI stream ended without a completed event");
-    }
-
-    const response = completedEvent.response;
-    const toolCalls = response.output.filter(
-      (o: any) => o.type === "function_call"
-    ) as unknown as ResponseFunctionToolCall[];
-
-    if (toolCalls.length > 0) {
-      // As in handleResponse(): bail out before the assistant turn is written,
-      // so a cancelled run leaves no unanswered function call in history.
+      // The SDK's stream iterator swallows the abort and simply stops yielding.
+      // Without this the turn would fail as a malformed stream instead of a
+      // cancellation — checked here so the tokens already spent are reported.
       throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-      this.emit(AgentEvent.TOOL_USE, toolCalls);
-      this.currentToolCallCount += toolCalls.length;
-
-      const functionCalls = toolCalls.map((tc) => ({
-        id: tc.id || tc.call_id,
-        call_id: tc.call_id,
-        name: tc.name,
-        arguments: tc.arguments,
-      }));
-      const assistantEntry = openAiTransformer.fromProviderMessage(
-        "assistant",
-        response.output_text || "",
-        functionCalls
-      );
-      this.addToHistory(assistantEntry);
-
-      const toolResults = await this.handleToolUse(toolCalls, options);
-      for (const result of toolResults) {
-        this.addToHistory(openAiTransformer.toolResultEntry(result.call_id, result.output, false));
+      if (!completedEvent) {
+        throw new ExecutionError("OpenAI stream ended without a completed event");
       }
 
-      yield* this.streamTurn(options);
-    } else {
-      const textContent = response.output_text || "";
-      const entry = openAiTransformer.fromProviderMessage("assistant", textContent);
-      this.addToHistory(entry);
+      const response = completedEvent.response;
+      const toolCalls = response.output.filter(
+        (o: any) => o.type === "function_call"
+      ) as unknown as ResponseFunctionToolCall[];
 
-      this.emit(AgentEvent.DONE, response, this.lastTokenUsage);
+      if (toolCalls.length > 0) {
+        // As in handleResponse(): bail out before the assistant turn is written,
+        // so a cancelled run leaves no unanswered function call in history.
+        throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-      if (this.vizEventId) {
-        vizReporter.agentComplete(
-          this.vizEventId,
-          {
-            input: this.lastTokenUsage?.input_tokens || 0,
-            output: this.lastTokenUsage?.output_tokens || 0,
-            total: this.lastTokenUsage?.total_tokens || 0,
-          },
-          "end_turn",
-          this.currentToolCallCount > 0,
-          this.currentToolCallCount,
-          textContent
+        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.currentToolCallCount += toolCalls.length;
+
+        const functionCalls = toolCalls.map((tc) => ({
+          id: tc.id || tc.call_id,
+          call_id: tc.call_id,
+          name: tc.name,
+          arguments: tc.arguments,
+        }));
+        const assistantEntry = openAiTransformer.fromProviderMessage(
+          "assistant",
+          response.output_text || "",
+          functionCalls
         );
-        this.vizEventId = undefined;
+        this.addToHistory(assistantEntry);
+        committed = true;
+
+        const toolResults = await this.handleToolUse(toolCalls, options);
+        for (const result of toolResults) {
+          this.addToHistory(openAiTransformer.toolResultEntry(result.call_id, result.output, false));
+        }
+
+        yield* this.streamTurn(options);
+      } else {
+        const textContent = response.output_text || "";
+        const entry = openAiTransformer.fromProviderMessage("assistant", textContent);
+        this.addToHistory(entry);
+        committed = true;
+
+        this.emit(AgentEvent.DONE, response, this.lastTokenUsage);
+
+        if (this.vizEventId) {
+          vizReporter.agentComplete(
+            this.vizEventId,
+            {
+              input: this.lastTokenUsage?.input_tokens || 0,
+              output: this.lastTokenUsage?.output_tokens || 0,
+              total: this.lastTokenUsage?.total_tokens || 0,
+            },
+            "end_turn",
+            this.currentToolCallCount > 0,
+            this.currentToolCallCount,
+            textContent
+          );
+          this.vizEventId = undefined;
+        }
+      }
+    } catch (error: unknown) {
+      failure = error;
+      throw error;
+    } finally {
+      if (!committed) {
+        this.capturePartialTurn({
+          text: textDelta,
+          reasoning: reasoningDelta,
+          toolCalls: Array.from(partialCalls.entries())
+            .sort(([a], [b]) => a - b)
+            .map(([, tc]) => ({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.arguments,
+            })),
+          reason: this.partialTurnReason(failure, options?.signal),
+          error: failure,
+        });
       }
     }
   }

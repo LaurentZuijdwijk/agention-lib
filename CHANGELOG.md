@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-06
+
+### Added
+- **Streamed turns survive an interrupted stream.** Every streaming agent
+  accumulated the turn into function-locals and only wrote it to history once
+  the stream ended cleanly, so a dropped connection, a provider-side SSE error,
+  a `finish_reason: "length"` stop or a consumer that stopped iterating
+  discarded everything generated up to that point. That is cheap for a short
+  answer and expensive for a reasoning model, where the trail can represent
+  twenty minutes of local compute.
+
+  Whatever was generated is now always handed back, as a `PartialTurn` on
+  `BaseAgent.lastPartialTurn`, on the thrown `AgentError.partial`, and via the
+  new `AgentEvent.PARTIAL_TURN`. It carries `text`, `reasoning`, `toolCalls`
+  (arguments likely truncated mid-token), a `reason` of `"error"` /
+  `"aborted"` / `"max_tokens"` / `"abandoned"`, the `error` where there was
+  one, and `at`. `lastPartialTurn` is cleared at the start of every execution
+  and only set when there is something to recover, so a set value always means
+  unsaved work from the current run.
+
+  It is deliberately **not** written to history: an interrupted turn is
+  frequently not replayable — Anthropic thinking blocks need the `signature`
+  that arrives *after* the thinking text (reported on `meta.signatures` so the
+  caller can tell), and truncated tool-call JSON does not parse — so
+  persisting it automatically would turn a recoverable error into a
+  permanently broken conversation. `execute()` is unaffected; it still gets
+  the whole turn or an error, with nothing in between.
+
+  Covers `ClaudeAgent`, `OpenAiAgent`, `OpenRouterAgent` and every
+  `OpenAICompatibleAgent` subclass (including `LlamaCppAgent`). `OpenAiAgent`
+  needed the most work: it kept nothing at all, rebuilding the turn from
+  `response.completed`, which never arrives on a failure. Example:
+  `examples/partial-turn.ts`.
+- **`collapseReasoningWhitespace(text, options?)`** (`lib/agents/reasoning-text.ts`)
+  — a display-only helper for reasoning text, exported from `core.ts` /
+  `index.ts` and so reachable from every entry point. `collapseBlankLines`
+  (default on) squashes 3+ newlines down to one blank line; opt-in
+  `collapseLineWraps` merges consecutive non-blank lines, skipping any line
+  that starts a markdown block (list item, heading, blockquote) so real
+  structure survives. Never apply it to the string stored in history or
+  replayed to a provider, which must stay byte-exact.
+
+### Changed
+- `@openrouter/sdk` peer dependency raised from `^1.2.29` to `^1.2.106`
+  (dev dependency likewise from `^1.2.37`). Consumers resolved below 1.2.106
+  will need to update. The bump is pure Speakeasy codegen from OpenRouter's
+  OpenAPI spec — types and wire serialization only — so it changes no
+  behaviour on its own; it was taken because we were 69 patch releases behind.
+
 ## [1.11.0] - 2026-08-20
 
 ### Added

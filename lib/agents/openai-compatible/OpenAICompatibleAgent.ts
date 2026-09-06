@@ -161,6 +161,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   ): Promise<string> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
+    this.resetPartialTurn();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -522,6 +523,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
   ): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
+    this.resetPartialTurn();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -560,7 +562,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
           vizReporter.agentError(this.vizEventId, "AbortError", abortError.message, false);
           this.vizEventId = undefined;
         }
-        throw abortError;
+        throw this.withPartialTurn(abortError);
       }
 
       if (error instanceof OpenAI.APIError) {
@@ -574,7 +576,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
           vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, error.status === 429);
           this.vizEventId = undefined;
         }
-        throw apiError;
+        throw this.withPartialTurn(apiError);
       }
 
       if (error instanceof AgentError) {
@@ -583,7 +585,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
           vizReporter.agentError(this.vizEventId, error.constructor.name, error.message, false);
           this.vizEventId = undefined;
         }
-        throw error;
+        throw this.withPartialTurn(error);
       }
 
       const executionError = new ExecutionError(
@@ -596,7 +598,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
         vizReporter.agentError(this.vizEventId, "ExecutionError", executionError.message, false);
         this.vizEventId = undefined;
       }
-      throw executionError;
+      throw this.withPartialTurn(executionError);
     } finally {
       this.history.endExecution();
     }
@@ -639,134 +641,164 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     let finishReason: string | null = null;
     let streamUsage: ChatCompletionChunk["usage"] | undefined;
 
-    for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
-      // Usage can ride on any chunk: OpenAI sends it on a final choice-less
-      // chunk, OpenRouter attaches it to the last content chunk (the one
-      // carrying finish_reason). Keep the most recent and fold it in once the
-      // stream ends — it is a running total for the turn, not a delta, so
-      // taking the last one covers both layouts without double-counting.
-      if (chunk.usage) streamUsage = chunk.usage;
-      if (chunk.id) this.lastChunkId = chunk.id;
+    // Set once this frame's assistant message reaches history. Until then the
+    // turn exists only in the accumulators above, and the `finally` salvages
+    // them — a reasoning trail can be twenty minutes of local compute, and the
+    // stream throwing (or the consumer walking away) would otherwise drop it.
+    let committed = false;
+    let failure: unknown;
 
-      if (chunk.choices.length === 0) continue;
+    try {
+      for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
+        // Usage can ride on any chunk: OpenAI sends it on a final choice-less
+        // chunk, OpenRouter attaches it to the last content chunk (the one
+        // carrying finish_reason). Keep the most recent and fold it in once the
+        // stream ends — it is a running total for the turn, not a delta, so
+        // taking the last one covers both layouts without double-counting.
+        if (chunk.usage) streamUsage = chunk.usage;
+        if (chunk.id) this.lastChunkId = chunk.id;
 
-      const choice = chunk.choices[0];
-      finishReason = choice.finish_reason ?? finishReason;
-      const delta = choice.delta;
+        if (chunk.choices.length === 0) continue;
 
-      if (delta.content) {
-        this.markFirstToken();
-        textContent += delta.content;
-        this.emit(AgentEvent.CHUNK, delta.content);
-        yield { type: "text", content: delta.content };
-      }
+        const choice = chunk.choices[0];
+        finishReason = choice.finish_reason ?? finishReason;
+        const delta = choice.delta;
 
-      // Reasoning tokens (not in OpenAI SDK types — cast required). Servers
-      // disagree on the field name: OpenRouter sends `delta.reasoning`, while
-      // DeepSeek/llama.cpp send `delta.reasoning_content`. Prefer `reasoning`;
-      // never concatenate — that would duplicate the text if both were sent.
-      const deltaExtras = delta as Record<string, unknown>;
-      const reasoningDelta = (deltaExtras.reasoning ?? deltaExtras.reasoning_content) as string | null | undefined;
-      if (reasoningDelta) {
-        this.markFirstToken();
-        // Accumulated as well as yielded: DeepSeek's thinking mode requires the
-        // assistant turn's reasoning to be replayed on the next request, so it
-        // has to reach history rather than only the caller.
-        reasoningContent += reasoningDelta;
-        this.emit(AgentEvent.REASONING_CHUNK, reasoningDelta);
-        yield { type: "reasoning", content: reasoningDelta };
-      }
+        if (delta.content) {
+          this.markFirstToken();
+          textContent += delta.content;
+          this.emit(AgentEvent.CHUNK, delta.content);
+          yield { type: "text", content: delta.content };
+        }
 
-      if (delta.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          if (!toolCallAcc.has(tc.index)) {
-            toolCallAcc.set(tc.index, { id: "", name: "", arguments: "" });
+        // Reasoning tokens (not in OpenAI SDK types — cast required). Servers
+        // disagree on the field name: OpenRouter sends `delta.reasoning`, while
+        // DeepSeek/llama.cpp send `delta.reasoning_content`. Prefer `reasoning`;
+        // never concatenate — that would duplicate the text if both were sent.
+        const deltaExtras = delta as Record<string, unknown>;
+        const reasoningDelta = (deltaExtras.reasoning ?? deltaExtras.reasoning_content) as string | null | undefined;
+        if (reasoningDelta) {
+          this.markFirstToken();
+          // Accumulated as well as yielded: DeepSeek's thinking mode requires the
+          // assistant turn's reasoning to be replayed on the next request, so it
+          // has to reach history rather than only the caller.
+          reasoningContent += reasoningDelta;
+          this.emit(AgentEvent.REASONING_CHUNK, reasoningDelta);
+          yield { type: "reasoning", content: reasoningDelta };
+        }
+
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            if (!toolCallAcc.has(tc.index)) {
+              toolCallAcc.set(tc.index, { id: "", name: "", arguments: "" });
+            }
+            const acc = toolCallAcc.get(tc.index)!;
+            if (tc.id) acc.id = tc.id;
+            if (tc.function?.name) acc.name += tc.function.name;
+            if (tc.function?.arguments) acc.arguments += tc.function.arguments;
           }
-          const acc = toolCallAcc.get(tc.index)!;
-          if (tc.id) acc.id = tc.id;
-          if (tc.function?.name) acc.name += tc.function.name;
-          if (tc.function?.arguments) acc.arguments += tc.function.arguments;
         }
       }
-    }
 
-    // Before any early return below, so a turn that hits the token limit or
-    // continues into a tool call still reports what it spent.
-    if (streamUsage) this.accumulateStreamUsage(streamUsage);
+      // Before any early return below, so a turn that hits the token limit or
+      // continues into a tool call still reports what it spent.
+      if (streamUsage) this.accumulateStreamUsage(streamUsage);
 
-    // The SDK's stream iterator swallows the abort and simply stops yielding,
-    // so without this an interrupted stream would look like a short but
-    // complete turn — writing partial text to history and emitting DONE.
-    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
-
-    if (finishReason === "length") {
-      const error = new MaxTokensExceededError(
-        "Response exceeded maximum token limit",
-        this.config.maxTokens
-      );
-      this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
-      this.emit(AgentEvent.ERROR, error);
-      if (this.vizEventId) {
-        vizReporter.agentError(this.vizEventId, "MaxTokensExceededError", error.message, false);
-        this.vizEventId = undefined;
-      }
-      throw error;
-    }
-
-    if (finishReason === "tool_calls" && toolCallAcc.size > 0) {
-      // As in handleResponse(): bail out before the assistant turn is written,
-      // so a cancelled run leaves no unanswered tool call in history.
+      // The SDK's stream iterator swallows the abort and simply stops yielding,
+      // so without this an interrupted stream would look like a short but
+      // complete turn — writing partial text to history and emitting DONE.
       throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-      const toolCalls = Array.from(toolCallAcc.entries())
-        .sort(([a], [b]) => a - b)
-        .map(([, tc]) => ({
-          id: tc.id,
-          type: "function" as const,
-          function: { name: tc.name, arguments: tc.arguments },
-        }));
-
-      this.emit(AgentEvent.TOOL_USE, toolCalls);
-      this.currentToolCallCount += toolCalls.length;
-
-      const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
-        role: "assistant",
-        content: textContent || null,
-        tool_calls: toolCalls,
-        reasoning_content: reasoningContent || null,
-      });
-      this.addToHistory(assistantEntry);
-
-      const toolResults = await this.handleToolCalls(toolCalls, options);
-      for (const result of toolResults) {
-        this.addToHistory(chatCompletionsTransformer.toolResultEntry(result.toolCallId, result.content));
+      if (finishReason === "length") {
+        const error = new MaxTokensExceededError(
+          "Response exceeded maximum token limit",
+          this.config.maxTokens
+        );
+        this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
+        this.emit(AgentEvent.ERROR, error);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "MaxTokensExceededError", error.message, false);
+          this.vizEventId = undefined;
+        }
+        throw error;
       }
 
-      yield* this.streamTurn(options);
-    } else {
-      const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
-        role: "assistant",
-        content: textContent || null,
-        reasoning_content: reasoningContent || null,
-      });
-      this.addToHistory(assistantEntry);
+      if (finishReason === "tool_calls" && toolCallAcc.size > 0) {
+        // As in handleResponse(): bail out before the assistant turn is written,
+        // so a cancelled run leaves no unanswered tool call in history.
+        throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-      this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
+        const toolCalls = Array.from(toolCallAcc.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([, tc]) => ({
+            id: tc.id,
+            type: "function" as const,
+            function: { name: tc.name, arguments: tc.arguments },
+          }));
 
-      if (this.vizEventId) {
-        vizReporter.agentComplete(
-          this.vizEventId,
-          {
-            input: this.lastTokenUsage?.input_tokens || 0,
-            output: this.lastTokenUsage?.output_tokens || 0,
-            total: this.lastTokenUsage?.total_tokens || 0,
-          },
-          "end_turn",
-          this.currentToolCallCount > 0,
-          this.currentToolCallCount,
-          textContent
-        );
-        this.vizEventId = undefined;
+        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.currentToolCallCount += toolCalls.length;
+
+        const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
+          role: "assistant",
+          content: textContent || null,
+          tool_calls: toolCalls,
+          reasoning_content: reasoningContent || null,
+        });
+        this.addToHistory(assistantEntry);
+        committed = true;
+
+        const toolResults = await this.handleToolCalls(toolCalls, options);
+        for (const result of toolResults) {
+          this.addToHistory(chatCompletionsTransformer.toolResultEntry(result.toolCallId, result.content));
+        }
+
+        yield* this.streamTurn(options);
+      } else {
+        const assistantEntry = chatCompletionsTransformer.fromProviderMessage({
+          role: "assistant",
+          content: textContent || null,
+          reasoning_content: reasoningContent || null,
+        });
+        this.addToHistory(assistantEntry);
+        committed = true;
+
+        this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
+
+        if (this.vizEventId) {
+          vizReporter.agentComplete(
+            this.vizEventId,
+            {
+              input: this.lastTokenUsage?.input_tokens || 0,
+              output: this.lastTokenUsage?.output_tokens || 0,
+              total: this.lastTokenUsage?.total_tokens || 0,
+            },
+            "end_turn",
+            this.currentToolCallCount > 0,
+            this.currentToolCallCount,
+            textContent
+          );
+          this.vizEventId = undefined;
+        }
+      }
+    } catch (error: unknown) {
+      failure = error;
+      throw error;
+    } finally {
+      if (!committed) {
+        this.capturePartialTurn({
+          text: textContent,
+          reasoning: reasoningContent,
+          toolCalls: Array.from(toolCallAcc.entries())
+            .sort(([a], [b]) => a - b)
+            .map(([, tc]) => ({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.arguments,
+            })),
+          reason: this.partialTurnReason(failure, options?.signal),
+          error: failure,
+        });
       }
     }
   }

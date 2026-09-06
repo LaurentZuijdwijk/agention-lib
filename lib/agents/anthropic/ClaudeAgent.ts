@@ -274,6 +274,7 @@ export class ClaudeAgent extends BaseAgent {
 
     // Reset token usage for this execution
     this.resetTokenUsage();
+    this.resetPartialTurn();
     this.currentToolCallCount = 0;
 
     // Normalise input to a display string for viz reporting
@@ -657,6 +658,7 @@ export class ClaudeAgent extends BaseAgent {
   ): AsyncGenerator<StreamChunk> {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
+    this.resetPartialTurn();
     this.currentToolCallCount = 0;
 
     const inputPreview =
@@ -695,7 +697,7 @@ export class ClaudeAgent extends BaseAgent {
           vizReporter.agentError(this.vizEventId, "AbortError", abortError.message, false);
           this.vizEventId = undefined;
         }
-        throw abortError;
+        throw this.withPartialTurn(abortError);
       }
       if (error instanceof APIError) {
         const apiError = new ApiError(
@@ -708,13 +710,13 @@ export class ClaudeAgent extends BaseAgent {
           vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, error.status === 429);
           this.vizEventId = undefined;
         }
-        throw apiError;
+        throw this.withPartialTurn(apiError);
       }
       // Errors raised inside streamTurn() (e.g. MaxTokensExceededError) are
       // already emitted and viz-reported at the throw site — preserve their
       // type rather than re-wrapping them in a generic ExecutionError.
       if (error instanceof AgentError) {
-        throw error;
+        throw this.withPartialTurn(error);
       }
       const executionError = new ExecutionError(
         `Anthropic error: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -724,7 +726,7 @@ export class ClaudeAgent extends BaseAgent {
         vizReporter.agentError(this.vizEventId, "ExecutionError", executionError.message, false);
         this.vizEventId = undefined;
       }
-      throw executionError;
+      throw this.withPartialTurn(executionError);
     } finally {
       this.history.endExecution();
     }
@@ -758,148 +760,191 @@ export class ClaudeAgent extends BaseAgent {
     let inputTokens = 0;
     let outputTokens = 0;
 
-    for await (const event of stream) {
-      if (event.type === "message_start") {
-        const e = event as RawMessageStartEvent;
-        inputTokens = e.message.usage.input_tokens;
-        outputTokens = e.message.usage.output_tokens;
-      }
+    // Set once this frame's assistant message reaches history. Until then the
+    // turn exists only in `blocks`, and the `finally` salvages it — extended
+    // thinking can run for minutes, and the stream throwing (or the consumer
+    // walking away) would otherwise drop the whole trail.
+    let committed = false;
+    let failure: unknown;
 
-      if (event.type === "message_delta") {
-        const e = event as RawMessageDeltaEvent;
-        stopReason = e.delta.stop_reason ?? stopReason;
-        outputTokens += e.usage?.output_tokens ?? 0;
-      }
+    try {
+      for await (const event of stream) {
+        if (event.type === "message_start") {
+          const e = event as RawMessageStartEvent;
+          inputTokens = e.message.usage.input_tokens;
+          outputTokens = e.message.usage.output_tokens;
+        }
 
-      if (event.type === "content_block_start") {
-        const e = event as RawContentBlockStartEvent;
-        const block = e.content_block;
-        if (block.type === "tool_use") {
-          blocks.set(e.index, { kind: "tool_use", id: block.id, name: block.name, inputJson: "" });
-        } else if (block.type === "text") {
-          blocks.set(e.index, { kind: "text", text: "" });
-        } else if (block.type === "thinking") {
-          blocks.set(e.index, { kind: "thinking", thinking: "", signature: "" });
-        } else if (block.type === "redacted_thinking") {
-          blocks.set(e.index, { kind: "redacted_thinking", data: block.data });
+        if (event.type === "message_delta") {
+          const e = event as RawMessageDeltaEvent;
+          stopReason = e.delta.stop_reason ?? stopReason;
+          outputTokens += e.usage?.output_tokens ?? 0;
+        }
+
+        if (event.type === "content_block_start") {
+          const e = event as RawContentBlockStartEvent;
+          const block = e.content_block;
+          if (block.type === "tool_use") {
+            blocks.set(e.index, { kind: "tool_use", id: block.id, name: block.name, inputJson: "" });
+          } else if (block.type === "text") {
+            blocks.set(e.index, { kind: "text", text: "" });
+          } else if (block.type === "thinking") {
+            blocks.set(e.index, { kind: "thinking", thinking: "", signature: "" });
+          } else if (block.type === "redacted_thinking") {
+            blocks.set(e.index, { kind: "redacted_thinking", data: block.data });
+          }
+        }
+
+        if (event.type === "content_block_delta") {
+          // First generated content of the turn — thinking counts, since it is
+          // generation time either way.
+          this.markFirstToken();
+          const e = event as RawContentBlockDeltaEvent;
+          const delta = e.delta;
+          const acc = blocks.get(e.index);
+          if (delta.type === "text_delta") {
+            textContent += delta.text;
+            if (acc?.kind === "text") acc.text += delta.text;
+            this.emit(AgentEvent.CHUNK, delta.text);
+            yield { type: "text", content: delta.text };
+          } else if (delta.type === "thinking_delta") {
+            if (acc?.kind === "thinking") acc.thinking += delta.thinking;
+            this.emit(AgentEvent.REASONING_CHUNK, delta.thinking);
+            yield { type: "reasoning", content: delta.thinking };
+          } else if (delta.type === "signature_delta") {
+            if (acc?.kind === "thinking") acc.signature += delta.signature;
+          } else if (delta.type === "input_json_delta") {
+            if (acc?.kind === "tool_use") acc.inputJson += delta.partial_json;
+          }
         }
       }
 
-      if (event.type === "content_block_delta") {
-        // First generated content of the turn — thinking counts, since it is
-        // generation time either way.
-        this.markFirstToken();
-        const e = event as RawContentBlockDeltaEvent;
-        const delta = e.delta;
-        const acc = blocks.get(e.index);
-        if (delta.type === "text_delta") {
-          textContent += delta.text;
-          if (acc?.kind === "text") acc.text += delta.text;
-          this.emit(AgentEvent.CHUNK, delta.text);
-          yield { type: "text", content: delta.text };
-        } else if (delta.type === "thinking_delta") {
-          if (acc?.kind === "thinking") acc.thinking += delta.thinking;
-          this.emit(AgentEvent.REASONING_CHUNK, delta.thinking);
-          yield { type: "reasoning", content: delta.thinking };
-        } else if (delta.type === "signature_delta") {
-          if (acc?.kind === "thinking") acc.signature += delta.signature;
-        } else if (delta.type === "input_json_delta") {
-          if (acc?.kind === "tool_use") acc.inputJson += delta.partial_json;
-        }
-      }
-    }
-
-    this.accumulateUsage({
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
-      total_tokens: inputTokens + outputTokens,
-    });
-
-    // The SDK's stream iterator swallows the abort and simply stops yielding,
-    // so without this an interrupted stream would look like a short but
-    // complete turn — writing partial text to history and emitting DONE.
-    // Checked after accumulateUsage() so the tokens already spent are reported.
-    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
-
-    if (stopReason === "max_tokens") {
-      const error = new MaxTokensExceededError(
-        "Response exceeded maximum token limit",
-        this.config.maxTokens
-      );
-      this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
-      this.emit(AgentEvent.ERROR, error);
-      if (this.vizEventId) {
-        vizReporter.agentError(this.vizEventId, "MaxTokensExceededError", error.message, false);
-        this.vizEventId = undefined;
-      }
-      throw error;
-    }
-
-    // Rebuild the assistant turn in stream order (thinking → text → tool_use).
-    const orderedBlocks: ContentBlock[] = Array.from(blocks.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([, b]): ContentBlock => {
-        switch (b.kind) {
-          case "thinking":
-            return { type: "thinking", thinking: b.thinking, signature: b.signature };
-          case "redacted_thinking":
-            return { type: "redacted_thinking", data: b.data };
-          case "tool_use":
-            return {
-              type: "tool_use",
-              id: b.id,
-              name: b.name,
-              input: JSON.parse(b.inputJson || "{}") as Record<string, unknown>,
-            };
-          case "text":
-            return { type: "text", text: b.text, citations: [] };
-        }
+      this.accumulateUsage({
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens,
       });
 
-    // Fallback: preserve streamed text even if no text block start was observed.
-    if (textContent && !orderedBlocks.some((b) => b.type === "text")) {
-      orderedBlocks.push({ type: "text", text: textContent, citations: [] });
-    }
-
-    const toolUseBlocks = orderedBlocks.filter(
-      (b): b is ToolUseBlock => b.type === "tool_use"
-    );
-
-    if (stopReason === "tool_use" && toolUseBlocks.length > 0) {
-      // As in handleResponse(): bail out before the assistant turn is written,
-      // so a cancelled run leaves no unanswered tool_use in history.
+      // The SDK's stream iterator swallows the abort and simply stops yielding,
+      // so without this an interrupted stream would look like a short but
+      // complete turn — writing partial text to history and emitting DONE.
+      // Checked after accumulateUsage() so the tokens already spent are reported.
       throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-      this.emit(AgentEvent.TOOL_USE, orderedBlocks);
-      this.currentToolCallCount += toolUseBlocks.length;
-
-      const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
-      this.addToHistory(assistantEntry);
-
-      const toolResults = await this.handleToolUse(orderedBlocks, options);
-      this.addMessageToHistory("user", toolResults);
-
-      yield* this.streamTurn(options);
-    } else {
-      const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
-      this.addToHistory(assistantEntry);
-
-      this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
-
-      if (this.vizEventId) {
-        vizReporter.agentComplete(
-          this.vizEventId,
-          {
-            input: this.lastTokenUsage?.input_tokens || 0,
-            output: this.lastTokenUsage?.output_tokens || 0,
-            total: this.lastTokenUsage?.total_tokens || 0,
-          },
-          "end_turn",
-          this.currentToolCallCount > 0,
-          this.currentToolCallCount,
-          textContent
+      if (stopReason === "max_tokens") {
+        const error = new MaxTokensExceededError(
+          "Response exceeded maximum token limit",
+          this.config.maxTokens
         );
-        this.vizEventId = undefined;
+        this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
+        this.emit(AgentEvent.ERROR, error);
+        if (this.vizEventId) {
+          vizReporter.agentError(this.vizEventId, "MaxTokensExceededError", error.message, false);
+          this.vizEventId = undefined;
+        }
+        throw error;
+      }
+
+      // Rebuild the assistant turn in stream order (thinking → text → tool_use).
+      const orderedBlocks: ContentBlock[] = Array.from(blocks.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([, b]): ContentBlock => {
+          switch (b.kind) {
+            case "thinking":
+              return { type: "thinking", thinking: b.thinking, signature: b.signature };
+            case "redacted_thinking":
+              return { type: "redacted_thinking", data: b.data };
+            case "tool_use":
+              return {
+                type: "tool_use",
+                id: b.id,
+                name: b.name,
+                input: JSON.parse(b.inputJson || "{}") as Record<string, unknown>,
+              };
+            case "text":
+              return { type: "text", text: b.text, citations: [] };
+          }
+        });
+
+      // Fallback: preserve streamed text even if no text block start was observed.
+      if (textContent && !orderedBlocks.some((b) => b.type === "text")) {
+        orderedBlocks.push({ type: "text", text: textContent, citations: [] });
+      }
+
+      const toolUseBlocks = orderedBlocks.filter(
+        (b): b is ToolUseBlock => b.type === "tool_use"
+      );
+
+      if (stopReason === "tool_use" && toolUseBlocks.length > 0) {
+        // As in handleResponse(): bail out before the assistant turn is written,
+        // so a cancelled run leaves no unanswered tool_use in history.
+        throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
+        this.emit(AgentEvent.TOOL_USE, orderedBlocks);
+        this.currentToolCallCount += toolUseBlocks.length;
+
+        const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
+        this.addToHistory(assistantEntry);
+        committed = true;
+
+        const toolResults = await this.handleToolUse(orderedBlocks, options);
+        this.addMessageToHistory("user", toolResults);
+
+        yield* this.streamTurn(options);
+      } else {
+        const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);
+        this.addToHistory(assistantEntry);
+        committed = true;
+
+        this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
+
+        if (this.vizEventId) {
+          vizReporter.agentComplete(
+            this.vizEventId,
+            {
+              input: this.lastTokenUsage?.input_tokens || 0,
+              output: this.lastTokenUsage?.output_tokens || 0,
+              total: this.lastTokenUsage?.total_tokens || 0,
+            },
+            "end_turn",
+            this.currentToolCallCount > 0,
+            this.currentToolCallCount,
+            textContent
+          );
+          this.vizEventId = undefined;
+        }
+      }
+    } catch (error: unknown) {
+      failure = error;
+      throw error;
+    } finally {
+      if (!committed) {
+        // `signature` is what decides whether the trail can ever be replayed to
+        // Anthropic: it arrives in a `signature_delta` after the thinking text,
+        // so an interrupted block usually has none. Reported rather than
+        // guessed at, since a signatureless thinking block is rejected on
+        // replay while the text itself is still worth keeping.
+        const thinking = Array.from(blocks.values()).filter(
+          (b): b is Extract<AccBlock, { kind: "thinking" }> =>
+            b.kind === "thinking"
+        );
+
+        this.capturePartialTurn({
+          text: textContent,
+          reasoning: thinking.map((b) => b.thinking).join(""),
+          toolCalls: Array.from(blocks.entries())
+            .sort(([a], [b]) => a - b)
+            .flatMap(([, b]) =>
+              b.kind === "tool_use"
+                ? [{ id: b.id, name: b.name, arguments: b.inputJson }]
+                : []
+            ),
+          reason: this.partialTurnReason(failure, options?.signal),
+          error: failure,
+          meta: thinking.length
+            ? { signatures: thinking.map((b) => b.signature) }
+            : undefined,
+        });
       }
     }
   }

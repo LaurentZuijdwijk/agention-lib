@@ -667,4 +667,63 @@ describe("OpenRouterAgent", () => {
       expect(parseResetAt(-1)).toBeUndefined();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Partial turn capture
+  // ---------------------------------------------------------------------------
+
+  describe("partial turn capture", () => {
+    async function collectStream(gen: AsyncGenerator<any>): Promise<any[]> {
+      const results: any[] = [];
+      for await (const chunk of gen) results.push(chunk);
+      return results;
+    }
+
+    it("salvages the reasoning trail when the stream dies mid-thought", async () => {
+      const agent = makeAgent();
+      agent.on("error", () => {});
+      agent["clientPromise"] = Promise.resolve({
+        chat: {
+          send: jest.fn().mockResolvedValue(
+            (async function* () {
+              yield { choices: [{ delta: { reasoning: "Weighing " } }] };
+              yield { choices: [{ delta: { reasoning: "the options" } }] };
+              throw new Error("socket hang up");
+            })()
+          ),
+        },
+      });
+
+      const error = await collectStream(agent.executeStream("Hi")).catch((e) => e);
+
+      expect(agent.lastPartialTurn).toEqual(
+        expect.objectContaining({
+          text: "",
+          reasoning: "Weighing the options",
+          reason: "error",
+        })
+      );
+      expect(error.partial).toBe(agent.lastPartialTurn);
+      expect(
+        agent.getHistoryEntries().some((entry) => entry.role === "assistant")
+      ).toBe(false);
+    });
+
+    it("leaves lastPartialTurn unset when the stream completes", async () => {
+      const agent = makeAgent();
+      agent["clientPromise"] = Promise.resolve({
+        chat: {
+          send: jest.fn().mockResolvedValue(
+            (async function* () {
+              yield { choices: [{ finishReason: "stop", delta: { content: "ok" } }] };
+            })()
+          ),
+        },
+      });
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent.lastPartialTurn).toBeUndefined();
+    });
+  });
 });

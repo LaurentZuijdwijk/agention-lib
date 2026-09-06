@@ -669,6 +669,49 @@ describe("ClaudeAgent", () => {
       return results;
     }
 
+    it("salvages an interrupted thinking block onto lastPartialTurn", async () => {
+      mockClient.messages.create.mockResolvedValue(
+        (async function* () {
+          yield { type: "message_start", message: { usage: { input_tokens: 8, output_tokens: 0 } } };
+          yield { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } };
+          yield { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Let me think" } };
+          yield { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: " about this" } };
+          throw new Error("socket hang up");
+        })()
+      );
+
+      const error = await collectStream(agent.executeStream("Hi")).catch((e) => e);
+
+      expect(agent.lastPartialTurn).toEqual(
+        expect.objectContaining({
+          reasoning: "Let me think about this",
+          reason: "error",
+          // No signature_delta arrived, so the trail cannot be replayed to
+          // Anthropic — reported so the caller can tell.
+          meta: { signatures: [""] },
+        })
+      );
+      expect(error.partial).toBe(agent.lastPartialTurn);
+      expect(
+        agent.getHistoryEntries().some((entry) => entry.role === "assistant")
+      ).toBe(false);
+    });
+
+    it("leaves lastPartialTurn unset when the stream completes", async () => {
+      mockClient.messages.create.mockResolvedValue(
+        makeStream([
+          { type: "message_start", message: { usage: { input_tokens: 8, output_tokens: 0 } } },
+          { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello" } },
+          { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 3 } },
+        ])
+      );
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent.lastPartialTurn).toBeUndefined();
+    });
+
     it("yields text chunks and emits CHUNK events", async () => {
       mockClient.messages.create.mockResolvedValue(
         makeStream([

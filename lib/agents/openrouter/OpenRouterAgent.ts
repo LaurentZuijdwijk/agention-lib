@@ -372,6 +372,7 @@ export class OpenRouterAgent extends BaseAgent {
   private beginRun(input: string | MessageContent[]): void {
     this.emit(AgentEvent.BEFORE_EXECUTE, input);
     this.resetTokenUsage();
+    this.resetPartialTurn();
     this.lastGeneration = undefined;
     this.currentToolCallCount = 0;
 
@@ -411,7 +412,7 @@ export class OpenRouterAgent extends BaseAgent {
     if (isAbortError(error, options?.signal)) {
       const abortError = this.abortError(error, options?.signal);
       this.closeViz("AbortError", abortError.message, false);
-      return abortError;
+      return this.withPartialTurn(abortError);
     }
 
     const mapped = this.mapProviderError(error);
@@ -421,7 +422,7 @@ export class OpenRouterAgent extends BaseAgent {
       mapped.message,
       mapped instanceof ApiError && mapped.statusCode === 429
     );
-    return mapped;
+    return this.withPartialTurn(mapped);
   }
 
   /**
@@ -684,130 +685,161 @@ export class OpenRouterAgent extends BaseAgent {
     let streamUsage: any;
     let streamError: OpenRouterErrorPayload | undefined;
 
-    for await (const chunk of stream as AsyncIterable<any>) {
-      // Once the first token is out the 200 and its headers are committed, so a
-      // provider failure after that point arrives as an SSE payload instead of
-      // an HTTP status. Recorded and thrown after the loop, so the tokens
-      // already spent still get reported.
-      if (chunk?.error) streamError = chunk.error;
+    // Set once this frame's assistant message reaches history. Until then the
+    // turn exists only in the accumulators above, and the `finally` salvages
+    // them — a reasoning trail can be minutes of generation, and the stream
+    // throwing (or the consumer walking away) would otherwise drop it.
+    let committed = false;
+    let failure: unknown;
 
-      // Usage rides on whichever chunk OpenRouter chooses — often the last
-      // content chunk rather than a trailing choice-less one. It is a running
-      // total for the turn, not a delta, so keeping the most recent covers both
-      // layouts without double-counting.
-      if (chunk?.usage) streamUsage = chunk.usage;
-      if (chunk?.id || chunk?.model) this.recordGeneration(chunk);
+    try {
+      for await (const chunk of stream as AsyncIterable<any>) {
+        // Once the first token is out the 200 and its headers are committed, so a
+        // provider failure after that point arrives as an SSE payload instead of
+        // an HTTP status. Recorded and thrown after the loop, so the tokens
+        // already spent still get reported.
+        if (chunk?.error) streamError = chunk.error;
 
-      const choice = chunk?.choices?.[0];
-      if (!choice) continue;
+        // Usage rides on whichever chunk OpenRouter chooses — often the last
+        // content chunk rather than a trailing choice-less one. It is a running
+        // total for the turn, not a delta, so keeping the most recent covers both
+        // layouts without double-counting.
+        if (chunk?.usage) streamUsage = chunk.usage;
+        if (chunk?.id || chunk?.model) this.recordGeneration(chunk);
 
-      finishReason = choice.finishReason ?? finishReason;
-      const delta = choice.delta ?? {};
+        const choice = chunk?.choices?.[0];
+        if (!choice) continue;
 
-      if (delta.content) {
-        this.markFirstToken();
-        textContent += delta.content;
-        this.emit(AgentEvent.CHUNK, delta.content);
-        yield { type: "text", content: delta.content };
-      }
+        finishReason = choice.finishReason ?? finishReason;
+        const delta = choice.delta ?? {};
 
-      if (delta.reasoning) {
-        this.markFirstToken();
-        // Accumulated as well as yielded: the assistant turn has to carry its
-        // reasoning back on the next request.
-        reasoningContent += delta.reasoning;
-        this.emit(AgentEvent.REASONING_CHUNK, delta.reasoning);
-        yield { type: "reasoning", content: delta.reasoning };
-      }
+        if (delta.content) {
+          this.markFirstToken();
+          textContent += delta.content;
+          this.emit(AgentEvent.CHUNK, delta.content);
+          yield { type: "text", content: delta.content };
+        }
 
-      if (delta.reasoningDetails?.length) {
-        reasoningDetails = reasoningDetails.concat(delta.reasoningDetails);
-      }
+        if (delta.reasoning) {
+          this.markFirstToken();
+          // Accumulated as well as yielded: the assistant turn has to carry its
+          // reasoning back on the next request.
+          reasoningContent += delta.reasoning;
+          this.emit(AgentEvent.REASONING_CHUNK, delta.reasoning);
+          yield { type: "reasoning", content: delta.reasoning };
+        }
 
-      if (delta.toolCalls) {
-        for (const tc of delta.toolCalls) {
-          const index = tc.index ?? 0;
-          if (!toolCallAcc.has(index)) {
-            toolCallAcc.set(index, { id: "", name: "", arguments: "" });
+        if (delta.reasoningDetails?.length) {
+          reasoningDetails = reasoningDetails.concat(delta.reasoningDetails);
+        }
+
+        if (delta.toolCalls) {
+          for (const tc of delta.toolCalls) {
+            const index = tc.index ?? 0;
+            if (!toolCallAcc.has(index)) {
+              toolCallAcc.set(index, { id: "", name: "", arguments: "" });
+            }
+            const acc = toolCallAcc.get(index)!;
+            if (tc.id) acc.id = tc.id;
+            if (tc.function?.name) acc.name += tc.function.name;
+            if (tc.function?.arguments) acc.arguments += tc.function.arguments;
           }
-          const acc = toolCallAcc.get(index)!;
-          if (tc.id) acc.id = tc.id;
-          if (tc.function?.name) acc.name += tc.function.name;
-          if (tc.function?.arguments) acc.arguments += tc.function.arguments;
         }
       }
-    }
 
-    // Before any throw below, so a turn that failed part way still reports what
-    // it spent.
-    if (streamUsage) this.accumulateUsage(this.parseUsageObject(streamUsage));
+      // Before any throw below, so a turn that failed part way still reports what
+      // it spent.
+      if (streamUsage) this.accumulateUsage(this.parseUsageObject(streamUsage));
 
-    // The SDK's stream iterator stops yielding on abort rather than throwing, so
-    // without this an interrupted stream would look like a short but complete
-    // turn — writing partial text to history and emitting DONE.
-    throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
-
-    if (streamError) {
-      throw new ApiError(
-        `OpenRouter stream error: ${unwrapOpenRouterMessage(streamError, streamError.message ?? "no message")}`,
-        streamError.code,
-        streamError
-      );
-    }
-
-    if (finishReason === "length") {
-      const error = new MaxTokensExceededError(
-        "Response exceeded maximum token limit",
-        this.config.maxTokens
-      );
-      this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
-      throw error;
-    }
-
-    const assistantMessage = {
-      role: "assistant",
-      content: textContent || null,
-      reasoning: reasoningContent || null,
-      reasoningDetails,
-    };
-
-    if (finishReason === "tool_calls" && toolCallAcc.size > 0) {
-      // As in handleResponse(): bail out before the assistant turn is written,
-      // so a cancelled run leaves no unanswered tool call in history.
+      // The SDK's stream iterator stops yielding on abort rather than throwing, so
+      // without this an interrupted stream would look like a short but complete
+      // turn — writing partial text to history and emitting DONE.
       throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-      const toolCalls = Array.from(toolCallAcc.entries())
-        .sort(([a], [b]) => a - b)
-        .map(([, tc]) => ({
-          id: tc.id,
-          type: "function" as const,
-          function: { name: tc.name, arguments: tc.arguments },
-        }));
-
-      this.emit(AgentEvent.TOOL_USE, toolCalls);
-      this.currentToolCallCount += toolCalls.length;
-
-      this.addToHistory(
-        openRouterTransformer.fromProviderMessage({
-          ...assistantMessage,
-          toolCalls,
-        })
-      );
-
-      const toolResults = await this.handleToolCalls(toolCalls, options);
-      for (const result of toolResults) {
-        this.addToHistory(
-          openRouterTransformer.toolResultEntry(result.toolCallId, result.content)
+      if (streamError) {
+        throw new ApiError(
+          `OpenRouter stream error: ${unwrapOpenRouterMessage(streamError, streamError.message ?? "no message")}`,
+          streamError.code,
+          streamError
         );
       }
 
-      yield* this.streamTurn(options);
-    } else {
-      this.addToHistory(
-        openRouterTransformer.fromProviderMessage(assistantMessage)
-      );
-      this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
-      this.completeViz(textContent);
+      if (finishReason === "length") {
+        const error = new MaxTokensExceededError(
+          "Response exceeded maximum token limit",
+          this.config.maxTokens
+        );
+        this.emit(AgentEvent.MAX_TOKENS_EXCEEDED, error);
+        throw error;
+      }
+
+      const assistantMessage = {
+        role: "assistant",
+        content: textContent || null,
+        reasoning: reasoningContent || null,
+        reasoningDetails,
+      };
+
+      if (finishReason === "tool_calls" && toolCallAcc.size > 0) {
+        // As in handleResponse(): bail out before the assistant turn is written,
+        // so a cancelled run leaves no unanswered tool call in history.
+        throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
+
+        const toolCalls = Array.from(toolCallAcc.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([, tc]) => ({
+            id: tc.id,
+            type: "function" as const,
+            function: { name: tc.name, arguments: tc.arguments },
+          }));
+
+        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.currentToolCallCount += toolCalls.length;
+
+        this.addToHistory(
+          openRouterTransformer.fromProviderMessage({
+            ...assistantMessage,
+            toolCalls,
+          })
+        );
+        committed = true;
+
+        const toolResults = await this.handleToolCalls(toolCalls, options);
+        for (const result of toolResults) {
+          this.addToHistory(
+            openRouterTransformer.toolResultEntry(result.toolCallId, result.content)
+          );
+        }
+
+        yield* this.streamTurn(options);
+      } else {
+        this.addToHistory(
+          openRouterTransformer.fromProviderMessage(assistantMessage)
+        );
+        committed = true;
+        this.emit(AgentEvent.DONE, { content: textContent }, this.lastTokenUsage);
+        this.completeViz(textContent);
+      }
+    } catch (error: unknown) {
+      failure = error;
+      throw error;
+    } finally {
+      if (!committed) {
+        this.capturePartialTurn({
+          text: textContent,
+          reasoning: reasoningContent,
+          toolCalls: Array.from(toolCallAcc.entries())
+            .sort(([a], [b]) => a - b)
+            .map(([, tc]) => ({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.arguments,
+            })),
+          reason: this.partialTurnReason(failure, options?.signal),
+          error: failure,
+          meta: reasoningDetails.length ? { reasoningDetails } : undefined,
+        });
+      }
     }
   }
 

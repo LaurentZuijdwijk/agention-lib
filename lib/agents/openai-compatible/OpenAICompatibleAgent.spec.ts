@@ -1294,4 +1294,233 @@ describe("OpenAICompatibleAgent", () => {
       );
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Partial turn capture
+  // ---------------------------------------------------------------------------
+
+  describe("partial turn capture", () => {
+    function makeStream(chunks: object[]) {
+      return (async function* () {
+        for (const chunk of chunks) yield chunk;
+      })();
+    }
+
+    /** A stream that yields some reasoning and then dies mid-trail. */
+    function makeFailingStream(chunks: object[], error: Error) {
+      return (async function* () {
+        for (const chunk of chunks) yield chunk;
+        throw error;
+      })();
+    }
+
+    async function collectStream(gen: AsyncGenerator<any>): Promise<any[]> {
+      const results: any[] = [];
+      for await (const chunk of gen) results.push(chunk);
+      return results;
+    }
+
+    it("keeps the reasoning trail when the stream dies mid-thought", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeFailingStream(
+          [
+            { choices: [{ finish_reason: null, delta: { reasoning_content: "Let me think" } }] },
+            { choices: [{ finish_reason: null, delta: { reasoning_content: " step by step" } }] },
+          ],
+          new Error("socket hang up")
+        )
+      );
+
+      const error = await collectStream(agent.executeStream("Hi")).catch((e) => e);
+
+      expect(agent.lastPartialTurn).toEqual(
+        expect.objectContaining({
+          text: "",
+          reasoning: "Let me think step by step",
+          toolCalls: [],
+          reason: "error",
+        })
+      );
+      // The same trail is reachable from the error alone
+      expect(error.partial).toBe(agent.lastPartialTurn);
+      // ...but is never passed off as a finished assistant turn
+      expect(
+        agent.getHistoryEntries().some((entry) => entry.role === "assistant")
+      ).toBe(false);
+    });
+
+    it("emits PARTIAL_TURN with the salvaged turn", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeFailingStream(
+          [{ choices: [{ finish_reason: null, delta: { reasoning: "half a thought" } }] }],
+          new Error("socket hang up")
+        )
+      );
+
+      const spy = jest.spyOn(agent, "emit");
+      await collectStream(agent.executeStream("Hi")).catch(() => undefined);
+
+      expect(spy).toHaveBeenCalledWith(
+        AgentEvent.PARTIAL_TURN,
+        expect.objectContaining({ reasoning: "half a thought" })
+      );
+    });
+
+    it("records the reason as max_tokens when the model ran out of budget", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          { choices: [{ finish_reason: null, delta: { reasoning_content: "thinking..." } }] },
+          { choices: [{ finish_reason: "length", delta: { content: "partial answer" } }] },
+        ])
+      );
+
+      await collectStream(agent.executeStream("Hi")).catch(() => undefined);
+
+      expect(agent.lastPartialTurn).toEqual(
+        expect.objectContaining({
+          text: "partial answer",
+          reasoning: "thinking...",
+          reason: "max_tokens",
+        })
+      );
+    });
+
+    it("records the reason as aborted when the caller cancels", async () => {
+      const controller = new AbortController();
+
+      mockClient.chat.completions.create.mockImplementation(() =>
+        (async function* () {
+          yield { choices: [{ finish_reason: null, delta: { reasoning_content: "thinking" } }] };
+          controller.abort();
+        })()
+      );
+
+      await collectStream(
+        agent.executeStream("Hi", { signal: controller.signal })
+      ).catch(() => undefined);
+
+      expect(agent.lastPartialTurn).toEqual(
+        expect.objectContaining({ reasoning: "thinking", reason: "aborted" })
+      );
+    });
+
+    it("records the reason as abandoned when the consumer stops iterating", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          { choices: [{ finish_reason: null, delta: { reasoning_content: "thinking" } }] },
+          { choices: [{ finish_reason: "stop", delta: { content: "answer" } }] },
+        ])
+      );
+
+      for await (const chunk of agent.executeStream("Hi")) {
+        if (chunk.type === "reasoning") break;
+      }
+
+      expect(agent.lastPartialTurn).toEqual(
+        expect.objectContaining({ reasoning: "thinking", reason: "abandoned" })
+      );
+    });
+
+    it("keeps a half-streamed tool call, arguments and all", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeFailingStream(
+          [
+            {
+              choices: [
+                {
+                  finish_reason: null,
+                  delta: {
+                    tool_calls: [
+                      { index: 0, id: "call_1", function: { name: "search", arguments: '{"q":"wea' } },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+          new Error("socket hang up")
+        )
+      );
+
+      await collectStream(agent.executeStream("Hi")).catch(() => undefined);
+
+      expect(agent.lastPartialTurn?.toolCalls).toEqual([
+        { id: "call_1", name: "search", arguments: '{"q":"wea' },
+      ]);
+    });
+
+    it("leaves lastPartialTurn unset when the stream completes", async () => {
+      mockClient.chat.completions.create.mockResolvedValue(
+        makeStream([
+          { choices: [{ finish_reason: null, delta: { reasoning_content: "thinking" } }] },
+          { choices: [{ finish_reason: "stop", delta: { content: "answer" } }] },
+          { choices: [], usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } },
+        ])
+      );
+
+      await collectStream(agent.executeStream("Hi"));
+
+      expect(agent.lastPartialTurn).toBeUndefined();
+    });
+
+    it("clears a stale partial turn at the start of the next execution", async () => {
+      mockClient.chat.completions.create.mockResolvedValueOnce(
+        makeFailingStream(
+          [{ choices: [{ finish_reason: null, delta: { reasoning_content: "thinking" } }] }],
+          new Error("socket hang up")
+        )
+      );
+      await collectStream(agent.executeStream("Hi")).catch(() => undefined);
+      expect(agent.lastPartialTurn).toBeDefined();
+
+      mockClient.chat.completions.create.mockResolvedValueOnce(
+        makeStream([{ choices: [{ finish_reason: "stop", delta: { content: "answer" } }] }])
+      );
+      await collectStream(agent.executeStream("Again"));
+
+      expect(agent.lastPartialTurn).toBeUndefined();
+    });
+
+    it("captures the failing hop, not the tool-call hop already in history", async () => {
+      agent["tools"].set("search", {
+        execute: jest.fn().mockResolvedValue("sunny"),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "search",
+          description: "Search",
+          input_schema: { type: "object", properties: {} },
+        }),
+      } as any);
+
+      mockClient.chat.completions.create
+        .mockResolvedValueOnce(
+          makeStream([
+            { choices: [{ finish_reason: null, delta: { reasoning_content: "first hop reasoning" } }] },
+            {
+              choices: [
+                {
+                  finish_reason: "tool_calls",
+                  delta: {
+                    tool_calls: [
+                      { index: 0, id: "call_1", function: { name: "search", arguments: "{}" } },
+                    ],
+                  },
+                },
+              ],
+            },
+          ])
+        )
+        .mockResolvedValueOnce(
+          makeFailingStream(
+            [{ choices: [{ finish_reason: null, delta: { reasoning_content: "second hop reasoning" } }] }],
+            new Error("socket hang up")
+          )
+        );
+
+      await collectStream(agent.executeStream("Hi")).catch(() => undefined);
+
+      // The first hop committed its assistant turn, so only the second is unsaved
+      expect(agent.lastPartialTurn?.reasoning).toBe("second hop reasoning");
+      expect(agent.lastPartialTurn?.toolCalls).toEqual([]);
+    });
+  });
 });

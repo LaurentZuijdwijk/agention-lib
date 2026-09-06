@@ -12,8 +12,13 @@ import {
   CommonAgentConfig,
   VendorSpecificConfig,
 } from "./AgentConfig";
-import { AbortError, ExecutionError } from "./errors/AgentError";
-import { ExecuteOptions } from "./cancellation";
+import {
+  AbortError,
+  AgentError,
+  ExecutionError,
+  MaxTokensExceededError,
+} from "./errors/AgentError";
+import { ExecuteOptions, isAbortError } from "./cancellation";
 import { AgentEvent } from "./AgentEvent";
 
 // Re-export for convenience
@@ -165,6 +170,79 @@ export type ModelInfo<TRaw = unknown> = {
 };
 
 /**
+ * Why a streamed turn stopped before its assistant message could be written to
+ * history. See {@link PartialTurn}.
+ */
+export type PartialTurnReason =
+  /** The stream or the code around it threw. */
+  | "error"
+  /** The caller's `AbortSignal` fired. */
+  | "aborted"
+  /** The provider stopped on its token limit. */
+  | "max_tokens"
+  /** The consumer stopped iterating the generator (a `break`, or a `return`). */
+  | "abandoned";
+
+/** One tool call as it stood when a streamed turn was cut short. */
+export type PartialToolCall = {
+  /** Provider-assigned call id. Empty if the stream ended before it arrived. */
+  id: string;
+  /** Tool name, which streams in before the arguments do. */
+  name: string;
+  /**
+   * Raw JSON argument text as received. Very likely truncated mid-token, so
+   * this is for inspection and recovery, not for `JSON.parse`.
+   */
+  arguments: string;
+};
+
+/**
+ * What a streamed turn had generated when it was cut short — the text,
+ * the reasoning trail, and any tool calls that had started to arrive.
+ *
+ * Streaming agents accumulate a turn locally and only write it to history once
+ * the stream ends cleanly, so a connection drop, a provider-side error or a
+ * token-limit stop would otherwise discard everything generated up to that
+ * point. That is cheap for a short answer and expensive for a local reasoning
+ * model, where the trail can represent twenty minutes of compute.
+ *
+ * The partial turn is therefore always captured, on {@link BaseAgent.lastPartialTurn}
+ * and on the thrown {@link AgentError.partial}, but never written to history:
+ * a half-finished turn is frequently not replayable (Anthropic thinking blocks
+ * need the `signature` that arrives last, truncated tool-call JSON does not
+ * parse), so what to do with it is the caller's decision.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   for await (const chunk of agent.executeStream("...")) process.stdout.write(chunk.content);
+ * } catch (err) {
+ *   const salvaged = agent.lastPartialTurn;
+ *   if (salvaged) fs.writeFileSync("trail.md", salvaged.reasoning);
+ * }
+ * ```
+ */
+export type PartialTurn = {
+  /** Assistant text generated so far. Empty if none arrived. */
+  text: string;
+  /** Reasoning/thinking text generated so far. Empty if none arrived. */
+  reasoning: string;
+  /** Tool calls that had begun streaming, in index order. */
+  toolCalls: PartialToolCall[];
+  /** Why the turn stopped. */
+  reason: PartialTurnReason;
+  /** The error that ended it, where one did. */
+  error?: unknown;
+  /**
+   * Provider-specific extras worth keeping — currently Anthropic's thinking
+   * block `signature`, which is what decides whether the trail can be replayed.
+   */
+  meta?: Record<string, unknown>;
+  /** When the turn was cut short. */
+  at: Date;
+};
+
+/**
  * The base agent is what the other agents are inheriting from
  * Handles the BaseConfig
  */
@@ -193,6 +271,13 @@ export abstract class BaseAgent<
    * Reset at the start of each execution.
    */
   public lastTokenUsage?: TokenUsage;
+
+  /**
+   * What the most recent streamed turn had generated when it was cut short,
+   * or `undefined` if the last execution completed and its turn reached
+   * history. Reset at the start of every execution. See {@link PartialTurn}.
+   */
+  public lastPartialTurn?: PartialTurn;
 
   /** Start of the API call currently in flight, set by `startTurnTimer()`. */
   private turnStartedAt?: number;
@@ -424,6 +509,70 @@ export abstract class BaseAgent<
     ) {
       this.turnFirstTokenAt = Date.now();
     }
+  }
+
+  /**
+   * Clear any captured partial turn. Called at the start of every `execute()` /
+   * `executeStream()`, so a set `lastPartialTurn` always refers to the current
+   * execution and never to an earlier one.
+   */
+  protected resetPartialTurn(): void {
+    this.lastPartialTurn = undefined;
+  }
+
+  /**
+   * Record what a streamed turn had generated when it was cut short, and
+   * announce it on {@link AgentEvent.PARTIAL_TURN}.
+   *
+   * Called from the `finally` of every streaming turn that did not commit its
+   * assistant message to history. A turn with nothing in it is ignored, so
+   * `lastPartialTurn` being set always means there is unsaved work.
+   *
+   * @returns the recorded partial turn, or `undefined` if there was nothing to
+   *          record.
+   */
+  protected capturePartialTurn(
+    partial: Omit<PartialTurn, "at">
+  ): PartialTurn | undefined {
+    if (
+      !partial.text &&
+      !partial.reasoning &&
+      partial.toolCalls.length === 0
+    ) {
+      return undefined;
+    }
+
+    const captured: PartialTurn = { ...partial, at: new Date() };
+    this.lastPartialTurn = captured;
+    this.emit(AgentEvent.PARTIAL_TURN, captured);
+    return captured;
+  }
+
+  /**
+   * Classify why a streamed turn stopped, from the error that ended it.
+   *
+   * @param error the error propagating out of the turn, or `undefined` when the
+   *              consumer simply stopped iterating.
+   */
+  protected partialTurnReason(
+    error: unknown,
+    signal?: AbortSignal
+  ): PartialTurnReason {
+    if (error === undefined) return "abandoned";
+    if (signal?.aborted || isAbortError(error, signal)) return "aborted";
+    if (error instanceof MaxTokensExceededError) return "max_tokens";
+    return "error";
+  }
+
+  /**
+   * Attach the captured partial turn to an error on its way out, so a caller
+   * holding only the error can still recover the trail.
+   */
+  protected withPartialTurn<E extends AgentError>(error: E): E {
+    if (this.lastPartialTurn && error.partial === undefined) {
+      error.partial = this.lastPartialTurn;
+    }
+    return error;
   }
 
   /**

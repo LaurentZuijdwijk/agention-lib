@@ -7,6 +7,7 @@ export * from "./agents/AgentConfig";
 export * from "./agents/AgentEvent";
 export * from "./agents/errors/AgentError";
 export * from "./agents/cancellation";
+export * from "./agents/reasoning-text";
 
 // History
 export * from "./history/History";

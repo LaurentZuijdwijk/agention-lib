@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-09-09
+
+### Added
+- **`CodexAgent` — run agents on a ChatGPT subscription instead of a platform
+  API key.** Requests go to `https://chatgpt.com/backend-api/codex`, the
+  endpoint OpenAI's Codex CLI uses, and are billed against the subscription
+  rather than an API account.
+
+  ```typescript
+  import { CodexAgent } from "@agentionai/agents/openai";
+
+  // Reads ~/.codex/auth.json (written by `codex login`) and keeps the
+  // short-lived access token refreshed underneath the agent.
+  const agent = await CodexAgent.fromCodexCli({
+    id: "1",
+    name: "Assistant",
+    description: "You are a helpful assistant.",
+    model: "gpt-5.6-luna",
+  });
+  ```
+
+  Note this is *not* an `authType` flag on `OpenAiAgent`, because the two
+  backends are not variants of each other. Their model namespaces are
+  **disjoint** — every platform id (`gpt-5.6`, `gpt-4.1-mini`, even
+  `gpt-5.1-codex`) is rejected here with *"model is not supported when using
+  Codex with a ChatGPT account"*, while this backend serves `gpt-6-astra`,
+  `gpt-5.6-sol/terra/luna`, `gpt-5.5` and `codex-auto-review`. Typing that path
+  as `OpenAIModel` would have been actively misleading, so `CodexAgent` brings
+  its own `CodexModel` and `CodexReasoningEffort` (`low`–`max`, uniform across
+  these models rather than per family).
+
+  The class extends `OpenAiAgent` — it does speak the Responses API — and
+  overrides only where the backend diverges: it requires a non-empty
+  `instructions`, a list-shaped `input`, `store: false` and `stream: true`,
+  and rejects `max_output_tokens` outright. Because it refuses non-streaming
+  requests, `execute()` streams internally and returns the finished text;
+  `executeStream()` is unchanged.
+
+- **`codex-auth.ts`** — `loadCodexCredentials()` reads `$CODEX_HOME/auth.json`
+  (falling back to the `id_token`'s `chatgpt_account_id` claim when
+  `account_id` is absent), `refreshCodexCredentials()` exchanges a refresh
+  token, and `createCodexTokenProvider()` wraps credentials in a lazily
+  refreshing token source. Concurrent refreshes collapse into one in-flight
+  request, a failure is not cached, and `onRefresh` reports a rotated refresh
+  token for persisting.
+
+- **`apiKey` accepts `() => Promise<string>`** on `OpenAiAgent`. The OpenAI SDK
+  re-invokes the function before every request, which is how a long-running
+  agent outlives a ~1h OAuth access token. Plain strings work exactly as
+  before.
+
+- **`baseURL` and `fetch` options on `OpenAiAgent`**, neither previously
+  configurable. `fetch` takes the new exported `wrapErrorBodyFetch()` for any
+  host whose error bodies are not OpenAI-shaped.
+
+- **`CodexAgent.listModels()`** reads the Codex models endpoint
+  (`/models?client_version=…`), returning richer cards than `/v1/models`: the
+  context window for *your* plan (272K on Plus) alongside the model's ceiling
+  (872K), supported reasoning levels, and plan availability.
+
+### Fixed
+- **`OpenAiAgent` crashed while reporting an error whose body had no `error`
+  key.** All three catch blocks read `error.error.message` unguarded, so such a
+  response surfaced as `TypeError: Cannot read properties of undefined`
+  instead of the actual API error. Replaced by a shared, defensive
+  `describeOpenAIError()`. Affects any non-OpenAI host reached through this
+  agent, not just the new one.
+
+- **Error bodies that the OpenAI SDK discards are now recovered.**
+  `APIError.generate` reads `body.error` and throws the rest away, so a backend
+  reporting `{"detail": "…"}` produced the useless `400 status code (no body)`.
+  `wrapErrorBodyFetch()` re-nests such a body so the real reason survives.
+
+- **Streamed responses whose terminal event carries an empty `output` are
+  reconstructed** from the `response.output_item.done` items that preceded it.
+  Without this, a turn on such a backend committed an empty assistant message
+  and silently dropped every tool call, since both are read off
+  `response.output`. A no-op where `output` is already populated.
+
 ## [1.12.0] - 2026-09-06
 
 ### Added

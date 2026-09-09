@@ -1,6 +1,11 @@
 // @ts-nocheck
 import OpenAI from "openai";
-import { OpenAiAgent, lowestReasoningEffort } from "./OpenAiAgent";
+import {
+  OpenAiAgent,
+  lowestReasoningEffort,
+  describeOpenAIError,
+  wrapErrorBodyFetch,
+} from "./OpenAiAgent";
 import { OPENAI_REASONING_SUPPORT } from "../model-types";
 import { AgentEvent } from "../AgentEvent";
 import {
@@ -1074,5 +1079,96 @@ describe("OpenAiAgent", () => {
 
       expect(agent.lastPartialTurn).toBeUndefined();
     });
+  });
+
+});
+
+describe("describeOpenAIError", () => {
+  it("reads the standard OpenAI error envelope", () => {
+    expect(
+      describeOpenAIError({
+        status: 429,
+        error: { message: "Rate limited", code: "rate_limit_exceeded" },
+      })
+    ).toMatchObject({
+      message: "Rate limited",
+      code: "rate_limit_exceeded",
+      status: 429,
+    });
+  });
+
+  it("reads a `detail` body, as the Codex backend sends", () => {
+    expect(
+      describeOpenAIError({ status: 400, error: { detail: "Store must be set to false" } })
+    ).toMatchObject({ message: "Store must be set to false", status: 400 });
+  });
+
+  it("falls back to the SDK message when there is no body", () => {
+    expect(describeOpenAIError({ status: 500, message: "boom" }).message).toBe(
+      "boom"
+    );
+  });
+
+  it("does not throw on an error with no usable fields", () => {
+    expect(describeOpenAIError({}).message).toBe("Unknown error");
+    expect(describeOpenAIError(undefined).message).toBe("Unknown error");
+  });
+
+  it("handles a string error body", () => {
+    expect(describeOpenAIError({ error: "plain text" }).message).toBe(
+      "plain text"
+    );
+  });
+});
+
+describe("wrapErrorBodyFetch", () => {
+  const jsonResponse = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json", "Content-Length": "999" },
+    });
+
+  it("passes successful responses through untouched", async () => {
+    const original = jsonResponse(200, { ok: true });
+    const base = jest.fn().mockResolvedValue(original);
+
+    const res = await wrapErrorBodyFetch(base as any)("http://x");
+
+    expect(res).toBe(original);
+  });
+
+  it("nests a `detail` body under `error` so the SDK can read it", async () => {
+    const base = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(400, { detail: "Instructions are required" }));
+
+    const res = await wrapErrorBodyFetch(base as any)("http://x");
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error.message).toBe("Instructions are required");
+    // The stale length header must not survive the rewrite.
+    expect(res.headers.get("content-length")).toBeNull();
+  });
+
+  it("leaves an already-OpenAI-shaped error alone", async () => {
+    const base = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(400, { error: { message: "Bad" } }));
+
+    const body = await (await wrapErrorBodyFetch(base as any)("http://x")).json();
+
+    expect(body).toEqual({ error: { message: "Bad" } });
+  });
+
+  it("passes a non-JSON error body through as text", async () => {
+    const base = jest.fn().mockResolvedValue(
+      new Response("<html>502</html>", { status: 502 })
+    );
+
+    const res = await wrapErrorBodyFetch(base as any)("http://x");
+
+    expect(await res.text()).toBe("<html>502</html>");
+    expect(res.status).toBe(502);
   });
 });

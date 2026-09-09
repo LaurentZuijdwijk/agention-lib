@@ -181,6 +181,29 @@ export interface OpenAISpecificConfig {
    * see `lib/tools/BuiltInTool.ts`.
    */
   builtInTools?: BuiltInTool[];
+  /**
+   * Override the API base URL. Defaults to `api.openai.com/v1`; `CodexAgent`
+   * defaults it to `https://chatgpt.com/backend-api/codex`, and setting it
+   * there points at a Codex proxy instead.
+   */
+  baseURL?: string;
+  /**
+   * `CodexAgent` only: ChatGPT workspace to bill, sent as the
+   * `chatgpt-account-id` header.
+   */
+  accountId?: string;
+  /**
+   * `CodexAgent` only: client identifier sent as the `originator` header.
+   * OpenAI varies the model catalog by originator.
+   *
+   * @default "codex_cli_rs"
+   */
+  originator?: string;
+  /**
+   * `client_version` sent to the Codex models endpoint, which requires one and
+   * hides models newer than the version claimed.
+   */
+  clientVersion?: string;
 }
 
 /**

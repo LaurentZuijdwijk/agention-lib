@@ -11,6 +11,28 @@
 export * from "./agents/BaseAgent";
 export * from "./agents/anthropic/ClaudeAgent";
 export { OpenAiAgent } from "./agents/openai/OpenAiAgent";
+export {
+  CODEX_BASE_URL,
+  CODEX_CLIENT_ID,
+  CODEX_ORIGINATOR,
+  CODEX_TOKEN_URL,
+  codexAuthFilePath,
+  createCodexTokenProvider,
+  loadCodexCredentials,
+  refreshCodexCredentials,
+} from "./agents/openai/codex-auth";
+export type {
+  CodexModelCard,
+  CodexCredentials,
+  CodexTokenProvider,
+  CodexTokenProviderOptions,
+} from "./agents/openai/codex-auth";
+export { CodexAgent } from "./agents/openai/CodexAgent";
+export type {
+  CodexAgentConfig,
+  CodexModel,
+  CodexReasoningEffort,
+} from "./agents/openai/CodexAgent";
 export { MistralAgent } from "./agents/mistral/MistralAgent";
 export type { MistralModelCard } from "./agents/mistral/MistralAgent";
 export {

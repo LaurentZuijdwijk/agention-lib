@@ -6,12 +6,12 @@ Agents are the core building block of Agention. Each agent wraps an LLM and prov
 
 | Provider | Agent Class | Model Examples |
 |----------|-------------|----------------|
-| Anthropic | `ClaudeAgent` | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
-| Google | `GeminiAgent` | `gemini-2.0-flash` |
-| OpenAI | `OpenAiAgent` | `gpt-4o`, `gpt-4-turbo` |
-| Mistral | `MistralAgent` | `mistral-large-latest`, `mistral-medium` |
+| Anthropic | `ClaudeAgent` | `claude-sonnet-5`, `claude-opus-5` |
+| Google | `GeminiAgent` | `gemini-3.6-flash` |
+| OpenAI | `OpenAiAgent` | `gpt-5.6-luna`, `gpt-5.6-sol` |
+| OpenAI (ChatGPT subscription) | `CodexAgent` | `gpt-5.6-luna`, `gpt-6-astra` |
 | OpenRouter | `OpenRouterAgent` | `anthropic/claude-opus-4-20250514`, `openai/gpt-5.6`, `openrouter/auto` |
-| Ollama (local) | `OllamaAgent` | `llama3.2`, `qwen2.5`, `deepseek-r1` |
+| Ollama (local) | `OllamaAgent` | `qwen3.6`, `deepseek-v4` |
 | llama.cpp (local) | `LlamaCppAgent` | any GGUF model loaded by `llama-server` |
 
 ## Installation & Imports
@@ -45,7 +45,7 @@ Import using selective imports to avoid installing unnecessary dependencies:
 
 ```typescript
 import { ClaudeAgent } from '@agentionai/agents/claude';
-import { OpenAiAgent } from '@agentionai/agents/openai';
+import { OpenAiAgent, CodexAgent } from '@agentionai/agents/openai';
 import { GeminiAgent } from '@agentionai/agents/gemini';
 import { MistralAgent } from '@agentionai/agents/mistral';
 import { OpenRouterAgent } from '@agentionai/agents/openrouter';
@@ -63,7 +63,7 @@ const agent = new ClaudeAgent({
   name: 'Assistant',
   description: 'You are a helpful assistant.',
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
 });
 
 const response = await agent.execute('Hello!');
@@ -78,7 +78,7 @@ const agent = new ClaudeAgent({
   name: 'My Agent',              // Display name for logging/metrics
   description: 'You are...',     // Sets agent behavior (becomes system prompt)
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
 
   // Optional
   tools: [tool1, tool2],         // Available tools
@@ -113,7 +113,7 @@ const agent = new ClaudeAgent({
   id: 'assistant',
   name: 'Assistant',
   description: 'You are a helpful assistant.',
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
   apiKey: process.env.CLAUDE_OAUTH_TOKEN, // an sk-ant-oat... token
   authType: 'oauth',                      // sent as a bearer authToken instead of x-api-key
 });
@@ -125,6 +125,88 @@ const agent = new ClaudeAgent({
 | `'oauth'` |  | `Authorization: Bearer ...` | OAuth access tokens (`sk-ant-oat...`) |
 
 `authType` can also be set via `vendorConfig.anthropic.authType`.
+
+## ChatGPT Subscription OAuth: `CodexAgent`
+
+`CodexAgent` runs against a **ChatGPT subscription** instead of a platform API key, the way OpenAI's Codex CLI does. Calls go to `https://chatgpt.com/backend-api/codex` and are billed to the subscription, not an API account.
+
+Sign in with the Codex CLI first — the library reads the credentials it stores, it does not run the OAuth flow itself:
+
+```bash
+npx @openai/codex login       # or --device-auth on a headless box
+```
+
+```typescript
+import { CodexAgent } from '@agentionai/agents/openai';
+
+// Reads ~/.codex/auth.json and keeps the access token refreshed
+const agent = await CodexAgent.fromCodexCli({
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  model: 'gpt-5.6-luna',
+});
+
+console.log(await agent.execute('Hello!'));
+```
+
+`fromCredentials(credentials, config)` does the same from credentials you obtained yourself, and the constructor takes a plain `apiKey` if you are managing tokens elsewhere. `apiKey` accepts a `string` or a `() => Promise<string>`; the function form is re-invoked by the SDK before every request, which is what keeps a long run alive past a token's ~1h life.
+
+### Why a separate agent
+
+It speaks the Responses API, so it extends `OpenAiAgent` — but the two backends diverge enough that sharing one class meant mis-typing which models exist:
+
+| | `OpenAiAgent` | `CodexAgent` |
+|---|---|---|
+| credential | platform key (`sk-…`) | ChatGPT OAuth token |
+| models | `gpt-5.6`, `gpt-4.1-mini`, … | `gpt-5.6-luna/sol/terra`, `gpt-6-astra`, … — **disjoint sets** |
+| reasoning efforts | per model family | `low`–`max`, uniform |
+| request body | as written | `instructions` required, `stream: true`, no `max_output_tokens` |
+| errors | `{error: {…}}` | `{detail: …}` |
+| terminal stream event | `output` populated | `output: []` — content arrives as items |
+| models endpoint | `/v1/models` | `/models?client_version=…` |
+
+Every platform model id is rejected here with *"model is not supported when using Codex with a ChatGPT account"*, and vice versa — hence `CodexModel` rather than `OpenAIModel`.
+
+### Listing models
+
+`listModels()` returns richer cards than the platform API, including the context window for **your** plan:
+
+```
+gpt-6-astra         272000 ctx  GPT-6-Astra
+gpt-5.6-luna        272000 ctx  GPT-5.6-Luna
+gpt-5.5             272000 ctx  GPT-5.5
+```
+
+`raw` carries the rest — `max_context_window` (872000 on Luna), `supported_reasoning_levels`, `available_in_plans`, `minimal_client_version`. The backend hides models newer than the `clientVersion` you claim.
+
+### Streaming and errors
+
+That backend refuses `stream: false`, so `execute()` streams internally and hands back the finished text; `executeStream()` is unchanged and is still how you see tokens as they arrive.
+
+Its `{"detail": …}` error bodies would otherwise be discarded by the SDK — which reads only `body.error` — and surface as `400 status code (no body)`. `CodexAgent` installs a `fetch` wrapper that re-nests them, so you get the real reason:
+
+```
+ApiError: OpenAI API error: The 'gpt-5.6' model is not supported when using Codex with a ChatGPT account.
+```
+
+`wrapErrorBodyFetch()` is exported for any other non-OpenAI host behind `OpenAiAgent`, via its `fetch` option.
+
+### Proxies
+
+The Codex request shape follows the agent, not the URL, so a Codex proxy works by setting `baseURL`:
+
+```typescript
+new CodexAgent({ /* … */ baseURL: 'http://localhost:8123' });
+```
+
+### Caveats
+
+- **Conversation state.** Agent history is transient by default — cleared before every `execute()`. Pass a `History` to keep a conversation.
+- **Credential storage.** Codex can keep credentials in your OS keychain rather than `auth.json`, controlled by `cli_auth_credentials_store`. `loadCodexCredentials()` only reads the file; set `cli_auth_credentials_store = "file"` in `~/.codex/config.toml` if you hit that.
+- **Stability.** None of this is a documented public OpenAI API. It was verified live, but OpenAI can change it without notice; platform API keys remain the supported path.
+
+Examples: `examples/openai-oauth.ts`, and `examples/mock-codex-backend.ts` for running it without an account.
 
 ## Conversation History
 
@@ -143,7 +225,7 @@ const agent = new ClaudeAgent({
   name: 'Assistant',
   description: 'You are a helpful assistant.',
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
 }, history);
 
 await agent.execute('My name is Alice.');
@@ -190,7 +272,7 @@ const claude = new ClaudeAgent({
   name: 'Claude',
   description: 'You are a helpful assistant.',
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
 });
 
 const openai = new OpenAiAgent({
@@ -939,7 +1021,7 @@ for await (const chunk of agent.executeStream('What is 17 * 13?')) {
 const claude = new ClaudeAgent({
   id: 'assistant', name: 'Assistant', description: 'You think carefully.',
   apiKey: process.env.ANTHROPIC_API_KEY,
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
   maxTokens: 8192,
   thinkingBudgetTokens: 4096,   // turns on thinking + `"reasoning"` chunks
 });
@@ -1111,7 +1193,7 @@ const agent = new ClaudeAgent({
   name: 'VisionAgent',
   description: 'You analyze images.',
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-opus-4-6',
+  model: 'claude-opus-5',
 });
 
 // Remote image by URL
@@ -1179,7 +1261,7 @@ const mainAgent = new ClaudeAgent({
   name: 'Coordinator',
   description: 'You coordinate analysis and provide clear answers.',
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
   tools: [reasoningTool],
 });
 

@@ -21,6 +21,7 @@ import {
   Response,
   ResponseCompletedEvent,
   ResponseFunctionToolCall,
+  ResponseInputItem,
   ResponseStreamEvent,
   ResponseUsage,
 } from "openai/resources/responses/responses";
@@ -37,10 +38,31 @@ import {
 import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
 import { canUseStrictSchema } from "./openai-strict";
 
-type AgentConfig<M extends OpenAIModel = OpenAIModel> = BaseAgentConfig & {
-  apiKey: string;
+// `apiKey` is widened past BaseAgentConfig's `string`, so it is omitted rather
+// than intersected — an intersection would resolve to `string & (() => …)`.
+export type AgentConfig<M extends OpenAIModel = OpenAIModel> = Omit<
+  BaseAgentConfig,
+  "apiKey"
+> & {
+  /**
+   * Platform API key, or an async function returning one.
+   *
+   * A function is re-invoked before every request, so a rotating or refreshed
+   * credential stays current across a long run — which is how `CodexAgent`
+   * keeps a ChatGPT OAuth token alive.
+   */
+  apiKey: string | (() => Promise<string>);
   model?: M;
   maxTokens?: number;
+  /**
+   * Override the API base URL. Defaults to the SDK's `api.openai.com/v1`.
+   */
+  baseURL?: string;
+  /**
+   * Replace the `fetch` used for every request — for interception, proxying, or
+   * normalising a non-OpenAI host's error bodies (see {@link wrapErrorBodyFetch}).
+   */
+  fetch?: typeof fetch;
   // Backward compatibility: vendor-specific at top level (deprecated)
   disableParallelToolUse?: boolean;
   /**
@@ -95,6 +117,99 @@ export function lowestReasoningEffort(
 }
 
 /**
+ * `fetch` wrapper that rewrites a non-OpenAI-shaped error body into the shape
+ * the SDK can read.
+ *
+ * `APIError.generate` takes the message from `body.error` and throws the rest
+ * away (`openai/core/error.js`), so a backend that reports failures as
+ * `{"detail": "..."}` — which the ChatGPT Codex endpoint does, for all four of
+ * its body validations plus auth failures — surfaces as the useless
+ * `400 status code (no body)`. Nesting the original body under `error` puts the
+ * real reason back in the thrown error.
+ *
+ * Only touches error responses; successful (streaming) responses pass straight
+ * through untouched.
+ */
+export function wrapErrorBodyFetch(baseFetch: typeof fetch = fetch): typeof fetch {
+  return async (input, init) => {
+    const res = await baseFetch(input, init);
+    if (res.ok) return res;
+
+    const text = await res.text().catch(() => "");
+
+    let body = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === "object" && !("error" in parsed)) {
+        body = JSON.stringify({
+          error: {
+            message:
+              typeof parsed.detail === "string"
+                ? parsed.detail
+                : JSON.stringify(parsed),
+            ...parsed,
+          },
+        });
+      }
+    } catch {
+      // Not JSON (an HTML error page, say) — hand the text back unchanged so
+      // the SDK reports it as the message.
+    }
+
+    // Reading the body consumed it, so the Response has to be rebuilt. Drop the
+    // length/encoding headers, which no longer describe the new payload.
+    const headers = new Headers(res.headers);
+    headers.delete("content-length");
+    headers.delete("content-encoding");
+
+    // `globalThis.Response`, not `Response`: this module imports the Responses
+    // API's `Response` *type*, which shadows the global class name here.
+    return new globalThis.Response(body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers,
+    });
+  };
+}
+
+/**
+ * Pull a human-readable message out of an OpenAI-shaped error.
+ *
+ * `api.openai.com` answers with `{ error: { message, code } }`, but not every
+ * host behind this SDK does — the ChatGPT Codex backend reports its validation
+ * failures as `{ detail: "Instructions are required" }`. Reading
+ * `error.error.message` blindly turns those into a `TypeError` that hides the
+ * real cause, so every field is probed defensively and the SDK's own `message`
+ * is the last resort.
+ */
+export function describeOpenAIError(error: unknown): {
+  message: string;
+  code?: string;
+  status?: number;
+  body?: unknown;
+} {
+  const err = error as {
+    status?: number;
+    message?: string;
+    error?: { message?: string; code?: string; detail?: string } | string;
+    detail?: string;
+  };
+
+  const body = err?.error;
+  const fromBody =
+    typeof body === "string"
+      ? body
+      : (body?.message ?? body?.detail ?? undefined);
+
+  return {
+    message: fromBody ?? err?.detail ?? err?.message ?? "Unknown error",
+    code: typeof body === "object" ? body?.code : undefined,
+    status: err?.status,
+    body: body ?? err?.detail,
+  };
+}
+
+/**
  * Agent for OpenAI models using the Responses API.
  *
  * @example
@@ -109,7 +224,12 @@ export function lowestReasoningEffort(
  * const response = await agent.execute("Hello!");
  * ```
  */
-export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent {
+export class OpenAiAgent<
+  M extends OpenAIModel = OpenAIModel,
+  // Second parameter so a subclass on a different host can type `raw` for its
+  // own models endpoint — `CodexAgent`'s cards share no fields with OpenAI's.
+  TModelCard = OpenAIModelCard,
+> extends BaseAgent {
   private client: OpenAI;
   /**
    * Resolved runtime config. Deliberately not narrowed by `M` — the constructor
@@ -125,17 +245,45 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
   /** Count of tool calls in current execution */
   private currentToolCallCount: number = 0;
 
-  constructor(config: Omit<AgentConfig<M>, "vendor">, history?: History) {
-    super({ ...config, vendor: "openai" }, history);
+  /**
+   * Whether a non-streaming call must be issued as a stream and collapsed.
+   * `false` here; `CodexAgent` overrides it, since that backend refuses
+   * `stream: false` outright.
+   */
+  protected get forceStreaming(): boolean {
+    return false;
+  }
 
-    this.client = new OpenAI({
-      apiKey: config.apiKey,
-      defaultHeaders: config.defaultHeaders,
-    });
+  /**
+   * Last chance to reshape a request body before it goes out. Identity here —
+   * `CodexAgent` overrides it to satisfy that backend's extra validations.
+   */
+  protected transformRequestParams<T extends { input: ResponseInputItem[] }>(
+    params: T
+  ): T {
+    return params;
+  }
+
+  constructor(config: Omit<AgentConfig<M>, "vendor">, history?: History) {
+    // Cast: `BaseAgentConfig.apiKey` is `string`, while this agent also accepts
+    // a token-returning function. BaseAgent never reads the field — it only
+    // declares it — so widening the base config for one provider would be the
+    // more invasive fix.
+    super({ ...config, vendor: "openai" } as BaseAgentConfig, history);
 
     // Merge flat config (deprecated) with nested vendorConfig
     // Flat config takes precedence for backward compatibility
     const vendorConfig = config.vendorConfig?.openai || {};
+
+    const baseURL = config.baseURL ?? vendorConfig.baseURL;
+
+    this.client = new OpenAI({
+      apiKey: config.apiKey,
+      baseURL,
+      defaultHeaders: config.defaultHeaders,
+      fetch: config.fetch,
+    });
+
     const disableParallelToolUse =
       config.disableParallelToolUse ??
       vendorConfig.disableParallelToolUse ??
@@ -162,6 +310,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       user,
       builtInTools,
       apiKey: config.apiKey,
+      baseURL,
       temperature: config.temperature,
       topP: config.topP,
       seed: config.seed,
@@ -181,14 +330,16 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
    * image models alike — so filter by `id` if you only want the ones this
    * agent can drive.
    */
-  async listModels(): Promise<ModelInfo<OpenAIModelCard>[]> {
+  async listModels(): Promise<ModelInfo<TModelCard>[]> {
     try {
       const page = await this.client.models.list();
       return page.data.map((model) => ({
         id: model.id,
         created: model.created ? new Date(model.created * 1000) : undefined,
         ownedBy: model.owned_by,
-        raw: model,
+        // Cast: this implementation always returns OpenAI's own cards; a
+        // subclass that reports a different shape overrides the whole method.
+        raw: model as TModelCard,
       }));
     } catch (error: unknown) {
       throw new ExecutionError(
@@ -197,6 +348,12 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         }`
       );
     }
+  }
+
+  /** The configured key, resolving the function form if that is what was given. */
+  protected async resolveApiKey(): Promise<string> {
+    const key = this.config.apiKey;
+    return typeof key === "function" ? await key() : (key ?? "");
   }
 
   protected getToolDefinitions(): Tool[] {
@@ -235,6 +392,94 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       ...this.getToolDefinitions(),
       ...(this.config.builtInTools ?? []),
     ] as Tool[];
+  }
+
+  /**
+   * Rebuild a terminal response's `output` from the items streamed alongside it.
+   *
+   * The Codex backend sends `response.completed` with `output: []` and no
+   * `output_text`, unlike the platform API which fills both in — the content
+   * only ever arrives as `response.output_item.done` events. Everything
+   * downstream (tool-call detection, the text written to history) reads
+   * `output`, so without this a Codex turn silently commits an empty assistant
+   * message and drops every tool call.
+   *
+   * A no-op wherever `output` is already populated, so the platform path is
+   * untouched.
+   */
+  private repairStreamedOutput(
+    response: Response,
+    streamedItems: unknown[]
+  ): Response {
+    if (response.output?.length || streamedItems.length === 0) return response;
+
+    const output = streamedItems as Response["output"];
+
+    const outputText = output
+      .filter((item) => item.type === "message")
+      .flatMap((item) => ("content" in item ? (item.content ?? []) : []))
+      .filter((part) => part?.type === "output_text")
+      .map((part) => ("text" in part ? part.text : ""))
+      .join("");
+
+    return { ...response, output, output_text: outputText };
+  }
+
+  /**
+   * Issue a non-streaming Responses API call.
+   *
+   * When {@link forceStreaming} is set the request is streamed and the terminal
+   * event's `response` handed back instead — giving callers the same `Response`
+   * either way, at the cost of buffering the turn.
+   */
+  private async createResponse(
+    params: Parameters<OpenAI["responses"]["create"]>[0] & {
+      input: ResponseInputItem[];
+    },
+    requestOptions: { signal?: AbortSignal }
+  ): Promise<Response> {
+    const body = this.transformRequestParams(params);
+
+    if (!this.forceStreaming) {
+      return this.client.responses.create(
+        { ...body, stream: false },
+        requestOptions
+      ) as Promise<Response>;
+    }
+
+    const stream = (await this.client.responses.create(
+      { ...body, stream: true },
+      requestOptions
+    )) as AsyncIterable<ResponseStreamEvent>;
+
+    let terminal: Response | undefined;
+    const streamedItems: unknown[] = [];
+
+    for await (const event of stream) {
+      // Collected because the Codex backend leaves `output` empty on the
+      // terminal event — see repairStreamedOutput().
+      if (event.type === "response.output_item.done") {
+        streamedItems.push(event.item);
+      }
+      // `incomplete` and `failed` carry a Response too — handleResponse()
+      // already reads `status` off it, so let it report the reason rather than
+      // failing here with a vaguer message.
+      if (
+        event.type === "response.completed" ||
+        event.type === "response.incomplete" ||
+        event.type === "response.failed"
+      ) {
+        terminal = event.response;
+      }
+    }
+
+    if (!terminal) {
+      throw new ExecutionError(
+        "OpenAI stream ended without a terminal response event"
+      );
+    }
+
+    return this.repairStreamedOutput(terminal, streamedItems);
   }
 
   /**
@@ -322,7 +567,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
 
       this.startTurnTimer();
-      const response = await this.client.responses.create(
+      const response = await this.createResponse(
         {
           model: this.config.model!,
           max_output_tokens: this.config.maxTokens,
@@ -356,17 +601,14 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
       }
 
       if (error && typeof error === "object" && "error" in error) {
-        const openAIError = error as {
-          error: { message?: string; code?: string };
-          status?: number;
-        };
+        const openAIError = describeOpenAIError(error);
         const apiError = new ApiError(
-          `OpenAI API error: ${openAIError.error.message || "Unknown error"}`,
+          `OpenAI API error: ${openAIError.message}`,
           openAIError.status,
-          openAIError.error
+          openAIError.body
         );
 
-        if (openAIError.error.code === "insufficient_quota") {
+        if (openAIError.code === "insufficient_quota") {
           apiError.message =
             "OpenAI API quota exceeded. Please check your billing details.";
         }
@@ -379,7 +621,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
             this.vizEventId,
             "ApiError",
             apiError.message,
-            openAIError.error.code === "rate_limit_exceeded"
+            openAIError.code === "rate_limit_exceeded"
           );
           this.vizEventId = undefined;
         }
@@ -541,7 +783,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           );
 
           this.startTurnTimer();
-          const newResponse = await this.client.responses.create(
+          const newResponse = await this.createResponse(
             {
               model: this.config.model!,
               max_output_tokens: this.config.maxTokens,
@@ -561,16 +803,11 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           return this.handleResponse(newResponse, options);
         } catch (error: unknown) {
           if (error && typeof error === "object" && "error" in error) {
-            const openAIError = error as {
-              error: { message?: string };
-              status?: number;
-            };
+            const openAIError = describeOpenAIError(error);
             const apiError = new ApiError(
-              `OpenAI API error during tool response: ${
-                openAIError.error.message || "Unknown error"
-              }`,
+              `OpenAI API error during tool response: ${openAIError.message}`,
               openAIError.status,
-              openAIError.error
+              openAIError.body
             );
             this.emit(AgentEvent.ERROR, apiError);
             throw apiError;
@@ -781,15 +1018,15 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         throw this.withPartialTurn(error);
       }
       if (error && typeof error === "object" && "error" in error) {
-        const openAIError = error as { error: { message?: string; code?: string }; status?: number };
+        const openAIError = describeOpenAIError(error);
         const apiError = new ApiError(
-          `OpenAI API error: ${openAIError.error.message || "Unknown error"}`,
+          `OpenAI API error: ${openAIError.message}`,
           openAIError.status,
-          openAIError.error
+          openAIError.body
         );
         this.emit(AgentEvent.ERROR, apiError);
         if (this.vizEventId) {
-          vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, openAIError.error.code === "rate_limit_exceeded");
+          vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, openAIError.code === "rate_limit_exceeded");
           this.vizEventId = undefined;
         }
         throw this.withPartialTurn(apiError);
@@ -815,7 +1052,7 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
 
     this.startTurnTimer();
     const stream = await this.client.responses.create(
-      {
+      this.transformRequestParams({
         model: this.config.model!,
         max_output_tokens: this.config.maxTokens,
         input: inputMessages,
@@ -826,11 +1063,12 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         top_p: this.config.topP,
         user: this.config.user,
         ...this.buildReasoningParams("auto"),
-      },
+      }),
       { signal: options?.signal }
     ) as AsyncIterable<ResponseStreamEvent>;
 
     let completedEvent: ResponseCompletedEvent | null = null;
+    const streamedItems: unknown[] = [];
 
     // The Responses API builds the committed turn out of `response.completed`,
     // which only arrives on success, so the deltas are mirrored here as well:
@@ -884,6 +1122,11 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
           const acc = partialCalls.get(event.output_index);
           if (acc) acc.arguments += event.delta;
         }
+        if (event.type === "response.output_item.done") {
+          // The Codex backend leaves `output` empty on the terminal event, so
+          // the finished items are kept here — see repairStreamedOutput().
+          streamedItems.push(event.item);
+        }
         if (event.type === "response.completed") {
           completedEvent = event;
           if (event.response.usage) {
@@ -907,7 +1150,10 @@ export class OpenAiAgent<M extends OpenAIModel = OpenAIModel> extends BaseAgent 
         throw new ExecutionError("OpenAI stream ended without a completed event");
       }
 
-      const response = completedEvent.response;
+      const response = this.repairStreamedOutput(
+        completedEvent.response,
+        streamedItems
+      );
       const toolCalls = response.output.filter(
         (o: any) => o.type === "function_call"
       ) as unknown as ResponseFunctionToolCall[];

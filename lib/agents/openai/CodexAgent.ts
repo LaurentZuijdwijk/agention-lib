@@ -84,7 +84,63 @@ export type CodexAgentConfig = Omit<
    * @default CODEX_CLIENT_VERSION
    */
   clientVersion?: string;
+  /**
+   * Conversation identifier sent as the `session_id` header, as the Codex CLI
+   * does — **this is what makes prompt caching work on this backend**, and
+   * setting it is how you opt into that caching.
+   *
+   * Requests carrying the same value are routed together and reuse each other's
+   * cached prefix; without it the backend caches essentially nothing, however
+   * identical the prefix. Measured on 2026-09-10 with a ~9K-token prefix
+   * repeated 8 times: 0/14 calls hit the cache with no header, 12/14 hit
+   * (~98% of the prefix) with one. `prompt_cache_key`, the platform API's
+   * lever, makes no difference here.
+   *
+   * **Unset by default**, so the header is omitted entirely and a request stays
+   * byte-identical to what earlier versions sent — the same opt-in rule as
+   * {@link AgentConfig.promptCacheKey} and
+   * {@link AgentConfig.promptCacheRetention}. Caching is not free of side
+   * effects: it groups your requests server-side under an id you chose, so it
+   * is yours to turn on rather than the agent's to assume.
+   *
+   * Any stable string works; the value is opaque and only its stability
+   * matters. One id per conversation is the usual grain — `randomUUID()` per
+   * agent instance reproduces the old default:
+   *
+   * ```typescript
+   * new CodexAgent({ …, sessionId: randomUUID() })      // cache within this run
+   * new CodexAgent({ …, sessionId: conversationId })    // cache across runs
+   * ```
+   *
+   * Note it is a *header*: `session_id` in the request body is rejected with
+   * *"Unsupported parameter: session_id"*.
+   */
+  sessionId?: string;
 };
+
+/**
+ * Configuration a factory hands to the constructor, before the credentials it
+ * resolves are merged in.
+ */
+type CodexFactoryConfig = Omit<CodexAgentConfig, "apiKey" | "accountId"> & {
+  tokenOptions?: CodexTokenProviderOptions;
+};
+
+/**
+ * What a static factory needs of the class it was called on: a constructor for
+ * the concrete subclass — which is where `T` is inferred from — intersected
+ * with the sibling factory it delegates to, so an override of that runs too.
+ *
+ * `Pick<typeof CodexAgent, …>` rather than a hand-written signature: the
+ * sibling's own `this` parameter is what carries `T` through the delegation,
+ * and restating it here would erase that and pin every subclass back to the
+ * base type.
+ */
+type CodexAgentClass<T extends CodexAgent> = (new (
+  config: CodexAgentConfig,
+  history?: History
+) => T) &
+  Pick<typeof CodexAgent, "fromCredentials">;
 
 /**
  * Agent for OpenAI models reached through a **ChatGPT subscription** rather
@@ -124,6 +180,15 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
   private readonly originator: string;
   private readonly clientVersion: string;
   private readonly codexBaseURL: string;
+  /**
+   * The `session_id` this agent sends on every request, or `undefined` when the
+   * header is not being sent — the key the backend's prompt cache is routed by.
+   *
+   * `undefined` means prompt caching is effectively off for this agent; set
+   * {@link CodexSpecificConfig.sessionId} to opt in. Read it back to pin a
+   * later agent to the same cache.
+   */
+  readonly sessionId?: string;
 
   /**
    * Quota state written by the fetch wrapper installed in the constructor.
@@ -144,6 +209,9 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
     const originator =
       config.originator ?? vendorConfig.originator ?? CODEX_ORIGINATOR;
     const baseURL = config.baseURL ?? vendorConfig.baseURL ?? CODEX_BASE_URL;
+    // No generated fallback: caching is opt-in, so an unset id means the header
+    // is not sent at all.
+    const sessionId = config.sessionId ?? vendorConfig.sessionId;
     // Filled by the fetch wrapper below and adopted as `this.limits` once
     // `super()` has run.
     const limits: CodexAgent["limits"] = {};
@@ -161,6 +229,11 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
           ...(accountId ? { "chatgpt-account-id": accountId } : {}),
           "OpenAI-Beta": "responses=experimental",
           originator,
+          // Opt-in. Stable for the life of the agent: the backend keys its
+          // prompt cache on this, and drops to ~0% hit rate without it. Omitted
+          // entirely when unset, so the request is byte-identical to one sent
+          // before this existed.
+          ...(sessionId ? { session_id: sessionId } : {}),
           // Every Codex request is a stream; the SDK would send
           // `application/json`, which no reference client does.
           Accept: "text/event-stream",
@@ -191,8 +264,11 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
     this.accountId = accountId;
     this.originator = originator;
     this.clientVersion =
-      config.clientVersion ?? vendorConfig.clientVersion ?? CODEX_CLIENT_VERSION;
+      config.clientVersion ??
+      vendorConfig.clientVersion ??
+      CODEX_CLIENT_VERSION;
     this.codexBaseURL = baseURL;
+    this.sessionId = sessionId;
   }
 
   /**
@@ -226,32 +302,43 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
    * Build an agent from the credentials `codex login` stored, wrapped in a
    * provider that refreshes the access token as it ages out.
    *
+   * Constructs `this`, so `MyCodexAgent.fromCodexCli(…)` returns a
+   * `MyCodexAgent` — see {@link CodexAgent.fromCredentials}.
+   *
    * @throws if no credentials are present — run `codex login` first.
    */
-  static async fromCodexCli(
-    config: Omit<CodexAgentConfig, "apiKey" | "accountId"> & {
+  static async fromCodexCli<T extends CodexAgent>(
+    this: CodexAgentClass<T>,
+    config: CodexFactoryConfig & {
       /** Read `auth.json` from somewhere other than `$CODEX_HOME`. */
       codexHome?: string;
-      /** Forwarded to {@link createCodexTokenProvider}. */
-      tokenOptions?: CodexTokenProviderOptions;
     },
     history?: History
-  ): Promise<CodexAgent> {
+  ): Promise<T> {
     const credentials = await loadCodexCredentials(config.codexHome);
-    return CodexAgent.fromCredentials(credentials, config, history);
+    // `this`, not `CodexAgent`: routed through the subclass so an override of
+    // `fromCredentials` is not skipped either.
+    return this.fromCredentials(credentials, config, history);
   }
 
-  /** Build an agent from credentials obtained however you like. */
-  static fromCredentials(
+  /**
+   * Build an agent from credentials obtained however you like.
+   *
+   * Instantiates `this` rather than `CodexAgent`, so a subclass gets its own
+   * type back and its overrides actually run. Hard-coding the class here made
+   * `class MyCodexAgent extends CodexAgent` silently produce a plain
+   * `CodexAgent` — no error, no override, and nothing to see until an
+   * experiment came back saying the change under test had no effect.
+   */
+  static fromCredentials<T extends CodexAgent>(
+    this: new (config: CodexAgentConfig, history?: History) => T,
     credentials: CodexCredentials,
-    config: Omit<CodexAgentConfig, "apiKey" | "accountId"> & {
-      tokenOptions?: CodexTokenProviderOptions;
-    },
+    config: CodexFactoryConfig,
     history?: History
-  ): CodexAgent {
+  ): T {
     const tokens = createCodexTokenProvider(credentials, config.tokenOptions);
 
-    return new CodexAgent(
+    return new this(
       {
         ...config,
         // The function form: the SDK re-invokes it before every request, so a
@@ -261,6 +348,14 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
       },
       history
     );
+  }
+
+  /**
+   * Every model on this backend reasons, and this is what the Codex CLI itself
+   * does, so the encrypted-reasoning round trip is on unless turned off.
+   */
+  protected override defaultIncludeEncryptedReasoning(): boolean {
+    return true;
   }
 
   /** This backend refuses `stream: false` outright. */
@@ -278,7 +373,7 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
    * the base class.
    */
   protected override transformRequestParams<
-    T extends { input: ResponseInputItem[] },
+    T extends { input: ResponseInputItem[] }
   >(params: T): T {
     // Read from history rather than getSystemMessage(): that is the message
     // being stripped from `input` below, and a caller may have replaced it.
@@ -326,9 +421,9 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
   override async listModels(): Promise<ModelInfo<CodexModelCard>[]> {
     try {
       const token = await this.resolveApiKey();
-      const url = `${this.codexBaseURL}/models?client_version=${encodeURIComponent(
-        this.clientVersion
-      )}`;
+      const url = `${
+        this.codexBaseURL
+      }/models?client_version=${encodeURIComponent(this.clientVersion)}`;
 
       const res = await fetch(url, {
         headers: {
@@ -341,7 +436,9 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         throw new Error(
-          `${res.status} ${res.statusText}${body ? `: ${body.slice(0, 300)}` : ""}`
+          `${res.status} ${res.statusText}${
+            body ? `: ${body.slice(0, 300)}` : ""
+          }`
         );
       }
 

@@ -272,7 +272,9 @@ describe("OpenAiAgent", () => {
     });
 
     it("returns just the built-in tools when there are no function tools", () => {
-      agent["config"].builtInTools = [{ type: "file_search", vector_store_ids: ["vs_1"] }];
+      agent["config"].builtInTools = [
+        { type: "file_search", vector_store_ids: ["vs_1"] },
+      ];
 
       expect(agent["getAllToolDefinitions"]()).toEqual([
         { type: "file_search", vector_store_ids: ["vs_1"] },
@@ -288,7 +290,9 @@ describe("OpenAiAgent", () => {
         builtInTools: [{ type: "web_search" }],
       });
 
-      expect(customAgent["getAllToolDefinitions"]()).toEqual([{ type: "web_search" }]);
+      expect(customAgent["getAllToolDefinitions"]()).toEqual([
+        { type: "web_search" },
+      ]);
     });
 
     it("passes builtInTools from vendorConfig.openai into the request", () => {
@@ -300,7 +304,9 @@ describe("OpenAiAgent", () => {
         vendorConfig: { openai: { builtInTools: [{ type: "web_search" }] } },
       });
 
-      expect(customAgent["getAllToolDefinitions"]()).toEqual([{ type: "web_search" }]);
+      expect(customAgent["getAllToolDefinitions"]()).toEqual([
+        { type: "web_search" },
+      ]);
     });
   });
 
@@ -564,7 +570,9 @@ describe("OpenAiAgent", () => {
 
       await agent.execute("hi");
 
-      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty("reasoning");
+      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty(
+        "reasoning"
+      );
     });
 
     // Regression: execute() used to spread the disable case and then overwrite it
@@ -573,7 +581,9 @@ describe("OpenAiAgent", () => {
     it("sends the model's lowest effort in execute() when disableReasoning is set", async () => {
       mockClient.responses.create.mockResolvedValue(textResponse);
 
-      await makeAgent({ disableReasoning: true, model: "gpt-5-nano" }).execute("hi");
+      await makeAgent({ disableReasoning: true, model: "gpt-5-nano" }).execute(
+        "hi"
+      );
 
       expect(reasoningOfCall()).toEqual({ effort: "minimal" });
     });
@@ -583,7 +593,12 @@ describe("OpenAiAgent", () => {
     it("never sends effort: null", async () => {
       mockClient.responses.create.mockResolvedValue(textResponse);
 
-      for (const model of ["gpt-5-nano", "gpt-5.6-sol", "o4-mini", "gpt-4.1-mini"]) {
+      for (const model of [
+        "gpt-5-nano",
+        "gpt-5.6-sol",
+        "o4-mini",
+        "gpt-4.1-mini",
+      ]) {
         mockClient.responses.create.mockClear();
         await makeAgent({ disableReasoning: true, model }).execute("hi");
         expect(reasoningOfCall()?.effort ?? "omitted").not.toBeNull();
@@ -594,15 +609,23 @@ describe("OpenAiAgent", () => {
       mockClient.responses.create.mockResolvedValue(textResponse);
 
       // gpt-4.1-mini rejects `reasoning.effort` outright — sending one would 400
-      await makeAgent({ disableReasoning: true, model: "gpt-4.1-mini" }).execute("hi");
+      await makeAgent({
+        disableReasoning: true,
+        model: "gpt-4.1-mini",
+      }).execute("hi");
 
-      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty("reasoning");
+      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty(
+        "reasoning"
+      );
     });
 
     it("passes through the widened effort range", async () => {
       mockClient.responses.create.mockResolvedValue(textResponse);
 
-      await makeAgent({ reasoningEffort: "xhigh", model: "gpt-5.6-sol" }).execute("hi");
+      await makeAgent({
+        reasoningEffort: "xhigh",
+        model: "gpt-5.6-sol",
+      }).execute("hi");
 
       expect(reasoningOfCall()).toEqual({ effort: "xhigh" });
     });
@@ -630,7 +653,12 @@ describe("OpenAiAgent", () => {
     it("applies the same rules on the tool-continuation request", async () => {
       const toolCallResponse = {
         output: [
-          { type: "function_call", call_id: "call_1", name: "noop", arguments: "{}" },
+          {
+            type: "function_call",
+            call_id: "call_1",
+            name: "noop",
+            arguments: "{}",
+          },
         ],
         usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
       };
@@ -639,7 +667,10 @@ describe("OpenAiAgent", () => {
         .mockResolvedValueOnce(toolCallResponse)
         .mockResolvedValueOnce(textResponse);
 
-      const toolAgent = makeAgent({ disableReasoning: true, model: "gpt-5-nano" });
+      const toolAgent = makeAgent({
+        disableReasoning: true,
+        model: "gpt-5-nano",
+      });
       toolAgent["tools"].set("noop", {
         execute: jest.fn().mockResolvedValue("done"),
         getPrompt: jest.fn().mockReturnValue({
@@ -693,7 +724,10 @@ describe("OpenAiAgent", () => {
         })()
       );
 
-      const streamAgent = makeAgent({ disableReasoning: true, model: "gpt-5.6-sol" });
+      const streamAgent = makeAgent({
+        disableReasoning: true,
+        model: "gpt-5.6-sol",
+      });
       for await (const _chunk of streamAgent.executeStream("hi")) {
         /* drain */
       }
@@ -901,6 +935,278 @@ describe("OpenAiAgent", () => {
 
       expect(agent.lastTokenUsage?.cache_read_tokens).toBeUndefined();
       expect(agent.lastTokenUsage?.cache_write_tokens).toBeUndefined();
+    });
+  });
+
+  describe("encrypted reasoning round trip", () => {
+    const reasoningItem = (id: string) => ({
+      type: "reasoning",
+      id,
+      summary: [{ type: "summary_text", text: `thought ${id}` }],
+      encrypted_content: "enc",
+    });
+
+    /** What the provider returns when `include` was not asked for. */
+    const bareReasoningItem = (id: string) => ({
+      type: "reasoning",
+      id,
+      summary: [{ type: "summary_text", text: `thought ${id}` }],
+    });
+
+    const responseWith = (output: object[], text = "ok") => ({
+      output,
+      output_text: text,
+      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    });
+
+    const message = { type: "message", status: "completed", content: "ok" };
+
+    const makeAgent = (config: object = {}) =>
+      new OpenAiAgent({
+        apiKey: "test-api-key",
+        id: "1",
+        name: "TestAgent",
+        description: "Test Description",
+        model: "gpt-5-nano",
+        ...config,
+      });
+
+    it("asks for encrypted reasoning on a reasoning model", async () => {
+      mockClient.responses.create.mockResolvedValue(responseWith([message]));
+
+      await makeAgent().execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0].include).toEqual([
+        "reasoning.encrypted_content",
+      ]);
+    });
+
+    it("stays off for a model that does not reason, keeping the request unchanged", async () => {
+      mockClient.responses.create.mockResolvedValue(responseWith([message]));
+
+      // gpt-4.1-mini rejects reasoning parameters outright.
+      await makeAgent({ model: "gpt-4.1-mini" }).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty(
+        "include"
+      );
+    });
+
+    it("can be forced on or off explicitly, flat or via vendorConfig", async () => {
+      mockClient.responses.create.mockResolvedValue(responseWith([message]));
+
+      await makeAgent({
+        model: "gpt-4.1-mini",
+        includeEncryptedReasoning: true,
+      }).execute("hi");
+      expect(mockClient.responses.create.mock.calls[0][0].include).toEqual([
+        "reasoning.encrypted_content",
+      ]);
+
+      await makeAgent({
+        vendorConfig: { openai: { includeEncryptedReasoning: false } },
+      }).execute("hi");
+      expect(mockClient.responses.create.mock.calls[1][0]).not.toHaveProperty(
+        "include"
+      );
+    });
+
+    it("stores the reasoning items and replays them on the next request", async () => {
+      mockClient.responses.create
+        .mockResolvedValueOnce(responseWith([reasoningItem("rs_1"), message]))
+        .mockResolvedValueOnce(responseWith([message]));
+
+      const agentWithHistory = makeAgent({ history: undefined });
+      agentWithHistory["history"].transient = false;
+
+      await agentWithHistory.execute("first");
+      await agentWithHistory.execute("second");
+
+      const replayed = mockClient.responses.create.mock.calls[1][0].input;
+      expect(replayed).toContainEqual(
+        expect.objectContaining({
+          type: "reasoning",
+          id: "rs_1",
+          encrypted_content: "enc",
+        })
+      );
+    });
+
+    it("replays reasoning ahead of the tool call it produced", async () => {
+      const toolCall: ResponseFunctionToolCall = {
+        type: "function_call",
+        call_id: "call_1",
+        name: "noop",
+        arguments: "{}",
+        id: "fc_1",
+        status: "completed",
+      };
+      mockClient.responses.create
+        .mockResolvedValueOnce(
+          responseWith([reasoningItem("rs_tool"), toolCall], "")
+        )
+        .mockResolvedValueOnce(responseWith([message]));
+
+      const toolAgent = makeAgent();
+      toolAgent["tools"].set("noop", {
+        name: "noop",
+        execute: jest.fn().mockResolvedValue("done"),
+        getPrompt: () => ({
+          name: "noop",
+          description: "noop",
+          input_schema: { type: "object", properties: {}, required: [] },
+        }),
+      } as any);
+
+      await toolAgent.execute("use the tool");
+
+      const types = mockClient.responses.create.mock.calls[1][0].input.map(
+        (item: any) => item.type
+      );
+      // system + user, then the assistant turn: its reasoning ahead of the call
+      // it produced, which is the order the API requires.
+      expect(types).toEqual([
+        "message",
+        "message",
+        "reasoning",
+        "function_call",
+        "function_call_output",
+      ]);
+    });
+
+    it("drops a reasoning item with no encrypted content, which could not be replayed", async () => {
+      mockClient.responses.create
+        .mockResolvedValueOnce(
+          responseWith([bareReasoningItem("rs_bare"), message])
+        )
+        .mockResolvedValueOnce(responseWith([message]));
+
+      const agentWithHistory = makeAgent();
+      agentWithHistory["history"].transient = false;
+
+      await agentWithHistory.execute("first");
+      await agentWithHistory.execute("second");
+
+      const replayed = mockClient.responses.create.mock.calls[1][0].input;
+      expect(replayed.some((item: any) => item.type === "reasoning")).toBe(
+        false
+      );
+    });
+
+    it("carries reasoning through a streamed turn as well", async () => {
+      const events = (async function* () {
+        yield { type: "response.output_text.delta", delta: "ok" };
+        yield {
+          type: "response.completed",
+          response: responseWith([reasoningItem("rs_stream"), message]),
+        };
+      })();
+      mockClient.responses.create
+        .mockResolvedValueOnce(events)
+        .mockResolvedValueOnce(
+          (async function* () {
+            yield {
+              type: "response.completed",
+              response: responseWith([message]),
+            };
+          })()
+        );
+
+      const streamAgent = makeAgent();
+      streamAgent["history"].transient = false;
+
+      for await (const _ of streamAgent.executeStream("first")) {
+        // drain
+      }
+      for await (const _ of streamAgent.executeStream("second")) {
+        // drain
+      }
+
+      expect(mockClient.responses.create.mock.calls[1][0].input).toContainEqual(
+        expect.objectContaining({ type: "reasoning", id: "rs_stream" })
+      );
+    });
+
+    it("stays off behind a custom baseURL, whatever the model is called", async () => {
+      // A model name says nothing about the host serving it. An existing
+      // gateway user on an OpenAI-shaped model must keep sending the request
+      // they sent before this feature existed.
+      mockClient.responses.create.mockResolvedValue(responseWith([message]));
+
+      await makeAgent({ baseURL: "https://gateway.example/v1" }).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty(
+        "include"
+      );
+    });
+
+    it("can still be turned on for a compatible host behind a baseURL", async () => {
+      mockClient.responses.create.mockResolvedValue(responseWith([message]));
+
+      await makeAgent({
+        baseURL: "https://gateway.example/v1",
+        includeEncryptedReasoning: true,
+      }).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0].include).toEqual([
+        "reasoning.encrypted_content",
+      ]);
+    });
+
+    it("does not replay stored reasoning once the flag is turned off", async () => {
+      // The documented way out of the model-switch rejection: blobs already in
+      // the history have to stop going out too, not just new ones stop being
+      // requested.
+      mockClient.responses.create
+        .mockResolvedValueOnce(responseWith([reasoningItem("rs_1"), message]))
+        .mockResolvedValueOnce(responseWith([message]));
+
+      const agentWithHistory = makeAgent();
+      agentWithHistory["history"].transient = false;
+
+      await agentWithHistory.execute("first");
+      agentWithHistory["config"].includeEncryptedReasoning = false;
+      await agentWithHistory.execute("second");
+
+      const replayed = mockClient.responses.create.mock.calls[1][0].input;
+      expect(replayed.some((item: any) => item.type === "reasoning")).toBe(
+        false
+      );
+    });
+
+    it("keeps reasoning from a turn that used a built-in tool", async () => {
+      // `web_search_call` and friends are not stored, so the replay is
+      // [reasoning, reasoning, message] where the model emitted
+      // [reasoning, web_search_call, reasoning, message]. The API accepts that
+      // on this flow (probed live 2026-09-10), so the reasoning is kept rather
+      // than costing every builtInTools user their prompt-cache continuity.
+      mockClient.responses.create
+        .mockResolvedValueOnce(
+          responseWith([
+            reasoningItem("rs_1"),
+            { type: "web_search_call", id: "ws_1", status: "completed" },
+            reasoningItem("rs_2"),
+            message,
+          ])
+        )
+        .mockResolvedValueOnce(responseWith([message]));
+
+      const agentWithHistory = makeAgent();
+      agentWithHistory["history"].transient = false;
+
+      await agentWithHistory.execute("first");
+      await agentWithHistory.execute("second");
+
+      const replayed = mockClient.responses.create.mock.calls[1][0].input;
+      expect(
+        replayed
+          .filter((item: any) => item.type === "reasoning")
+          .map((i: any) => i.id)
+      ).toEqual(["rs_1", "rs_2"]);
+      // The built-in tool call itself is not modelled by history.
+      expect(
+        replayed.some((item: any) => item.type === "web_search_call")
+      ).toBe(false);
     });
   });
 
@@ -1160,14 +1466,22 @@ describe("OpenAiAgent", () => {
     it("salvages the reasoning summary when the stream dies before response.completed", async () => {
       mockClient.responses.create.mockResolvedValue(
         (async function* () {
-          yield { type: "response.reasoning_summary_text.delta", delta: "Weighing " };
-          yield { type: "response.reasoning_summary_text.delta", delta: "the options" };
+          yield {
+            type: "response.reasoning_summary_text.delta",
+            delta: "Weighing ",
+          };
+          yield {
+            type: "response.reasoning_summary_text.delta",
+            delta: "the options",
+          };
           yield { type: "response.output_text.delta", delta: "The answer" };
           throw new Error("socket hang up");
         })()
       );
 
-      const error = await collectStream(agent.executeStream("Hi")).catch((e) => e);
+      const error = await collectStream(agent.executeStream("Hi")).catch(
+        (e) => e
+      );
 
       expect(agent.lastPartialTurn).toEqual(
         expect.objectContaining({
@@ -1227,7 +1541,6 @@ describe("OpenAiAgent", () => {
       expect(agent.lastPartialTurn).toBeUndefined();
     });
   });
-
 });
 
 describe("describeOpenAIError", () => {
@@ -1246,7 +1559,10 @@ describe("describeOpenAIError", () => {
 
   it("reads a `detail` body, as the Codex backend sends", () => {
     expect(
-      describeOpenAIError({ status: 400, error: { detail: "Store must be set to false" } })
+      describeOpenAIError({
+        status: 400,
+        error: { detail: "Store must be set to false" },
+      })
     ).toMatchObject({ message: "Store must be set to false", status: 400 });
   });
 
@@ -1287,7 +1603,9 @@ describe("wrapErrorBodyFetch", () => {
   it("nests a `detail` body under `error` so the SDK can read it", async () => {
     const base = jest
       .fn()
-      .mockResolvedValue(jsonResponse(400, { detail: "Instructions are required" }));
+      .mockResolvedValue(
+        jsonResponse(400, { detail: "Instructions are required" })
+      );
 
     const res = await wrapErrorBodyFetch(base as any)("http://x");
     const body = await res.json();
@@ -1303,15 +1621,17 @@ describe("wrapErrorBodyFetch", () => {
       .fn()
       .mockResolvedValue(jsonResponse(400, { error: { message: "Bad" } }));
 
-    const body = await (await wrapErrorBodyFetch(base as any)("http://x")).json();
+    const body = await (
+      await wrapErrorBodyFetch(base as any)("http://x")
+    ).json();
 
     expect(body).toEqual({ error: { message: "Bad" } });
   });
 
   it("passes a non-JSON error body through as text", async () => {
-    const base = jest.fn().mockResolvedValue(
-      new Response("<html>502</html>", { status: 502 })
-    );
+    const base = jest
+      .fn()
+      .mockResolvedValue(new Response("<html>502</html>", { status: 502 }));
 
     const res = await wrapErrorBodyFetch(base as any)("http://x");
 

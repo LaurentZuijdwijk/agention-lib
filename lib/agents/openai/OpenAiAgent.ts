@@ -1,11 +1,12 @@
 import OpenAI from "openai";
-import { BaseAgent, BaseAgentConfig, ModelInfo, TokenUsage } from "../BaseAgent";
-import { AgentEvent } from "../AgentEvent";
 import {
-  ExecuteOptions,
-  isAbortError,
-  throwIfAborted,
-} from "../cancellation";
+  BaseAgent,
+  BaseAgentConfig,
+  ModelInfo,
+  TokenUsage,
+} from "../BaseAgent";
+import { AgentEvent } from "../AgentEvent";
+import { ExecuteOptions, isAbortError, throwIfAborted } from "../cancellation";
 import {
   AgentError,
   ApiError,
@@ -97,13 +98,56 @@ export type AgentConfig<M extends OpenAIModel = OpenAIModel> = Omit<
    */
   promptCacheKey?: string;
   /**
-   * How long cached prefixes stay warm. `"24h"` opts into extended retention;
-   * the default (`undefined`, i.e. the API's `in-memory`) expires a prefix
-   * within minutes.
+   * Ask for each turn's reasoning to come back as an encrypted, replayable
+   * blob (`include: ["reasoning.encrypted_content"]`), and send those blobs
+   * back on every later request of the conversation.
+   *
+   * Both halves matter, and both happen here: requesting the blobs without
+   * replaying them changes nothing, and replaying is only possible because the
+   * agent runs with `store: false`, which leaves the provider holding no
+   * reasoning of its own.
+   *
+   * Why it is worth the bytes on a reasoning model: the model's own thinking is
+   * part of what it saw when it decided to call a tool, so dropping it between
+   * hops makes the model re-derive it — and, because the replayed prefix no
+   * longer matches what was processed last turn, breaks the prompt cache from
+   * the first turn onward.
+   *
+   * Setting it to `false` stops both halves too: nothing is requested, and
+   * blobs already sitting in the history are not replayed either. That is what
+   * makes turning it off a way out of the model-switch rejection below, rather
+   * than a half-measure that keeps sending the old model's reasoning.
+   *
+   * Defaults to on for models known to reason (see
+   * {@link OPENAI_REASONING_SUPPORT}) *on OpenAI's own API*, and off otherwise
+   * — including behind a custom `baseURL`, since a model name says nothing
+   * about whether the host serving it accepts the parameter. So a non-reasoning
+   * model such as `gpt-4.1-mini`, and any gateway or local server, sends a
+   * byte-identical request. Set it explicitly for a model too new to be in that
+   * table, or for a compatible host.
+   *
+   * Reasoning blobs are tied to the model that produced them: switching models
+   * mid-conversation with a history full of them is rejected. Clear the history
+   * or turn this off when doing that.
+   */
+  includeEncryptedReasoning?: boolean;
+  /**
+   * How long cached prefixes stay warm. `"in_memory"` expires a prefix after
+   * minutes of inactivity (an hour at the outside); `"24h"` keeps it up to a
+   * day.
+   *
+   * Left unset, the default is your organization's data-retention policy, not
+   * a fixed value: orgs *without* ZDR default to `"24h"`, orgs *with* ZDR to
+   * `"in_memory"`. Set it explicitly to stop prefixes being retained for a day
+   * without having to enable ZDR account-wide.
+   *
+   * `gpt-5.5` and later accept only `"24h"` here, and the field is deprecated
+   * upstream in favour of `prompt_cache_options.ttl` — the two are independent
+   * (this is a *maximum* retention policy, `ttl` a *minimum* lifetime).
    *
    * Ignored by the ChatGPT/Codex backend, which manages its own cache.
    */
-  promptCacheRetention?: "in-memory" | "24h";
+  promptCacheRetention?: "in_memory" | "24h";
 };
 
 /**
@@ -139,16 +183,19 @@ export function lowestReasoningEffort(
 /**
  * `usage.input_tokens_details` as the wire actually carries it.
  *
- * The SDK's `ResponseUsage.InputTokensDetails` declares `cached_tokens` alone,
- * but the ChatGPT/Codex backend also reports `cache_write_tokens` (observed
- * live on 2026-09-10). Declared here rather than cast at the use site, and
- * every field optional because a non-OpenAI host behind this SDK may report
- * neither.
+ * The SDK declares both counts on `ResponseUsage.InputTokensDetails` as of
+ * `openai` 7.x (6.x had `cached_tokens` alone, though the ChatGPT/Codex backend
+ * already reported `cache_write_tokens` — observed live on 2026-09-10). What it
+ * gets wrong for our purposes is that it types them as *required*: a
+ * non-OpenAI host behind this SDK — llama.cpp, vLLM, a gateway — may report
+ * one, the other, or neither. Restating them as optional keeps `parseUsage`
+ * from trusting a number that isn't there, and keeps `undefined` ("provider
+ * said nothing") distinct from `0` ("nothing was cached").
  */
 export type OpenAIInputTokensDetails = {
   /** Prompt tokens served from cache. */
   cached_tokens?: number;
-  /** Prompt tokens written to cache. Codex backend only. */
+  /** Prompt tokens written to cache. On `gpt-5.6`+ these bill at 1.25x input. */
   cache_write_tokens?: number;
 };
 
@@ -166,7 +213,9 @@ export type OpenAIInputTokensDetails = {
  * Only touches error responses; successful (streaming) responses pass straight
  * through untouched.
  */
-export function wrapErrorBodyFetch(baseFetch: typeof fetch = fetch): typeof fetch {
+export function wrapErrorBodyFetch(
+  baseFetch: typeof fetch = fetch
+): typeof fetch {
   return async (input, init) => {
     const res = await baseFetch(input, init);
     if (res.ok) return res;
@@ -235,7 +284,7 @@ export function describeOpenAIError(error: unknown): {
   const fromBody =
     typeof body === "string"
       ? body
-      : (body?.message ?? body?.detail ?? undefined);
+      : body?.message ?? body?.detail ?? undefined;
 
   return {
     message: fromBody ?? err?.detail ?? err?.message ?? "Unknown error",
@@ -264,7 +313,7 @@ export class OpenAiAgent<
   M extends OpenAIModel = OpenAIModel,
   // Second parameter so a subclass on a different host can type `raw` for its
   // own models endpoint — `CodexAgent`'s cards share no fields with OpenAI's.
-  TModelCard = OpenAIModelCard,
+  TModelCard = OpenAIModelCard
 > extends BaseAgent {
   private client: OpenAI;
   /**
@@ -333,6 +382,10 @@ export class OpenAiAgent<
     const promptCacheKey = config.promptCacheKey ?? vendorConfig.promptCacheKey;
     const promptCacheRetention =
       config.promptCacheRetention ?? vendorConfig.promptCacheRetention;
+    const includeEncryptedReasoning =
+      config.includeEncryptedReasoning ??
+      vendorConfig.includeEncryptedReasoning ??
+      this.defaultIncludeEncryptedReasoning(config.model, baseURL);
 
     this.config = {
       model: config.model || "gpt-4.1-mini",
@@ -350,6 +403,7 @@ export class OpenAiAgent<
       builtInTools,
       promptCacheKey,
       promptCacheRetention,
+      includeEncryptedReasoning,
       apiKey: config.apiKey,
       baseURL,
       temperature: config.temperature,
@@ -394,7 +448,7 @@ export class OpenAiAgent<
   /** The configured key, resolving the function form if that is what was given. */
   protected async resolveApiKey(): Promise<string> {
     const key = this.config.apiKey;
-    return typeof key === "function" ? await key() : (key ?? "");
+    return typeof key === "function" ? await key() : key ?? "";
   }
 
   protected getToolDefinitions(): Tool[] {
@@ -458,7 +512,7 @@ export class OpenAiAgent<
 
     const outputText = output
       .filter((item) => item.type === "message")
-      .flatMap((item) => ("content" in item ? (item.content ?? []) : []))
+      .flatMap((item) => ("content" in item ? item.content ?? [] : []))
       .filter((part) => part?.type === "output_text")
       .map((part) => ("text" in part ? part.text : ""))
       .join("");
@@ -557,6 +611,88 @@ export class OpenAiAgent<
   }
 
   /**
+   * Whether {@link AgentConfig.includeEncryptedReasoning} defaults to on, when
+   * the caller has not said either way.
+   *
+   * On only for OpenAI's own API *and* a model the reasoning table knows
+   * about. Asking a non-reasoning model for reasoning blobs would add a
+   * parameter it has nothing to put in; asking a third-party host behind a
+   * custom `baseURL` — a gateway, vLLM, llama.cpp — would silently start
+   * sending it a parameter it never received before, which is the opposite of
+   * the byte-identical request this default exists to preserve. A model name
+   * says nothing about the host serving it, so an OpenAI-shaped name on a proxy
+   * must not be enough on its own. Set the flag explicitly for a host that does
+   * support the round trip.
+   *
+   * `CodexAgent` overrides this: it always runs against a custom `baseURL`, and
+   * every model on that backend reasons.
+   *
+   * Called from the base constructor, so an override must depend on nothing but
+   * its arguments: the subclass's own fields are not assigned yet.
+   */
+  protected defaultIncludeEncryptedReasoning(
+    model: string | undefined,
+    baseURL: string | undefined
+  ): boolean {
+    return baseURL === undefined && lowestReasoningEffort(model) !== undefined;
+  }
+
+  /**
+   * The `include` field, asking for reasoning to come back in a form that can
+   * be replayed on the next request.
+   *
+   * Omitted entirely when off, so requests stay byte-identical to what earlier
+   * versions sent. The other half of this — putting the returned items back
+   * into `input` — is `openAiTransformer`'s, fed by
+   * {@link OpenAiAgent.replayableReasoning}.
+   */
+  private buildIncludeParams(): {
+    include?: Array<"reasoning.encrypted_content">;
+  } {
+    return this.config.includeEncryptedReasoning
+      ? { include: ["reasoning.encrypted_content"] }
+      : {};
+  }
+
+  /**
+   * The `reasoning` items of a response that are worth keeping.
+   *
+   * Only items carrying `encrypted_content` qualify: the agent always sends
+   * `store: false`, so the provider has retained nothing, and an item replayed
+   * without its payload cannot be resolved — the request fails rather than
+   * silently ignoring it. A summary-only item is therefore dropped, exactly as
+   * it was before this existed.
+   *
+   * A turn that also used a **built-in tool** keeps its reasoning too. Those
+   * items (`web_search_call` and friends) are not stored, so the replayed turn
+   * is `[reasoning, reasoning, message]` where the model emitted
+   * `[reasoning, web_search_call, reasoning, message]`. That was expected to be
+   * rejected — "reasoning item without its required following item" — but it is
+   * not: probed live on 2026-09-10 against `gpt-5-nano` and `gpt-5.4-mini`, the
+   * API accepted that shape, the same reasoning item twice in a row, a
+   * reasoning item followed only by the next *user* turn, and a dangling
+   * reasoning item last in `input` with nothing after it at all. That ordering
+   * rule appears to govern the `store: true` / `previous_response_id` flow, not
+   * this one, which sends `store: false` and an explicit `input`.
+   *
+   * So the reasoning is kept. Dropping it would cost every `builtInTools` user
+   * their prompt-cache continuity to avoid a rejection that does not happen.
+   * Revisit if the API tightens.
+   */
+  protected replayableReasoning(response: Response): unknown[] {
+    if (!this.config.includeEncryptedReasoning) return [];
+
+    return (response.output ?? []).filter(
+      (item: unknown) =>
+        typeof item === "object" &&
+        item !== null &&
+        (item as { type?: unknown }).type === "reasoning" &&
+        typeof (item as { encrypted_content?: unknown }).encrypted_content ===
+          "string"
+    );
+  }
+
+  /**
    * Prompt-caching parameters, omitted entirely when unconfigured so a request
    * stays byte-identical to what earlier versions sent.
    *
@@ -566,7 +702,7 @@ export class OpenAiAgent<
    */
   private buildCacheParams(): {
     prompt_cache_key?: string;
-    prompt_cache_retention?: "in-memory" | "24h";
+    prompt_cache_retention?: "in_memory" | "24h";
   } {
     return {
       ...(this.config.promptCacheKey
@@ -627,7 +763,12 @@ export class OpenAiAgent<
     this.history.beginExecution();
 
     try {
-      const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
+      const inputMessages = openAiTransformer.toProvider(
+        this.history.getEntries(),
+        {
+          replayReasoning: this.config.includeEncryptedReasoning,
+        }
+      );
 
       this.startTurnTimer();
       const response = await this.createResponse(
@@ -643,6 +784,7 @@ export class OpenAiAgent<
           user: this.config.user,
           ...this.buildReasoningParams(),
           ...this.buildCacheParams(),
+          ...this.buildIncludeParams(),
         },
         { signal: options?.signal }
       );
@@ -781,7 +923,9 @@ export class OpenAiAgent<
       // Normal text response - add to history in normalized format
       const entry = openAiTransformer.fromProviderMessage(
         "assistant",
-        response.output_text
+        response.output_text,
+        undefined,
+        this.replayableReasoning(response)
       );
       this.addToHistory(entry);
 
@@ -824,7 +968,11 @@ export class OpenAiAgent<
         const assistantEntry = openAiTransformer.fromProviderMessage(
           "assistant",
           response.output_text || "",
-          functionCalls
+          functionCalls,
+          // The thinking that led to these calls: replayed on the follow-up so
+          // the model does not have to re-derive it, and so the prefix the
+          // provider caches still matches what it processed.
+          this.replayableReasoning(response)
         );
         this.addToHistory(assistantEntry);
 
@@ -843,7 +991,8 @@ export class OpenAiAgent<
         // Continue conversation
         try {
           const inputMessages = openAiTransformer.toProvider(
-            this.history.getEntries()
+            this.history.getEntries(),
+            { replayReasoning: this.config.includeEncryptedReasoning }
           );
 
           this.startTurnTimer();
@@ -860,6 +1009,7 @@ export class OpenAiAgent<
               user: this.config.user,
               ...this.buildReasoningParams(),
               ...this.buildCacheParams(),
+              ...this.buildIncludeParams(),
             },
             { signal: options?.signal }
           );
@@ -1069,7 +1219,12 @@ export class OpenAiAgent<
       if (isAbortError(error, options?.signal)) {
         const abortError = this.abortError(error, options?.signal);
         if (this.vizEventId) {
-          vizReporter.agentError(this.vizEventId, "AbortError", abortError.message, false);
+          vizReporter.agentError(
+            this.vizEventId,
+            "AbortError",
+            abortError.message,
+            false
+          );
           this.vizEventId = undefined;
         }
         throw this.withPartialTurn(abortError);
@@ -1077,7 +1232,12 @@ export class OpenAiAgent<
       if (error instanceof AgentError) {
         this.emit(AgentEvent.ERROR, error);
         if (this.vizEventId) {
-          vizReporter.agentError(this.vizEventId, error.constructor.name, error.message, false);
+          vizReporter.agentError(
+            this.vizEventId,
+            error.constructor.name,
+            error.message,
+            false
+          );
           this.vizEventId = undefined;
         }
         throw this.withPartialTurn(error);
@@ -1091,17 +1251,29 @@ export class OpenAiAgent<
         );
         this.emit(AgentEvent.ERROR, apiError);
         if (this.vizEventId) {
-          vizReporter.agentError(this.vizEventId, "ApiError", apiError.message, openAIError.code === "rate_limit_exceeded");
+          vizReporter.agentError(
+            this.vizEventId,
+            "ApiError",
+            apiError.message,
+            openAIError.code === "rate_limit_exceeded"
+          );
           this.vizEventId = undefined;
         }
         throw this.withPartialTurn(apiError);
       }
       const executionError = new ExecutionError(
-        `OpenAI error: ${error instanceof Error ? error.message : "Unknown error"}`
+        `OpenAI error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
       this.emit(AgentEvent.ERROR, executionError);
       if (this.vizEventId) {
-        vizReporter.agentError(this.vizEventId, "ExecutionError", executionError.message, false);
+        vizReporter.agentError(
+          this.vizEventId,
+          "ExecutionError",
+          executionError.message,
+          false
+        );
         this.vizEventId = undefined;
       }
       throw this.withPartialTurn(executionError);
@@ -1113,10 +1285,15 @@ export class OpenAiAgent<
   private async *streamTurn(
     options?: ExecuteOptions
   ): AsyncGenerator<StreamChunk> {
-    const inputMessages = openAiTransformer.toProvider(this.history.getEntries());
+    const inputMessages = openAiTransformer.toProvider(
+      this.history.getEntries(),
+      {
+        replayReasoning: this.config.includeEncryptedReasoning,
+      }
+    );
 
     this.startTurnTimer();
-    const stream = await this.client.responses.create(
+    const stream = (await this.client.responses.create(
       this.transformRequestParams({
         model: this.config.model!,
         max_output_tokens: this.config.maxTokens,
@@ -1129,9 +1306,10 @@ export class OpenAiAgent<
         user: this.config.user,
         ...this.buildReasoningParams("auto"),
         ...this.buildCacheParams(),
+        ...this.buildIncludeParams(),
       }),
       { signal: options?.signal }
-    ) as AsyncIterable<ResponseStreamEvent>;
+    )) as AsyncIterable<ResponseStreamEvent>;
 
     let completedEvent: ResponseCompletedEvent | null = null;
     const streamedItems: unknown[] = [];
@@ -1152,7 +1330,6 @@ export class OpenAiAgent<
     let failure: unknown;
 
     try {
-
       for await (const event of stream) {
         if (event.type === "response.output_text.delta") {
           this.markFirstToken();
@@ -1213,7 +1390,9 @@ export class OpenAiAgent<
       throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
       if (!completedEvent) {
-        throw new ExecutionError("OpenAI stream ended without a completed event");
+        throw new ExecutionError(
+          "OpenAI stream ended without a completed event"
+        );
       }
 
       const response = this.repairStreamedOutput(
@@ -1241,20 +1420,32 @@ export class OpenAiAgent<
         const assistantEntry = openAiTransformer.fromProviderMessage(
           "assistant",
           response.output_text || "",
-          functionCalls
+          functionCalls,
+          this.replayableReasoning(response)
         );
         this.addToHistory(assistantEntry);
         committed = true;
 
         const toolResults = await this.handleToolUse(toolCalls, options);
         for (const result of toolResults) {
-          this.addToHistory(openAiTransformer.toolResultEntry(result.call_id, result.output, false));
+          this.addToHistory(
+            openAiTransformer.toolResultEntry(
+              result.call_id,
+              result.output,
+              false
+            )
+          );
         }
 
         yield* this.streamTurn(options);
       } else {
         const textContent = response.output_text || "";
-        const entry = openAiTransformer.fromProviderMessage("assistant", textContent);
+        const entry = openAiTransformer.fromProviderMessage(
+          "assistant",
+          textContent,
+          undefined,
+          this.replayableReasoning(response)
+        );
         this.addToHistory(entry);
         committed = true;
 

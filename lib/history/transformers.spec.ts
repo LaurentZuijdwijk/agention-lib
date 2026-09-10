@@ -9,7 +9,14 @@ import {
   chatCompletionsTransformer,
   openRouterTransformer,
 } from "./transformers";
-import { imageUrl, imageBase64, text, thinking, toolUse, toolResult } from "./types";
+import {
+  imageUrl,
+  imageBase64,
+  text,
+  thinking,
+  toolUse,
+  toolResult,
+} from "./types";
 import type { HistoryEntry } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -71,7 +78,10 @@ describe("openAiTransformer — image content", () => {
     expect(items).toHaveLength(1);
     const parts = items[0].content;
     expect(Array.isArray(parts)).toBe(true);
-    expect(parts[0]).toEqual({ type: "input_text", text: "What's in this image?" });
+    expect(parts[0]).toEqual({
+      type: "input_text",
+      text: "What's in this image?",
+    });
     expect(parts[1]).toEqual({
       type: "input_image",
       image_url: "https://example.com/photo.jpg",
@@ -106,7 +116,10 @@ describe("mistralTransformer — image content", () => {
     const messages = mistralTransformer.toProvider([URL_ENTRY]) as any[];
     expect(messages).toHaveLength(1);
     const parts = messages[0].content as any[];
-    expect(parts).toContainEqual({ type: "text", text: "What's in this image?" });
+    expect(parts).toContainEqual({
+      type: "text",
+      text: "What's in this image?",
+    });
     expect(parts).toContainEqual({
       type: "image_url",
       image_url: "https://example.com/photo.jpg",
@@ -131,7 +144,10 @@ describe("geminiTransformer — image content", () => {
     const parts = contents[0].parts as any[];
     expect(parts).toContainEqual({ text: "What's in this image?" });
     expect(parts).toContainEqual({
-      fileData: { mimeType: "image/jpeg", fileUri: "https://example.com/photo.jpg" },
+      fileData: {
+        mimeType: "image/jpeg",
+        fileUri: "https://example.com/photo.jpg",
+      },
     });
   });
 
@@ -157,7 +173,9 @@ describe("geminiTransformer — image content", () => {
 
 describe("chatCompletionsTransformer — image content", () => {
   it("converts mixed text+image_url to image_url content parts", () => {
-    const messages = chatCompletionsTransformer.toProvider([URL_ENTRY]) as any[];
+    const messages = chatCompletionsTransformer.toProvider([
+      URL_ENTRY,
+    ]) as any[];
     expect(messages).toHaveLength(1);
     const parts = messages[0].content;
     expect(Array.isArray(parts)).toBe(true);
@@ -169,7 +187,9 @@ describe("chatCompletionsTransformer — image content", () => {
   });
 
   it("encodes image_base64 as a data URI inside image_url.url", () => {
-    const messages = chatCompletionsTransformer.toProvider([B64_ENTRY]) as any[];
+    const messages = chatCompletionsTransformer.toProvider([
+      B64_ENTRY,
+    ]) as any[];
     const parts = messages[0].content as any[];
     expect(parts[1]).toEqual({
       type: "image_url",
@@ -240,7 +260,10 @@ describe("chatCompletionsTransformer — toProvider", () => {
         {
           id: "call_1",
           type: "function",
-          function: { name: "get_weather", arguments: JSON.stringify({ city: "Paris" }) },
+          function: {
+            name: "get_weather",
+            arguments: JSON.stringify({ city: "Paris" }),
+          },
         },
       ],
     });
@@ -274,7 +297,10 @@ describe("chatCompletionsTransformer — toProvider", () => {
   it("omits reasoning_content for a redacted-only thinking block", () => {
     // Anthropic redacted blocks carry an opaque payload and no replayable text
     const messages = chatCompletionsTransformer.toProvider([
-      { role: "assistant", content: [thinking("", undefined, "redacted-payload"), text("Hi")] },
+      {
+        role: "assistant",
+        content: [thinking("", undefined, "redacted-payload"), text("Hi")],
+      },
     ]) as any[];
 
     expect(messages[0]).not.toHaveProperty("reasoning_content");
@@ -398,7 +424,9 @@ describe("chatCompletionsTransformer — fromProviderMessage", () => {
       role: "assistant",
       content: null,
       reasoning_content: "I need the weather tool.",
-      tool_calls: [{ id: "call_1", function: { name: "get_weather", arguments: "{}" } }],
+      tool_calls: [
+        { id: "call_1", function: { name: "get_weather", arguments: "{}" } },
+      ],
     });
 
     const [message] = chatCompletionsTransformer.toProvider([entry]) as any[];
@@ -410,7 +438,10 @@ describe("chatCompletionsTransformer — fromProviderMessage", () => {
 
 describe("chatCompletionsTransformer — toolResultEntry", () => {
   it("creates a normalized tool-result entry keyed by tool_call_id", () => {
-    const entry = chatCompletionsTransformer.toolResultEntry("call_1", "22°C, sunny");
+    const entry = chatCompletionsTransformer.toolResultEntry(
+      "call_1",
+      "22°C, sunny"
+    );
     expect(entry).toEqual({
       role: "user",
       content: [toolResult("call_1", "22°C, sunny")],
@@ -477,7 +508,16 @@ describe("geminiTransformer — tool results are Structs", () => {
   });
 
   it("always produces something Gemini will accept as a Struct", () => {
-    for (const result of ["text", "", 42, true, null, undefined, ["a"], { ok: 1 }]) {
+    for (const result of [
+      "text",
+      "",
+      42,
+      true,
+      null,
+      undefined,
+      ["a"],
+      { ok: 1 },
+    ]) {
       expect(isStruct(asSent(asStored(result)))).toBe(true);
     }
   });
@@ -534,7 +574,10 @@ describe("geminiTransformer — thought signatures", () => {
       },
     ];
 
-    const entry = geminiTransformer.fromProviderContent("assistant", parts as any);
+    const entry = geminiTransformer.fromProviderContent(
+      "assistant",
+      parts as any
+    );
     const [content] = geminiTransformer.toProvider([entry]) as any[];
 
     expect(content.parts[0].thoughtSignature).toBe(SIGNATURE);
@@ -558,8 +601,14 @@ describe("geminiTransformer — thought signatures", () => {
 
   it("keeps each signature with its own call when several come back at once", () => {
     const entry = geminiTransformer.fromProviderContent("assistant", [
-      { functionCall: { name: "get_weather", args: { city: "Paris" } }, thoughtSignature: "sig-a" },
-      { functionCall: { name: "get_time", args: { tz: "UTC" } }, thoughtSignature: "sig-b" },
+      {
+        functionCall: { name: "get_weather", args: { city: "Paris" } },
+        thoughtSignature: "sig-a",
+      },
+      {
+        functionCall: { name: "get_time", args: { tz: "UTC" } },
+        thoughtSignature: "sig-b",
+      },
     ] as any);
 
     const [content] = geminiTransformer.toProvider([entry]) as any[];
@@ -583,8 +632,16 @@ describe("geminiTransformer — thought signatures", () => {
  * *next* request, not the one that lost them.
  */
 describe("openRouterTransformer reasoning details", () => {
-  const ENCRYPTED = { type: "reasoning.encrypted", data: "opaque-blob", id: "rd-1" };
-  const TEXT_DETAIL = { type: "reasoning.text", text: "step one", signature: "sig-1" };
+  const ENCRYPTED = {
+    type: "reasoning.encrypted",
+    data: "opaque-blob",
+    id: "rd-1",
+  };
+  const TEXT_DETAIL = {
+    type: "reasoning.text",
+    text: "step one",
+    signature: "sig-1",
+  };
 
   it("carries reasoning details from the response back onto the next request", () => {
     const entry = openRouterTransformer.fromProviderMessage({
@@ -708,7 +765,9 @@ describe("openRouterTransformer prompt caching", () => {
       SYSTEM_ENTRY,
       { role: "user", content: [{ type: "text", text: "hi" }] },
     ];
-    const [systemMsg, userMsg] = openRouterTransformer.toProvider(entries) as any[];
+    const [systemMsg, userMsg] = openRouterTransformer.toProvider(
+      entries
+    ) as any[];
 
     expect(systemMsg.content).toBe("You are a helpful assistant.");
     expect(userMsg.content).toBe("hi");
@@ -730,7 +789,11 @@ describe("openRouterTransformer prompt caching", () => {
     }) as any[];
 
     expect(systemMsg.content).toEqual([
-      { type: "text", text: "You are a helpful assistant.", cacheControl: { type: "ephemeral" } },
+      {
+        type: "text",
+        text: "You are a helpful assistant.",
+        cacheControl: { type: "ephemeral" },
+      },
     ]);
     expect(userMsg.content).toEqual([
       { type: "text", text: "hi", cacheControl: { type: "ephemeral" } },
@@ -744,7 +807,9 @@ describe("openRouterTransformer prompt caching", () => {
       { role: "assistant", content: [text("reply one")] },
       { role: "user", content: [text("second")] },
     ];
-    const messages = openRouterTransformer.toProvider(entries, { cacheSystemPrompt: true }) as any[];
+    const messages = openRouterTransformer.toProvider(entries, {
+      cacheSystemPrompt: true,
+    }) as any[];
 
     // Marked: the system prompt (always) and the last message (index 3).
     expect(messages[0].content[0].cacheControl).toEqual({ type: "ephemeral" });
@@ -760,10 +825,15 @@ describe("openRouterTransformer prompt caching", () => {
     const entries: HistoryEntry[] = [
       SYSTEM_ENTRY,
       { role: "user", content: [text("run it")] },
-      { role: "assistant", content: [toolUse("call_1", "run_shell", { command: "echo hi" })] },
+      {
+        role: "assistant",
+        content: [toolUse("call_1", "run_shell", { command: "echo hi" })],
+      },
       { role: "user", content: [toolResult("call_1", "hi\n")] },
     ];
-    const messages = openRouterTransformer.toProvider(entries, { cacheSystemPrompt: true }) as any[];
+    const messages = openRouterTransformer.toProvider(entries, {
+      cacheSystemPrompt: true,
+    }) as any[];
 
     const toolMsg = messages[messages.length - 1];
     expect(toolMsg.role).toBe("tool");
@@ -780,9 +850,14 @@ describe("openRouterTransformer prompt caching", () => {
     const entries: HistoryEntry[] = [
       SYSTEM_ENTRY,
       { role: "user", content: [text("run it")] },
-      { role: "assistant", content: [toolUse("call_1", "run_shell", { command: "echo hi" })] },
+      {
+        role: "assistant",
+        content: [toolUse("call_1", "run_shell", { command: "echo hi" })],
+      },
     ];
-    const messages = openRouterTransformer.toProvider(entries, { cacheSystemPrompt: true }) as any[];
+    const messages = openRouterTransformer.toProvider(entries, {
+      cacheSystemPrompt: true,
+    }) as any[];
 
     const assistantMsg = messages[messages.length - 1];
     expect(assistantMsg.content).toBeNull();
@@ -792,5 +867,268 @@ describe("openRouterTransformer prompt caching", () => {
     expect(userMsg.content).toEqual([
       { type: "text", text: "run it", cacheControl: { type: "ephemeral" } },
     ]);
+  });
+});
+
+describe("openAiTransformer — encrypted reasoning items", () => {
+  const REASONING = {
+    type: "reasoning",
+    id: "rs_1",
+    summary: [{ type: "summary_text", text: "Check the weather first" }],
+    encrypted_content: "opaque-blob",
+  };
+
+  it("stores a response's reasoning items and replays them verbatim", () => {
+    const entry = openAiTransformer.fromProviderMessage(
+      "assistant",
+      "It is sunny.",
+      undefined,
+      [REASONING]
+    );
+
+    const items = openAiTransformer.toProvider([entry]);
+
+    expect(items[0]).toEqual(REASONING);
+    // The summary is kept as readable text, but the payload that matters is
+    // the item itself.
+    expect(entry.content[0]).toMatchObject({
+      type: "thinking",
+      thinking: "Check the weather first",
+    });
+  });
+
+  it("puts reasoning ahead of the tool call it produced", () => {
+    const entry = openAiTransformer.fromProviderMessage(
+      "assistant",
+      "",
+      [
+        {
+          id: "fc_1",
+          call_id: "call_1",
+          name: "get_weather",
+          arguments: '{"city":"Paris"}',
+        },
+      ],
+      [REASONING]
+    );
+
+    const types = openAiTransformer.toProvider([entry]).map((i: any) => i.type);
+
+    // The API rejects a reasoning item that does not precede what it produced.
+    expect(types).toEqual(["reasoning", "function_call"]);
+  });
+
+  it("emits nothing extra for a turn that carried no reasoning", () => {
+    const entry = openAiTransformer.fromProviderMessage("assistant", "Hello");
+
+    expect(openAiTransformer.toProvider([entry])).toEqual([
+      { type: "message", role: "assistant", content: "Hello" },
+    ]);
+  });
+
+  it("ignores non-reasoning passthrough details, which belong to other providers", () => {
+    // An entry that came from OpenRouter carries its own detail shapes.
+    const entry: HistoryEntry = {
+      role: "assistant",
+      content: [
+        thinking("thought", undefined, undefined, [
+          { type: "reasoning.encrypted", data: "openrouter-blob" },
+        ]),
+        text("Hello"),
+      ],
+    };
+
+    const types = openAiTransformer.toProvider([entry]).map((i: any) => i.type);
+
+    expect(types).toEqual(["message"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-provider isolation of the shared reasoning slot
+// ---------------------------------------------------------------------------
+
+/**
+ * `ThinkingContent.reasoningDetails` is one slot with two incompatible
+ * occupants — OpenRouter's `reasoning.*` entries and the Responses API's
+ * `reasoning` items. Sharing a `History` between agents (which the docs
+ * recommend) puts both in the same history, so each transformer has to forward
+ * only its own or the other provider rejects the request.
+ */
+describe("reasoning details are not forwarded to the wrong provider", () => {
+  const OPENAI_ITEM = {
+    type: "reasoning",
+    id: "rs_1",
+    summary: [{ type: "summary_text", text: "Thinking" }],
+    encrypted_content: "openai-blob",
+  };
+  const OPENROUTER_DETAIL = {
+    type: "reasoning.encrypted",
+    data: "openrouter-blob",
+  };
+
+  const openAiEntry = () =>
+    openAiTransformer.fromProviderMessage("assistant", "Hi", undefined, [
+      OPENAI_ITEM,
+    ]);
+  const openRouterEntry = () =>
+    openRouterTransformer.fromProviderMessage({
+      role: "assistant",
+      content: "Hi",
+      reasoning: "Thinking",
+      reasoningDetails: [OPENROUTER_DETAIL],
+    } as any);
+
+  it("keeps OpenAI reasoning items out of OpenRouter's reasoningDetails", () => {
+    const [message] = openRouterTransformer.toProvider([
+      openAiEntry(),
+    ]) as any[];
+
+    expect(message).not.toHaveProperty("reasoningDetails");
+  });
+
+  it("keeps OpenRouter details out of the Responses API input", () => {
+    const types = openAiTransformer
+      .toProvider([openRouterEntry()])
+      .map((i: any) => i.type);
+
+    expect(types).toEqual(["message"]);
+  });
+
+  it("still round-trips each provider's own details", () => {
+    const [message] = openRouterTransformer.toProvider([
+      openRouterEntry(),
+    ]) as any[];
+    expect(message.reasoningDetails).toEqual([OPENROUTER_DETAIL]);
+
+    expect(openAiTransformer.toProvider([openAiEntry()])[0]).toEqual(
+      OPENAI_ITEM
+    );
+  });
+
+  it("treats untagged details as OpenRouter's, which was the only producer", () => {
+    // Blocks written before the format tag existed carry no tag at all.
+    const entry: HistoryEntry = {
+      role: "assistant",
+      content: [
+        {
+          type: "thinking",
+          thinking: "old",
+          reasoningDetails: [OPENROUTER_DETAIL],
+        },
+        text("Hi"),
+      ],
+    };
+
+    const [message] = openRouterTransformer.toProvider([entry]) as any[];
+
+    expect(message.reasoningDetails).toEqual([OPENROUTER_DETAIL]);
+  });
+});
+
+describe("openAiTransformer — replayReasoning: false", () => {
+  const REASONING = {
+    type: "reasoning",
+    id: "rs_1",
+    encrypted_content: "opaque-blob",
+  };
+
+  /**
+   * Turning `includeEncryptedReasoning` off has to stop the replay too, not
+   * just the request for new blobs — a history that already holds the previous
+   * model's reasoning is exactly what the flag is turned off to escape.
+   */
+  it("omits reasoning already stored in the history", () => {
+    const entry = openAiTransformer.fromProviderMessage(
+      "assistant",
+      "Answer",
+      undefined,
+      [REASONING]
+    );
+
+    const types = openAiTransformer
+      .toProvider([entry], { replayReasoning: false })
+      .map((i: any) => i.type);
+
+    expect(types).toEqual(["message"]);
+  });
+
+  it("replays it by default, and when asked explicitly", () => {
+    const entry = openAiTransformer.fromProviderMessage(
+      "assistant",
+      "Answer",
+      undefined,
+      [REASONING]
+    );
+
+    expect(openAiTransformer.toProvider([entry])[0]).toEqual(REASONING);
+    expect(
+      openAiTransformer.toProvider([entry], { replayReasoning: true })[0]
+    ).toEqual(REASONING);
+  });
+});
+
+describe("anthropicTransformer — foreign thinking blocks", () => {
+  /**
+   * Anthropic verifies the signature on every thinking block it is sent, so a
+   * block from another provider — which has no signature to give — cannot be
+   * replayed under an empty one. Reaching this transformer at all is the
+   * documented shared-`History` pattern, not a misuse.
+   */
+  it("drops a thinking block that Anthropic did not sign", () => {
+    const entry = openAiTransformer.fromProviderMessage(
+      "assistant",
+      "Answer",
+      undefined,
+      [{ type: "reasoning", id: "rs_1", encrypted_content: "blob" }]
+    );
+
+    const [message] = anthropicTransformer.toProvider([entry]) as any[];
+
+    expect(message.content).toEqual([{ type: "text", text: "Answer" }]);
+  });
+
+  it("keeps its own signed and redacted blocks", () => {
+    const entry: HistoryEntry = {
+      role: "assistant",
+      content: [
+        thinking("thought", "sig-1"),
+        thinking("", undefined, "redacted-payload"),
+        text("Answer"),
+      ],
+    };
+
+    const [message] = anthropicTransformer.toProvider([entry]) as any[];
+
+    expect(message.content.map((b: any) => b.type)).toEqual([
+      "thinking",
+      "redacted_thinking",
+      "text",
+    ]);
+  });
+
+  it("drops a message left empty by the filter", () => {
+    // Anthropic rejects a message with no content, and a reasoning-only turn
+    // has nothing else to send.
+    const entries: HistoryEntry[] = [
+      { role: "user", content: [text("Hi")] },
+      {
+        role: "assistant",
+        content: [
+          thinking(
+            "foreign",
+            undefined,
+            undefined,
+            [{ type: "reasoning" }],
+            "openai.responses"
+          ),
+        ],
+      },
+    ];
+
+    const messages = anthropicTransformer.toProvider(entries) as any[];
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("user");
   });
 });

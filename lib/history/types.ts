@@ -70,9 +70,33 @@ export type ThinkingContent = {
    *
    * Nothing here reads the contents; they only have to survive the round trip,
    * so they stay untyped rather than modelling every provider's block shapes.
+   *
+   * The shapes are *not* interchangeable — see
+   * {@link ThinkingContent.reasoningDetailsFormat}.
    */
   reasoningDetails?: unknown[];
+  /**
+   * Which provider's format {@link ThinkingContent.reasoningDetails} is in.
+   *
+   * Two producers share that slot and their shapes are mutually invalid:
+   * OpenRouter's entries are tagged `reasoning.text` / `reasoning.summary` /
+   * `reasoning.encrypted`, while the OpenAI Responses API's are whole
+   * `reasoning` items. A history shared between agents therefore has to say
+   * which is which, or each transformer forwards the other's blocks and the
+   * provider rejects the request.
+   *
+   * Absent on blocks written before this field existed, which are OpenRouter's
+   * by definition — it was the only producer then. Read it through
+   * {@link reasoningDetailsFormatOf} rather than directly, so that default
+   * stays in one place.
+   */
+  reasoningDetailsFormat?: ReasoningDetailsFormat;
 };
+
+/**
+ * Provider formats that {@link ThinkingContent.reasoningDetails} can hold.
+ */
+export type ReasoningDetailsFormat = "openrouter" | "openai.responses";
 
 /**
  * Supported image MIME types across all providers
@@ -317,20 +341,34 @@ export function thinking(
   thinkingText: string,
   signature?: string,
   redactedData?: string,
-  reasoningDetails?: unknown[]
+  reasoningDetails?: unknown[],
+  reasoningDetailsFormat: ReasoningDetailsFormat = "openrouter"
 ): ThinkingContent {
   // As in `toolUse()`, only set the passthrough key when there is something in
   // it, so a block stored without details serializes exactly as it did before
-  // the field existed.
+  // the field existed. The format tag rides along with the details for the same
+  // reason: it says nothing on its own.
+  const hasDetails =
+    reasoningDetails !== undefined && reasoningDetails.length > 0;
   return {
     type: "thinking",
     thinking: thinkingText,
     signature,
     redactedData,
-    ...(reasoningDetails && reasoningDetails.length > 0
-      ? { reasoningDetails }
-      : {}),
+    ...(hasDetails ? { reasoningDetails, reasoningDetailsFormat } : {}),
   };
+}
+
+/**
+ * The format of a block's {@link ThinkingContent.reasoningDetails}.
+ *
+ * Untagged blocks are OpenRouter's: it was the only producer before the tag
+ * existed, so that is what an untagged block can only have come from.
+ */
+export function reasoningDetailsFormatOf(
+  block: ThinkingContent
+): ReasoningDetailsFormat {
+  return block.reasoningDetailsFormat ?? "openrouter";
 }
 
 /**

@@ -35,6 +35,7 @@ type GeminiPart = Part & { thoughtSignature?: string };
 import {
   HistoryEntry,
   MessageContent,
+  ThinkingContent,
   text,
   toolUse,
   toolResult,
@@ -43,6 +44,7 @@ import {
   isToolUseContent,
   isToolResultContent,
   isThinkingContent,
+  reasoningDetailsFormatOf,
   isImageUrlContent,
   isImageBase64Content,
 } from "./types";
@@ -51,73 +53,100 @@ import {
 // Anthropic Transformer
 // =============================================================================
 
+/**
+ * Whether a thinking block is one Anthropic itself produced, and so can be sent
+ * back to it.
+ *
+ * Anthropic signs every thinking block it emits (or returns it redacted), and
+ * rejects one whose signature does not verify — an empty string included. Other
+ * providers' reasoning reaches this transformer whenever a `History` is shared
+ * between agents, which the docs recommend: OpenAI's carries a summary and an
+ * encrypted payload but no signature, so it has to be dropped rather than
+ * replayed under an empty one.
+ */
+function isAnthropicThinkingBlock(block: ThinkingContent): boolean {
+  return block.redactedData !== undefined || block.signature !== undefined;
+}
+
 export const anthropicTransformer = {
   /**
    * Convert normalized entries to Anthropic MessageParam format
    */
   toProvider(entries: HistoryEntry[]): MessageParam[] {
-    return entries
-      .filter((entry) => entry.role !== "system") // Anthropic handles system separately
-      .map((entry): MessageParam => {
-        const role = entry.role === "assistant" ? "assistant" : "user";
+    return (
+      entries
+        .filter((entry) => entry.role !== "system") // Anthropic handles system separately
+        .map((entry): MessageParam => {
+          const role = entry.role === "assistant" ? "assistant" : "user";
 
-        // Convert content blocks to Anthropic's ContentBlockParam
-        const content: ContentBlockParam[] = entry.content.map((block) => {
-          if (isTextContent(block)) {
-            return { type: "text", text: block.text } as TextBlockParam;
-          }
-          if (isToolUseContent(block)) {
-            return {
-              type: "tool_use",
-              id: block.id,
-              name: block.name,
-              input: block.input,
-            } as ToolUseBlockParam;
-          }
-          if (isToolResultContent(block)) {
-            return {
-              type: "tool_result",
-              tool_use_id: block.tool_use_id,
-              content: block.content,
-              is_error: block.is_error,
-            } as ToolResultBlockParam;
-          }
-          if (isThinkingContent(block)) {
-            if (block.redactedData !== undefined) {
-              return {
-                type: "redacted_thinking",
-                data: block.redactedData,
-              } as RedactedThinkingBlockParam;
-            }
-            return {
-              type: "thinking",
-              thinking: block.thinking,
-              signature: block.signature ?? "",
-            } as ThinkingBlockParam;
-          }
-          if (isImageUrlContent(block)) {
-            return {
-              type: "image",
-              source: { type: "url", url: block.url },
-            } as ImageBlockParam;
-          }
-          if (isImageBase64Content(block)) {
-            return {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: block.mimeType,
-                data: block.data,
-              },
-            } as ImageBlockParam;
-          }
-          throw new Error(
-            `Unknown content type: ${(block as MessageContent).type}`
-          );
-        });
+          // Convert content blocks to Anthropic's ContentBlockParam
+          const content: ContentBlockParam[] = entry.content
+            .filter(
+              (block) =>
+                !isThinkingContent(block) || isAnthropicThinkingBlock(block)
+            )
+            .map((block) => {
+              if (isTextContent(block)) {
+                return { type: "text", text: block.text } as TextBlockParam;
+              }
+              if (isToolUseContent(block)) {
+                return {
+                  type: "tool_use",
+                  id: block.id,
+                  name: block.name,
+                  input: block.input,
+                } as ToolUseBlockParam;
+              }
+              if (isToolResultContent(block)) {
+                return {
+                  type: "tool_result",
+                  tool_use_id: block.tool_use_id,
+                  content: block.content,
+                  is_error: block.is_error,
+                } as ToolResultBlockParam;
+              }
+              if (isThinkingContent(block)) {
+                if (block.redactedData !== undefined) {
+                  return {
+                    type: "redacted_thinking",
+                    data: block.redactedData,
+                  } as RedactedThinkingBlockParam;
+                }
+                return {
+                  type: "thinking",
+                  thinking: block.thinking,
+                  signature: block.signature ?? "",
+                } as ThinkingBlockParam;
+              }
+              if (isImageUrlContent(block)) {
+                return {
+                  type: "image",
+                  source: { type: "url", url: block.url },
+                } as ImageBlockParam;
+              }
+              if (isImageBase64Content(block)) {
+                return {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: block.mimeType,
+                    data: block.data,
+                  },
+                } as ImageBlockParam;
+              }
+              throw new Error(
+                `Unknown content type: ${(block as MessageContent).type}`
+              );
+            });
 
-        return { role, content };
-      });
+          return { role, content };
+        })
+        // Dropping a foreign thinking block can empty a turn that held nothing
+        // else (a reasoning-only assistant entry). Anthropic rejects a message
+        // with no content, and there is nothing left to say, so drop the message
+        // too. Tool pairs are unaffected: a thinking-only entry has no tool_use.
+        .filter((message) => message.content.length > 0)
+    );
   },
 
   /**
@@ -200,12 +229,69 @@ function toOpenAiId(originalId: string): string {
   return newId;
 }
 
+/**
+ * A Responses API `reasoning` item as it was received, kept opaque.
+ *
+ * Only `type` is read — the item is stored and replayed verbatim, since its
+ * `encrypted_content` is the whole point and nothing here can interpret it.
+ */
+type OpenAiReasoningItem = {
+  type: "reasoning";
+  id?: string;
+  summary?: Array<{ type?: string; text?: string }>;
+  encrypted_content?: string;
+};
+
+function isOpenAiReasoningItem(value: unknown): value is OpenAiReasoningItem {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "reasoning"
+  );
+}
+
+/**
+ * The reasoning items stored on an assistant entry, in the order they were
+ * received.
+ *
+ * They ride on `ThinkingContent.reasoningDetails` — the same passthrough slot
+ * OpenRouter's `reasoning_details` uses — because they have to survive the round
+ * trip untouched and there is nothing to model.
+ */
+function openAiReasoningItems(entry: HistoryEntry): OpenAiReasoningItem[] {
+  return entry.content
+    .filter(isThinkingContent)
+    .filter((block) => reasoningDetailsFormatOf(block) === "openai.responses")
+    .flatMap((block) => block.reasoningDetails ?? [])
+    .filter(isOpenAiReasoningItem);
+}
+
+/** Human-readable text of a reasoning item's summary, for display in history. */
+function reasoningSummaryText(items: OpenAiReasoningItem[]): string {
+  return items
+    .flatMap((item) => item.summary ?? [])
+    .map((part) => part?.text ?? "")
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export const openAiTransformer = {
   /**
-   * Convert normalized entries to OpenAI ResponseInputItem format
+   * Convert normalized entries to OpenAI ResponseInputItem format.
+   *
+   * `replayReasoning` defaults to on and mirrors
+   * `AgentConfig.includeEncryptedReasoning`: requesting the blobs and sending
+   * them back are one feature, so switching it off has to stop *both*.
+   * Otherwise a history that already holds blobs keeps replaying them — which
+   * is exactly the situation the flag is turned off to escape, since reasoning
+   * is tied to the model that produced it and switching models is rejected.
    */
-  toProvider(entries: HistoryEntry[]): ResponseInputItem[] {
+  toProvider(
+    entries: HistoryEntry[],
+    options?: { replayReasoning?: boolean }
+  ): ResponseInputItem[] {
     const items: ResponseInputItem[] = [];
+    const replayReasoning = options?.replayReasoning ?? true;
 
     for (const entry of entries) {
       if (entry.role === "system") {
@@ -220,13 +306,27 @@ export const openAiTransformer = {
         continue;
       }
 
+      // Reasoning first, before anything else this turn produced — the order
+      // the model emitted it in. The Responses API turns out not to enforce
+      // this on the `store: false` + explicit-`input` flow these agents use
+      // (probed live 2026-09-10; see `OpenAiAgent.replayableReasoning` for what
+      // was accepted), so this is fidelity to what the model produced rather
+      // than a constraint. Emitting it out of order is not known to fail, but
+      // there is no reason to.
+      if (replayReasoning) {
+        for (const item of openAiReasoningItems(entry)) {
+          items.push(item as unknown as ResponseInputItem);
+        }
+      }
+
       // Separate content blocks by type for OpenAI format
       const textBlocks = entry.content.filter(isTextContent);
       const toolUseBlocks = entry.content.filter(isToolUseContent);
       const toolResultBlocks = entry.content.filter(isToolResultContent);
       const imageUrlBlocks = entry.content.filter(isImageUrlContent);
       const imageBase64Blocks = entry.content.filter(isImageBase64Content);
-      const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
+      const hasImages =
+        imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
 
       // Add text/image message if present
       if (textBlocks.length > 0 && entry.role !== "user") {
@@ -242,7 +342,12 @@ export const openAiTransformer = {
       ) {
         if (hasImages) {
           // Mixed content: build an array of content parts
-          const parts: Array<{ type: string; text?: string; image_url?: string; detail?: string }> = [];
+          const parts: Array<{
+            type: string;
+            text?: string;
+            image_url?: string;
+            detail?: string;
+          }> = [];
           for (const block of entry.content) {
             if (isTextContent(block)) {
               parts.push({ type: "input_text", text: block.text });
@@ -312,9 +417,31 @@ export const openAiTransformer = {
       call_id: string;
       name: string;
       arguments: string;
-    }>
+    }>,
+    /**
+     * `reasoning` items from `response.output`, stored verbatim so the next
+     * request can replay them. Pass only items that carry `encrypted_content`:
+     * with `store: false` the provider has kept nothing of its own, so a
+     * replayed item without it cannot be resolved and the request is rejected.
+     */
+    reasoningItems?: unknown[]
   ): HistoryEntry {
     const content: MessageContent[] = [];
+
+    const reasoning = (reasoningItems ?? []).filter(isOpenAiReasoningItem);
+    if (reasoning.length > 0) {
+      // Summary text is for humans reading the history; the payload that
+      // matters is the untouched items on `reasoningDetails`.
+      content.push(
+        thinking(
+          reasoningSummaryText(reasoning),
+          undefined,
+          undefined,
+          reasoning,
+          "openai.responses"
+        )
+      );
+    }
 
     if (outputText) {
       content.push(text(outputText));
@@ -447,7 +574,11 @@ export const mistralTransformer = {
         }
         if (imageUrlBlocks.length > 0) {
           // Mistral vision: array content with text + image_url parts
-          const parts: Array<{ type: string; text?: string; image_url?: string }> = [];
+          const parts: Array<{
+            type: string;
+            text?: string;
+            image_url?: string;
+          }> = [];
           for (const block of entry.content) {
             if (isTextContent(block)) {
               parts.push({ type: "text", text: block.text });
@@ -737,7 +868,10 @@ export const ollamaTransformer = {
       const toolResultBlocks = entry.content.filter(isToolResultContent);
 
       if (entry.role === "system") {
-        messages.push({ role: "system", content: textBlocks.map((c) => c.text).join("\n") });
+        messages.push({
+          role: "system",
+          content: textBlocks.map((c) => c.text).join("\n"),
+        });
         continue;
       }
 
@@ -764,7 +898,10 @@ export const ollamaTransformer = {
           messages.push({ role: "tool", content: result.content });
         }
       } else if (textBlocks.length > 0) {
-        messages.push({ role: "user", content: textBlocks.map((c) => c.text).join("\n") });
+        messages.push({
+          role: "user",
+          content: textBlocks.map((c) => c.text).join("\n"),
+        });
       }
     }
 
@@ -775,7 +912,10 @@ export const ollamaTransformer = {
    * Convert Ollama response message to normalized HistoryEntry.
    * generatedIds must supply one ID per tool call (Ollama doesn't return IDs).
    */
-  fromProviderMessage(message: OllamaResponseMessage, generatedIds: string[]): HistoryEntry {
+  fromProviderMessage(
+    message: OllamaResponseMessage,
+    generatedIds: string[]
+  ): HistoryEntry {
     const content: MessageContent[] = [];
 
     if (typeof message.content === "string" && message.content) {
@@ -789,7 +929,11 @@ export const ollamaTransformer = {
             ? JSON.parse(call.function.arguments)
             : call.function.arguments;
         content.push(
-          toolUse(generatedIds[idx] ?? `ollama_tool_${idx}`, call.function.name, args as Record<string, unknown>)
+          toolUse(
+            generatedIds[idx] ?? `ollama_tool_${idx}`,
+            call.function.name,
+            args as Record<string, unknown>
+          )
         );
       });
     }
@@ -848,10 +992,14 @@ export const chatCompletionsTransformer = {
       const thinkingBlocks = entry.content.filter(isThinkingContent);
       const imageUrlBlocks = entry.content.filter(isImageUrlContent);
       const imageBase64Blocks = entry.content.filter(isImageBase64Content);
-      const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
+      const hasImages =
+        imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
 
       if (entry.role === "system") {
-        messages.push({ role: "system", content: textBlocks.map((c) => c.text).join("\n") });
+        messages.push({
+          role: "system",
+          content: textBlocks.map((c) => c.text).join("\n"),
+        });
         continue;
       }
 
@@ -921,7 +1069,10 @@ export const chatCompletionsTransformer = {
         }
         messages.push({ role: "user", content: parts });
       } else if (textBlocks.length > 0) {
-        messages.push({ role: "user", content: textBlocks.map((c) => c.text).join("\n") });
+        messages.push({
+          role: "user",
+          content: textBlocks.map((c) => c.text).join("\n"),
+        });
       }
     }
 
@@ -952,7 +1103,9 @@ export const chatCompletionsTransformer = {
       message.tool_calls.forEach((call) => {
         if (!call.function) return;
         const args = JSON.parse(call.function.arguments || "{}");
-        content.push(toolUse(call.id, call.function.name, args as Record<string, unknown>));
+        content.push(
+          toolUse(call.id, call.function.name, args as Record<string, unknown>)
+        );
       });
     }
 
@@ -1016,7 +1169,11 @@ function markLatestCacheBreakpoint(messages: OpenRouterMessage[]): void {
     const message = messages[i];
     if (typeof message.content === "string" && message.content.length > 0) {
       (message as { content: unknown }).content = [
-        { type: "text", text: message.content, cacheControl: { type: "ephemeral" } },
+        {
+          type: "text",
+          text: message.content,
+          cacheControl: { type: "ephemeral" },
+        },
       ];
       return;
     }
@@ -1047,7 +1204,8 @@ export const openRouterTransformer = {
       const thinkingBlocks = entry.content.filter(isThinkingContent);
       const imageUrlBlocks = entry.content.filter(isImageUrlContent);
       const imageBase64Blocks = entry.content.filter(isImageBase64Content);
-      const hasImages = imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
+      const hasImages =
+        imageUrlBlocks.length > 0 || imageBase64Blocks.length > 0;
 
       if (entry.role === "system") {
         const text = textBlocks.map((c) => c.text).join("\n");
@@ -1079,9 +1237,15 @@ export const openRouterTransformer = {
         // and Anthropic and OpenAI models reject a tool-using turn whose
         // signature did not come back. Only set the key when there is one, so
         // requests for non-reasoning models stay byte-identical.
-        const reasoningDetails = thinkingBlocks.flatMap(
-          (block) => block.reasoningDetails ?? []
-        );
+        // Only OpenRouter's own blocks. A history shared with an OpenAI agent
+        // also carries Responses-API `reasoning` items in this slot, and they
+        // are not OpenRouter's to interpret — it returned 200 rather than an
+        // error when one was sent (probed live 2026-09-10, upstream
+        // `anthropic/claude-sonnet-4.5`), but forwarding another provider's
+        // opaque payload can only confuse the model or the upstream route.
+        const reasoningDetails = thinkingBlocks
+          .filter((block) => reasoningDetailsFormatOf(block) === "openrouter")
+          .flatMap((block) => block.reasoningDetails ?? []);
         if (reasoningDetails.length > 0) {
           msg.reasoningDetails = reasoningDetails;
         }
@@ -1151,10 +1315,19 @@ export const openRouterTransformer = {
     // Reasoning first, matching the order the model produced it in. Both the
     // plain text and the opaque details are kept: the text is what a caller
     // reads, the details are what the next request has to echo back.
-    const reasoningText = typeof message.reasoning === "string" ? message.reasoning : "";
+    const reasoningText =
+      typeof message.reasoning === "string" ? message.reasoning : "";
     const reasoningDetails = message.reasoningDetails ?? [];
     if (reasoningText || reasoningDetails.length > 0) {
-      content.push(thinking(reasoningText, undefined, undefined, reasoningDetails));
+      content.push(
+        thinking(
+          reasoningText,
+          undefined,
+          undefined,
+          reasoningDetails,
+          "openrouter"
+        )
+      );
     }
 
     if (typeof message.content === "string" && message.content) {
@@ -1165,7 +1338,9 @@ export const openRouterTransformer = {
       message.toolCalls.forEach((call) => {
         if (!call.function) return;
         const args = JSON.parse(call.function.arguments || "{}");
-        content.push(toolUse(call.id, call.function.name, args as Record<string, unknown>));
+        content.push(
+          toolUse(call.id, call.function.name, args as Record<string, unknown>)
+        );
       });
     }
 
@@ -1223,7 +1398,11 @@ export type OpenRouterMessage =
        */
       reasoningDetails?: unknown[];
     }
-  | { role: "tool"; toolCallId: string; content: string | OpenRouterContentPart[] };
+  | {
+      role: "tool";
+      toolCallId: string;
+      content: string | OpenRouterContentPart[];
+    };
 
 type OpenRouterResponseMessage = {
   role: string;

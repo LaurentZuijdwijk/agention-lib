@@ -298,6 +298,44 @@ describe("BaseAgent", () => {
       });
     });
 
+    it("sums cache counts across calls, keeping 0 distinct from unreported", () => {
+      // A provider that says nothing about caching leaves both undefined.
+      agent["accumulateUsage"](usage(10, 25));
+      expect(agent.lastTokenUsage?.cache_read_tokens).toBeUndefined();
+      expect(agent.lastTokenUsage?.cache_write_tokens).toBeUndefined();
+
+      // "Nothing hit the cache" is an answer, and has to survive the merge.
+      agent["accumulateUsage"](
+        usage(10, 25, { cache_read_tokens: 0, cache_write_tokens: 0 })
+      );
+      expect(agent.lastTokenUsage?.cache_read_tokens).toBe(0);
+      expect(agent.lastTokenUsage?.cache_write_tokens).toBe(0);
+
+      agent["accumulateUsage"](
+        usage(10, 25, { cache_read_tokens: 3840, cache_write_tokens: 12 })
+      );
+      expect(agent.lastTokenUsage?.cache_read_tokens).toBe(3840);
+      expect(agent.lastTokenUsage?.cache_write_tokens).toBe(12);
+
+      // A tool loop bills each hop, so the counts add up over the run.
+      agent["accumulateUsage"](usage(10, 25, { cache_read_tokens: 1000 }));
+      expect(agent.lastTokenUsage?.cache_read_tokens).toBe(4840);
+      expect(agent.lastTokenUsage?.cache_write_tokens).toBe(12);
+    });
+
+    // Cached prompt tokens are part of input_tokens, so they must not be added
+    // into the totals or the throughput rates.
+    it("leaves the token totals alone when a call reports cache reads", () => {
+      agent["accumulateUsage"](usage(100, 10, { cache_read_tokens: 90 }));
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        input_tokens: 100,
+        output_tokens: 10,
+        total_tokens: 110,
+        cache_read_tokens: 90,
+      });
+    });
+
     it("sums cost_usd across calls, staying undefined until a call reports it", () => {
       agent["accumulateUsage"](usage(10, 25));
       expect(agent.lastTokenUsage?.cost_usd).toBeUndefined();

@@ -180,6 +180,46 @@ gpt-5.5             272000 ctx  GPT-5.5
 
 `raw` carries the rest — `max_context_window` (872000 on Luna), `supported_reasoning_levels`, `available_in_plans`, `minimal_client_version`. The backend hides models newer than the `clientVersion` you claim.
 
+### Cache and quota accounting
+
+A ChatGPT subscription is not priced per request, so **`lastTokenUsage.cost_usd` is undefined on this backend** and always will be — there is no dollar figure to report. What a call spends is *plan allowance*, and the backend reports that on every response:
+
+```typescript
+await agent.execute('Hello!');
+
+const limits = agent.lastUsageLimits;
+console.log(limits?.planType);                  // 'plus'
+console.log(limits?.activeLimit);               // 'premium'
+console.log(limits?.primary?.usedPercent);      // 1   — 5-hour window
+console.log(limits?.primary?.resetAt);          // Date
+console.log(limits?.secondary?.usedPercent);    // 49  — weekly window
+console.log(limits?.credits?.balance);          // 0   — pay-as-you-go top-up
+```
+
+Two rolling windows are reported: `primary` (300 minutes, i.e. 5 hours) and `secondary` (10080 minutes, i.e. a week), each with `usedPercent`, `windowMinutes`, `resetAfterSeconds` and `resetAt`. Once both are exhausted, `credits` is what is left to spend.
+
+`AgentEvent.USAGE_LIMITS` fires on every update, which is once per API call — tool-loop hops included, and failed requests too, since the headers ride on a `429` as well:
+
+```typescript
+agent.on(AgentEvent.USAGE_LIMITS, (limits) => {
+  if ((limits.primary?.usedPercent ?? 0) >= 90) pauseTheQueue();
+});
+```
+
+Unlike `lastTokenUsage`, `lastUsageLimits` is **not** reset per run: it describes the account rather than the turn, so it keeps the last value seen. It is `undefined` before the first call and after calls that carried no quota headers — `listModels()` is one, so only `execute()` / `executeStream()` refresh it. There is no usage endpoint to poll (`/usage`, `/rate_limits` and `/limits` all answer `403`), so quota state can only be refreshed by making a real call.
+
+Token counts carry the cache split, on this backend and the platform API alike:
+
+```typescript
+const usage = agent.lastTokenUsage;
+usage?.cache_read_tokens;   // prompt tokens served from cache
+usage?.cache_write_tokens;  // prompt tokens written to cache (Codex only)
+```
+
+Both are **subsets of `input_tokens`**, not additions to it, and both are summed across a turn's API calls like the rest of `TokenUsage`. `0` means nothing hit the cache; `undefined` means the provider reported nothing about caching at all.
+
+Caching itself is automatic here and cannot be steered: the backend decides, and repeated identical prefixes hit or miss run to run (measured live — a 4000-token prefix repeated five times returned `cache_read_tokens: 0` four times and `3840` once). `promptCacheKey` has no observable effect on this backend, unlike the platform API — see [Prompt caching](#prompt-caching).
+
 ### Streaming and errors
 
 That backend refuses `stream: false`, so `execute()` streams internally and hands back the finished text; `executeStream()` is unchanged and is still how you see tokens as they arrive.
@@ -910,6 +950,46 @@ const usage = agent.lastTokenUsage;
 console.log(`Input: ${usage?.input_tokens}, Output: ${usage?.output_tokens}`);
 ```
 
+Beyond the three counts, `TokenUsage` carries whatever the provider chose to
+report — every field below is `undefined` where it said nothing, which is never
+the same as `0`:
+
+| Field | Meaning | Reported by |
+|---|---|---|
+| `reasoning_tokens` | Thinking tokens, already counted inside `output_tokens` | OpenAI, Gemini |
+| `cache_read_tokens` | Prompt tokens served from cache — a subset of `input_tokens` | OpenAI, Codex |
+| `cache_write_tokens` | Prompt tokens written to cache — also a subset of `input_tokens` | Codex |
+| `cost_usd` | USD the provider billed for the call | OpenRouter |
+
+Counts are summed across a turn's API calls, so a tool loop reports the whole
+run rather than its last hop. Timing fields (`timeToFirstTokenMs`,
+`generationMs`, `totalMs` and the two throughput rates) are covered in the
+`examples/usage-metrics.ts` example.
+
+### Prompt caching
+
+Caching is automatic on every provider here — nothing needs enabling, and
+`cache_read_tokens` reports what was actually reused. What you can influence, on
+the OpenAI platform API, is *which* cache a request is routed to and how long a
+prefix stays warm:
+
+```typescript
+const agent = new OpenAiAgent({
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  apiKey: process.env.OPENAI_API_KEY!,
+  promptCacheKey: conversationId,   // requests sharing a key share a cache
+  promptCacheRetention: '24h',      // default expires a prefix within minutes
+});
+```
+
+Both are sent on every call of a run, including tool-loop hops — which is where
+they pay off, since each hop replays the whole prefix. Neither is set by
+default, so requests stay byte-identical to earlier versions unless you opt in.
+`CodexAgent` accepts both and forwards them, but the ChatGPT backend ignores
+them; see [Cache and quota accounting](#cache-and-quota-accounting).
+
 ## Cancellation
 
 Every agent's `execute()` (and `executeStream()`, where available) takes an optional second argument carrying an `AbortSignal`:
@@ -1324,6 +1404,7 @@ agent.on(AgentEvent.ERROR, (error) => {
 | `AgentEvent.TOOL_ERROR` | `"tool_error"` | A tool throws an error during execution | `error` |
 | `AgentEvent.ERROR` | `"error"` | Any error during execution | `error` |
 | `AgentEvent.MAX_TOKENS_EXCEEDED` | `"max_tokens_exceeded"` | Response was cut off by token limit | `error` |
+| `AgentEvent.USAGE_LIMITS` | `"usage_limits"` | The provider reported how much account allowance is left (`CodexAgent`) | `limits` (`CodexUsageLimits`) |
 
 ### Preventing Default Behaviour
 

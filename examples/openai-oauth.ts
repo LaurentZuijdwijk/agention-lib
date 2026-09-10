@@ -37,6 +37,8 @@
  * supported path.
  */
 import { CodexAgent } from "../lib/agents/openai/CodexAgent";
+import { CodexRateLimitWindow, CodexUsageLimits } from "../lib/agents/openai/codex-usage";
+import { AgentEvent } from "../lib/agents/AgentEvent";
 import {
   CodexCredentials,
   codexAuthFilePath,
@@ -115,6 +117,26 @@ function describeError(error: unknown): string {
   return summary;
 }
 
+/** "7% used, resets in 3h 10m" for one of the two rolling quota windows. */
+function describeWindow(window?: CodexRateLimitWindow): string {
+  if (!window) return "not reported";
+
+  // The weekly window is 10080 minutes; hours would read as "168h".
+  const hours = !window.windowMinutes
+    ? "window"
+    : window.windowMinutes >= 1440
+      ? `${Math.round(window.windowMinutes / 1440)}d window`
+      : `${Math.round(window.windowMinutes / 60)}h window`;
+  const resets =
+    window.resetAfterSeconds !== undefined
+      ? `, resets in ${Math.floor(window.resetAfterSeconds / 3600)}h ${Math.round(
+          (window.resetAfterSeconds % 3600) / 60
+        )}m`
+      : "";
+
+  return `${window.usedPercent}% of the ${hours} used${resets}`;
+}
+
 async function main() {
   const credentials = await resolveCredentials();
 
@@ -151,6 +173,17 @@ async function main() {
     // which the follow-up turns below rely on.
     new History()
   );
+
+  // Quota state arrives on every response, so this fires once per API call —
+  // including each hop of a tool loop. `agent.lastUsageLimits` always holds the
+  // most recent value, which is what the report at the end reads.
+  let limitUpdates = 0;
+  agent.on(AgentEvent.USAGE_LIMITS, (limits: CodexUsageLimits) => {
+    limitUpdates++;
+    if (limits.primary?.usedPercent === 100) {
+      console.warn("! 5-hourly allowance exhausted — calls will start failing");
+    }
+  });
 
   console.log(
     `Model: ${MODEL} · endpoint: ${
@@ -197,7 +230,44 @@ async function main() {
   ]);
   console.log(await agent.execute("What time is it? Use the tool."));
 
-  console.log("\nUsage:", agent.lastTokenUsage);
+  // 4. What the run spent.
+  //
+  //    A ChatGPT subscription is not priced per request, so there is no dollar
+  //    figure to report: `lastTokenUsage.cost_usd` is undefined here and always
+  //    will be. What a call spends is *plan allowance*, which this backend
+  //    reports on every response — see `lastUsageLimits` below.
+  console.log("\n--- usage ---");
+  const usage = agent.lastTokenUsage;
+  console.log("tokens:", usage);
+
+  if (usage?.cache_read_tokens !== undefined) {
+    // Cached prompt tokens are part of input_tokens, not extra on top of them.
+    const share = usage.input_tokens
+      ? Math.round((usage.cache_read_tokens / usage.input_tokens) * 100)
+      : 0;
+    console.log(
+      `prompt cache: ${usage.cache_read_tokens}/${usage.input_tokens} input tokens reused (${share}%)` +
+        (usage.cache_write_tokens ? `, ${usage.cache_write_tokens} written` : "")
+    );
+  }
+
+  const limits = agent.lastUsageLimits;
+  if (limits) {
+    console.log(
+      `plan: ${limits.planType ?? "?"} · limit tier: ${limits.activeLimit ?? "?"}`
+    );
+    console.log(`  5-hourly : ${describeWindow(limits.primary)}`);
+    console.log(`  weekly   : ${describeWindow(limits.secondary)}`);
+    if (limits.credits) {
+      console.log(
+        `  credits  : ${limits.credits.balance ?? "?"}` +
+          (limits.credits.unlimited ? " (unlimited)" : "")
+      );
+    }
+  }
+  console.log(
+    `(quota reported ${limitUpdates} times — once per API call, tool hops included)`
+  );
 }
 
 main().catch((error) => {

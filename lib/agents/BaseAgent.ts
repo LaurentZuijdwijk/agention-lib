@@ -62,6 +62,24 @@ export type TokenUsage = {
    */
   reasoning_tokens?: number;
   /**
+   * Prompt tokens the provider served from its own cache instead of processing
+   * afresh — a subset of `input_tokens`, not an addition to them, and normally
+   * billed at a discount.
+   *
+   * `0` is a real answer ("nothing hit the cache"); `undefined` means the
+   * provider said nothing about caching at all.
+   */
+  cache_read_tokens?: number;
+  /**
+   * Prompt tokens this call wrote *into* the provider's cache, where the
+   * provider reports writes separately from reads. Also a subset of
+   * `input_tokens` on the OpenAI-shaped providers.
+   *
+   * Rarer than `cache_read_tokens` — of the providers wired here only the
+   * ChatGPT/Codex backend reports it, and the platform Responses API does not.
+   */
+  cache_write_tokens?: number;
+  /**
    * USD billed for this usage, straight from the provider's own accounting —
    * not derived from a local price table. Undefined where the provider
    * doesn't report it (most do not; OpenRouter does, per response).
@@ -594,6 +612,14 @@ export abstract class BaseAgent<
           reasoning_tokens: sumOptional(
             previous.reasoning_tokens,
             timed.reasoning_tokens
+          ),
+          cache_read_tokens: sumOptional(
+            previous.cache_read_tokens,
+            timed.cache_read_tokens
+          ),
+          cache_write_tokens: sumOptional(
+            previous.cache_write_tokens,
+            timed.cache_write_tokens
           ),
           cost_usd: sumOptional(previous.cost_usd, timed.cost_usd),
           timeToFirstTokenMs: sumOptional(

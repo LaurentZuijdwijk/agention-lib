@@ -17,6 +17,12 @@ export class AgentEvent {
    * to history. The listener receives the `PartialTurn` that was salvaged.
    */
   public static PARTIAL_TURN = "partial_turn";
+  /**
+   * The provider reported how much of the account's allowance is left. Emitted
+   * by `CodexAgent`, whose backend returns rate-limit and credit headers on
+   * every response; the listener receives a `CodexUsageLimits`.
+   */
+  public static USAGE_LIMITS = "usage_limits";
 
   private defaultPrevented = false;
 

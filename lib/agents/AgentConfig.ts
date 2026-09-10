@@ -182,6 +182,17 @@ export interface OpenAISpecificConfig {
    */
   builtInTools?: BuiltInTool[];
   /**
+   * Cache-routing key sent as `prompt_cache_key`. Requests sharing a key are
+   * steered to the same prompt cache, raising the hit rate for a long
+   * conversation or a fleet of agents sharing a system prompt and tool belt.
+   */
+  promptCacheKey?: string;
+  /**
+   * How long cached prefixes stay warm — `"24h"` opts into extended retention.
+   * Ignored by the ChatGPT/Codex backend, which manages its own cache.
+   */
+  promptCacheRetention?: "in-memory" | "24h";
+  /**
    * Override the API base URL. Defaults to `api.openai.com/v1`; `CodexAgent`
    * defaults it to `https://chatgpt.com/backend-api/codex`, and setting it
    * there points at a Codex proxy instead.

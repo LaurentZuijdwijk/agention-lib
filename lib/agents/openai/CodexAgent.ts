@@ -1,5 +1,6 @@
 import { History } from "../../history/History";
 import { ModelInfo } from "../BaseAgent";
+import { AgentEvent } from "../AgentEvent";
 import { ExecutionError } from "../errors/AgentError";
 import { ResponseInputItem } from "openai/resources/responses/responses";
 import { OpenAIModel } from "../model-types";
@@ -18,6 +19,11 @@ import {
   createCodexTokenProvider,
   loadCodexCredentials,
 } from "./codex-auth";
+import {
+  CodexUsageLimits,
+  observeHeadersFetch,
+  parseCodexUsageLimits,
+} from "./codex-usage";
 
 /**
  * Models the ChatGPT-backed Codex backend serves.
@@ -119,12 +125,28 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
   private readonly clientVersion: string;
   private readonly codexBaseURL: string;
 
+  /**
+   * Quota state written by the fetch wrapper installed in the constructor.
+   *
+   * A holder object rather than a field because the wrapper is built *before*
+   * `super()` — the base constructor creates the SDK client, so the wrapper has
+   * to exist by then, and `this` is not available yet. `notify` is attached
+   * afterwards, once emitting is possible.
+   */
+  private readonly limits: {
+    latest?: CodexUsageLimits;
+    notify?: (limits: CodexUsageLimits) => void;
+  };
+
   constructor(config: CodexAgentConfig, history?: History) {
     const vendorConfig = config.vendorConfig?.openai ?? {};
     const accountId = config.accountId ?? vendorConfig.accountId;
     const originator =
       config.originator ?? vendorConfig.originator ?? CODEX_ORIGINATOR;
     const baseURL = config.baseURL ?? vendorConfig.baseURL ?? CODEX_BASE_URL;
+    // Filled by the fetch wrapper below and adopted as `this.limits` once
+    // `super()` has run.
+    const limits: CodexAgent["limits"] = {};
 
     // Everything host-specific is passed *into* the base constructor rather
     // than supplied by an override: the base runs before this class's fields
@@ -144,20 +166,60 @@ export class CodexAgent extends OpenAiAgent<OpenAIModel, CodexModelCard> {
           Accept: "text/event-stream",
           ...config.defaultHeaders,
         },
-        // This backend reports failures as `{detail: …}`, which the SDK drops
-        // on the floor — see wrapErrorBodyFetch().
-        fetch: wrapErrorBodyFetch(),
+        // Two wrappers, innermost first: normalise this backend's `{detail: …}`
+        // error bodies (which the SDK otherwise drops on the floor — see
+        // wrapErrorBodyFetch()), then read the `x-codex-*` quota headers off
+        // every response on the way back out.
+        fetch: observeHeadersFetch((headers) => {
+          const parsed = parseCodexUsageLimits(headers);
+          if (!parsed) return;
+          limits.latest = parsed;
+          limits.notify?.(parsed);
+        }, wrapErrorBodyFetch()),
         // Cast: the codex-specific keys (accountId, originator, clientVersion)
         // are not part of the base config, and `vendor` is supplied by it.
       } as unknown as Omit<OpenAiAgentConfig, "vendor">,
       history
     );
 
+    this.limits = limits;
+    // Only now can the wrapper emit; anything parsed before this point is still
+    // on `limits.latest`.
+    limits.notify = (usageLimits) =>
+      this.emit(AgentEvent.USAGE_LIMITS, usageLimits);
+
     this.accountId = accountId;
     this.originator = originator;
     this.clientVersion =
       config.clientVersion ?? vendorConfig.clientVersion ?? CODEX_CLIENT_VERSION;
     this.codexBaseURL = baseURL;
+  }
+
+  /**
+   * What the most recent response said about the subscription's remaining
+   * allowance — this backend's answer to "what did that cost?".
+   *
+   * A ChatGPT subscription is not priced per request, so
+   * `lastTokenUsage.cost_usd` is undefined here and always will be. What a call
+   * spends is plan allowance, reported as two rolling windows (5-hourly and
+   * weekly) plus the credit balance that takes over once they are used up.
+   *
+   * Unlike `lastTokenUsage`, this is **not** reset per run: it describes the
+   * account, not the turn, so it keeps the last value seen until another call
+   * updates it. `undefined` before the first call, and after calls that carried
+   * no quota headers — `listModels()` is one, so only `execute()` /
+   * `executeStream()` refresh it. `AgentEvent.USAGE_LIMITS` fires on every
+   * update, including the ones on a failed request.
+   *
+   * @example
+   * ```typescript
+   * await agent.execute("Hello!");
+   * const limits = agent.lastUsageLimits;
+   * console.log(`${limits?.primary?.usedPercent}% of the 5h window used`);
+   * ```
+   */
+  get lastUsageLimits(): CodexUsageLimits | undefined {
+    return this.limits.latest;
   }
 
   /**

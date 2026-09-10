@@ -218,7 +218,38 @@ usage?.cache_write_tokens;  // prompt tokens written to cache (Codex only)
 
 Both are **subsets of `input_tokens`**, not additions to it, and both are summed across a turn's API calls like the rest of `TokenUsage`. `0` means nothing hit the cache; `undefined` means the provider reported nothing about caching at all.
 
-Caching itself is automatic here and cannot be steered: the backend decides, and repeated identical prefixes hit or miss run to run (measured live — a 4000-token prefix repeated five times returned `cache_read_tokens: 0` four times and `3840` once). `promptCacheKey` has no observable effect on this backend, unlike the platform API — see [Prompt caching](#prompt-caching).
+Caching on this backend is routed by the **`session_id` header**, and sending one is **opt-in** — like `promptCacheKey` and `promptCacheRetention`, it is left unset so a request stays byte-identical to what earlier versions sent. Caching here is not a free side-effect-free win: it groups your requests server-side under an id you chose, so it is yours to switch on.
+
+Without it the backend caches essentially nothing however identical the prefix, which is why the earlier advice here was that its caching could not be steered — measured live on 2026-09-10 with a repeated ~9K-token prefix, **0 of 14 requests hit the cache with no header and 12 of 14 hit with one**, at ~98% of the prefix. `promptCacheKey`, the platform API's lever, still makes no difference here.
+
+Set `sessionId` to opt in. One id per conversation is the usual grain — a `randomUUID()` per agent instance caches within a single run, while a stable id shares a warm cache across runs (a pool of workers on the same system prompt and tool belt, or a conversation resumed after a restart):
+
+```typescript
+const agent = await CodexAgent.fromCodexCli({
+  id: 'assistant',
+  name: 'Assistant',
+  description: 'You are a helpful assistant.',
+  sessionId: conversationId,   // opt in; stable => shared prompt cache
+});
+
+agent.sessionId;   // the id in use, or undefined when caching is off
+```
+
+The value is opaque; only its stability matters. Note it is a *header* — `session_id` in the request body is rejected outright.
+
+### Replaying the model's own reasoning
+
+A reasoning model's thinking is part of what it saw when it decided to call a tool, so dropping it between hops makes the model re-derive it — and, because the prefix no longer matches what the provider processed last turn, breaks the prompt cache from the first tool call onward.
+
+`CodexAgent` keeps it. Each turn's `reasoning` items are stored in history and replayed on every later request of the conversation, and the request asks for them in replayable form (`include: ["reasoning.encrypted_content"]`). Both halves are needed, and both are only possible because these agents run with `store: false`, which leaves the provider holding no reasoning of its own.
+
+It is on by default here (every Codex model reasons), and on the platform API for models known to reason. It stays **off behind a custom `baseURL`** — a gateway or local server may not accept the parameter, and a model's name says nothing about the host serving it — so set `includeEncryptedReasoning: true` explicitly for a compatible host.
+
+`includeEncryptedReasoning: false` turns both halves off: nothing is requested, and blobs already in the history stop being sent. That matters for the one caveat here — the blobs are tied to the model that produced them, so switching models mid-conversation with a history full of them is rejected. Turning the flag off is enough to recover; clearing the history also works.
+
+Reasoning is never replayed to a provider that did not produce it. In a **shared `History`** — the pattern this guide recommends — each provider's reasoning is tagged with its own format and only goes back to its own provider. This is load-bearing for Anthropic, which verifies the signature on every thinking block and rejects one it did not sign with `400 Invalid signature in thinking block`. OpenRouter is more forgiving (it accepted a foreign item when tested), but its `reasoning_details` are still only ever its own.
+
+One thing to know if you use `builtInTools`: their calls (`web_search_call` and siblings) are not stored in history, so a turn that used one replays as `[reasoning, reasoning, message]` where the model emitted `[reasoning, web_search_call, reasoning, message]`. The API accepts this on the `store: false` flow these agents use — verified live against `gpt-5-nano` and `gpt-5.4-mini` — so the reasoning is kept rather than dropped, and the prompt cache stays warm. The model does not see the search call it was reasoning about, only its own conclusions.
 
 ### Streaming and errors
 
@@ -980,7 +1011,7 @@ const agent = new OpenAiAgent({
   description: 'You are a helpful assistant.',
   apiKey: process.env.OPENAI_API_KEY!,
   promptCacheKey: conversationId,   // requests sharing a key share a cache
-  promptCacheRetention: '24h',      // default expires a prefix within minutes
+  promptCacheRetention: '24h',      // or 'in_memory'; unset follows your org's ZDR policy
 });
 ```
 
@@ -988,7 +1019,15 @@ Both are sent on every call of a run, including tool-loop hops — which is wher
 they pay off, since each hop replays the whole prefix. Neither is set by
 default, so requests stay byte-identical to earlier versions unless you opt in.
 `CodexAgent` accepts both and forwards them, but the ChatGPT backend ignores
-them; see [Cache and quota accounting](#cache-and-quota-accounting).
+them and routes its cache by `sessionId` instead; see
+[Cache and quota accounting](#cache-and-quota-accounting).
+
+On reasoning models, what the prefix *contains* matters as much as how it is
+routed. `OpenAiAgent` keeps each turn's reasoning and replays it, so the prefix
+a later request sends still matches what the provider processed — see
+[Replaying the model's own reasoning](#replaying-the-model-s-own-reasoning).
+Set `includeEncryptedReasoning: false` to opt out; it is off by default behind
+a custom `baseURL`.
 
 ## Cancellation
 

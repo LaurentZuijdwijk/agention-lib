@@ -1,6 +1,7 @@
 // @ts-nocheck
 import OpenAI from "openai";
 import { CodexAgent } from "./CodexAgent";
+import * as codexAuth from "./codex-auth";
 import { OpenAiAgent } from "./OpenAiAgent";
 import { ExecutionError } from "../errors/AgentError";
 import { AgentEvent } from "../AgentEvent";
@@ -200,9 +201,9 @@ describe("CodexAgent", () => {
         })()
       );
 
-      await expect(new CodexAgent(agentConfig()).execute("Hello")).rejects.toThrow(
-        /without a terminal response event/
-      );
+      await expect(
+        new CodexAgent(agentConfig()).execute("Hello")
+      ).rejects.toThrow(/without a terminal response event/);
     });
   });
 
@@ -270,7 +271,9 @@ describe("CodexAgent", () => {
       });
       global.fetch = fetchMock as unknown as typeof fetch;
 
-      await new CodexAgent(agentConfig({ clientVersion: "9.9.9" })).listModels();
+      await new CodexAgent(
+        agentConfig({ clientVersion: "9.9.9" })
+      ).listModels();
 
       expect(fetchMock.mock.calls[0][0]).toContain("client_version=9.9.9");
     });
@@ -308,6 +311,115 @@ describe("CodexAgent", () => {
       expect(opts.defaultHeaders["chatgpt-account-id"]).toBe("acct-from-creds");
       // The function form, so the SDK re-resolves it per request.
       expect(typeof opts.apiKey).toBe("function");
+    });
+  });
+
+  describe("subclassing", () => {
+    class TaggedCodexAgent extends CodexAgent {
+      readonly tag = "subclass";
+    }
+
+    it("fromCredentials constructs the class it was called on", () => {
+      const agent = TaggedCodexAgent.fromCredentials(
+        { accessToken: "at", refreshToken: "rt", accountId: "acct" },
+        { id: "1", name: "A", description: "d" }
+      );
+
+      // Hard-coding `new CodexAgent(...)` here returned a base instance with no
+      // error, so a subclass's overrides silently never ran.
+      expect(agent).toBeInstanceOf(TaggedCodexAgent);
+      expect(agent.tag).toBe("subclass");
+    });
+
+    it("fromCodexCli routes through the subclass's fromCredentials", async () => {
+      const spy = jest
+        .spyOn(TaggedCodexAgent, "fromCredentials")
+        .mockReturnValue("sentinel" as never);
+
+      jest
+        .spyOn(codexAuth, "loadCodexCredentials")
+        .mockResolvedValue({ accessToken: "at", refreshToken: "rt" } as never);
+
+      const agent = await TaggedCodexAgent.fromCodexCli({
+        id: "1",
+        name: "A",
+        description: "d",
+      });
+
+      expect(spy).toHaveBeenCalled();
+      expect(agent).toBe("sentinel");
+      spy.mockRestore();
+    });
+  });
+
+  describe("prompt cache routing", () => {
+    const headersOf = () =>
+      (OpenAI as jest.Mock).mock.calls.at(-1)[0].defaultHeaders;
+
+    it("omits the session_id header when unset, keeping the request unchanged", () => {
+      // Caching is opt-in: it groups requests server-side under an id the
+      // caller chose, so an agent that was not asked for it sends a request
+      // byte-identical to one from before the header existed.
+      const agent = new CodexAgent(agentConfig());
+
+      expect(headersOf()).not.toHaveProperty("session_id");
+      expect(agent.sessionId).toBeUndefined();
+    });
+
+    it("sends it once opted in, without which this backend caches nothing", () => {
+      // Measured live: 0/14 repeated requests hit the cache without it, 12/14
+      // with it. `prompt_cache_key` alone changes nothing here.
+      new CodexAgent(agentConfig({ sessionId: "conversation-1" }));
+
+      expect(headersOf().session_id).toBe("conversation-1");
+    });
+
+    it("keeps one session id for the life of the agent", () => {
+      const a = new CodexAgent(agentConfig({ sessionId: "conversation-1" }));
+      const first = headersOf().session_id;
+      const b = new CodexAgent(agentConfig({ sessionId: "conversation-2" }));
+
+      expect(a.sessionId).toBe(first);
+      expect(b.sessionId).not.toBe(a.sessionId);
+    });
+
+    it("accepts an explicit session id, so a warm cache can be rejoined", () => {
+      const agent = new CodexAgent(
+        agentConfig({ sessionId: "conversation-7" })
+      );
+
+      expect(agent.sessionId).toBe("conversation-7");
+      expect(headersOf().session_id).toBe("conversation-7");
+    });
+
+    it("reads the session id from vendorConfig too", () => {
+      new CodexAgent(
+        agentConfig({ vendorConfig: { openai: { sessionId: "from-vendor" } } })
+      );
+
+      expect(headersOf().session_id).toBe("from-vendor");
+    });
+
+    it("asks for encrypted reasoning on every model, as every Codex model reasons", async () => {
+      mockClient.responses.create.mockResolvedValue(completedStream());
+
+      await new CodexAgent(agentConfig()).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0].include).toEqual([
+        "reasoning.encrypted_content",
+      ]);
+    });
+
+    it("still lets the caller turn the reasoning round trip off", async () => {
+      mockClient.responses.create.mockResolvedValue(completedStream());
+
+      await new CodexAgent(
+        agentConfig({ includeEncryptedReasoning: false })
+      ).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0]).not.toHaveProperty(
+        "include"
+      );
     });
   });
 
@@ -454,7 +566,9 @@ describe("CodexAgent", () => {
                   type: "message",
                   status: "completed",
                   role: "assistant",
-                  content: [{ type: "output_text", text: "Hi", annotations: [] }],
+                  content: [
+                    { type: "output_text", text: "Hi", annotations: [] },
+                  ],
                 },
               ],
               usage: {

@@ -188,10 +188,31 @@ export interface OpenAISpecificConfig {
    */
   promptCacheKey?: string;
   /**
-   * How long cached prefixes stay warm — `"24h"` opts into extended retention.
+   * How long cached prefixes stay warm — `"in_memory"` expires them within
+   * minutes, `"24h"` keeps them up to a day. Left unset the default follows
+   * your organization's data-retention policy (`"24h"` without ZDR,
+   * `"in_memory"` with it), so set it explicitly if you care either way.
    * Ignored by the ChatGPT/Codex backend, which manages its own cache.
    */
-  promptCacheRetention?: "in-memory" | "24h";
+  promptCacheRetention?: "in_memory" | "24h";
+  /**
+   * Request each turn's reasoning as an encrypted blob and replay it on every
+   * later request of the conversation, so a reasoning model keeps its own
+   * thinking across tool hops and turns instead of re-deriving it.
+   *
+   * Setting it to `false` stops both halves — nothing is requested, and blobs
+   * already in the history are not sent either, which is what makes it a way
+   * out of the model-switch rejection below.
+   *
+   * Defaults to on for models known to reason on OpenAI's own API, off
+   * otherwise — including behind a custom `baseURL`, where the host may not
+   * support the parameter. `CodexAgent` defaults it to on for every model.
+   *
+   * Reasoning blobs are tied to the model that produced them: switching models
+   * mid-conversation with a history full of them is rejected. Clear the history
+   * or turn this off when doing that.
+   */
+  includeEncryptedReasoning?: boolean;
   /**
    * Override the API base URL. Defaults to `api.openai.com/v1`; `CodexAgent`
    * defaults it to `https://chatgpt.com/backend-api/codex`, and setting it
@@ -203,6 +224,14 @@ export interface OpenAISpecificConfig {
    * `chatgpt-account-id` header.
    */
   accountId?: string;
+  /**
+   * `CodexAgent` only: conversation id sent as the `session_id` header, which
+   * is what routes requests to a shared prompt cache on that backend — setting
+   * it is how you opt into caching there. Unset by default, so the header is
+   * omitted and the request stays byte-identical; `randomUUID()` per agent
+   * gives a per-run cache, a stable id shares one across runs.
+   */
+  sessionId?: string;
   /**
    * `CodexAgent` only: client identifier sent as the `originator` header.
    * OpenAI varies the model catalog by originator.

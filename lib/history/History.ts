@@ -8,6 +8,7 @@ import {
   isToolResultContent,
   isToolUseContent,
   isImageContent,
+  isThinkingContent,
 } from "./types";
 import type { ReduceOptions } from "./types";
 
@@ -30,14 +31,39 @@ export function resetTokenxCache(): void {
 }
 
 /**
+ * Chars per token for an opaque reasoning payload.
+ *
+ * `ThinkingContent.reasoningDetails` holds ciphertext — OpenAI's
+ * `encrypted_content`, OpenRouter's `reasoning.encrypted` — which stands in for
+ * the reasoning tokens the provider decrypts it back into, and is far longer
+ * than the tokens it represents. Running it through the text estimator counted
+ * it at roughly three times its weight, which trimmed history early for no
+ * reason. Measured on a Codex turn: 1892 chars of blob carried 156 reasoning
+ * tokens, i.e. ~12 chars per token against the ~4 a plain string averages.
+ */
+const CHARS_PER_ENCRYPTED_REASONING_TOKEN = 12;
+
+/**
  * Estimate token count for a content block array.
  * Image blocks use a flat 1000-token estimate (resolution-independent conservative value).
+ * Encrypted reasoning payloads get their own ratio, see above.
  * Text and tool blocks fall through to the tokenx estimator.
  */
 function estimateContentTokens(content: MessageContent[]): number {
   return content.reduce((sum, block) => {
     if (isImageContent(block)) {
       return sum + 1000;
+    }
+    if (isThinkingContent(block) && block.reasoningDetails?.length) {
+      const { reasoningDetails, ...rest } = block;
+      return (
+        sum +
+        _estimateTokenCount(JSON.stringify(rest)) +
+        Math.ceil(
+          JSON.stringify(reasoningDetails).length /
+            CHARS_PER_ENCRYPTED_REASONING_TOKEN
+        )
+      );
     }
     return sum + _estimateTokenCount(JSON.stringify(block));
   }, 0);
@@ -53,6 +79,7 @@ export type {
   ImageUrlContent,
   ImageBase64Content,
   ThinkingContent,
+  ReasoningDetailsFormat,
 } from "./types";
 export {
   text,
@@ -69,6 +96,7 @@ export {
   isImageUrlContent,
   isImageBase64Content,
   isImageContent,
+  reasoningDetailsFormatOf,
 } from "./types";
 
 // =============================================================================
@@ -538,8 +566,13 @@ export class History extends EventEmitter {
    */
   protected applyTrimming(): void {
     if (this._executing) return;
-    if (this.options.maxLength && this._entries.length > this.options.maxLength) {
-      this._entries = this._entries.slice(this._entries.length - this.options.maxLength);
+    if (
+      this.options.maxLength &&
+      this._entries.length > this.options.maxLength
+    ) {
+      this._entries = this._entries.slice(
+        this._entries.length - this.options.maxLength
+      );
       this.sanitizeToolPairs();
     }
     if (this.options.maxTokens) {
@@ -556,7 +589,9 @@ export class History extends EventEmitter {
     const budget = maxTokens ?? this.options.maxTokens;
     if (!budget) return;
     while (this.totalEstimatedTokens > budget && this._entries.length > 1) {
-      const firstNonSystem = this._entries.findIndex((e) => e.role !== "system");
+      const firstNonSystem = this._entries.findIndex(
+        (e) => e.role !== "system"
+      );
       if (firstNonSystem === -1) break;
       this._entries.splice(firstNonSystem, 1);
     }
@@ -583,7 +618,8 @@ export class History extends EventEmitter {
     // Filter out orphaned tool_result blocks; drop entries that become empty
     this._entries = this._entries.filter((entry) => {
       const filtered = entry.content.filter(
-        (block) => !isToolResultContent(block) || toolUseIds.has(block.tool_use_id)
+        (block) =>
+          !isToolResultContent(block) || toolUseIds.has(block.tool_use_id)
       );
       if (filtered.length === 0) return false;
       entry.content = filtered;

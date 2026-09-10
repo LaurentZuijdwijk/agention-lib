@@ -14,7 +14,7 @@ import {
   type HistoryPlugin,
   type ReducibleEntry,
 } from "./History";
-import { toolUse, toolResult } from "./types";
+import { toolUse, toolResult, thinking } from "./types";
 
 describe("History module", () => {
   let history: History;
@@ -470,5 +470,27 @@ describe("History module", () => {
       history.addMessage("user", [imageUrl("https://example.com/b.jpg")]);
       expect(history.totalEstimatedTokens).toBe(2000);
     });
+  });
+});
+
+describe("token estimation for encrypted reasoning", () => {
+  it("does not count an opaque reasoning blob as if it were text", () => {
+    const blob = "x".repeat(1200);
+
+    const withBlob = new History();
+    withBlob.addMessage("assistant", [
+      thinking("short summary", undefined, undefined, [
+        { type: "reasoning", id: "rs_1", encrypted_content: blob },
+      ]),
+    ]);
+
+    const asText = new History();
+    asText.addMessage("assistant", [text(blob)]);
+
+    // Ciphertext stands in for far fewer tokens than its length suggests, so
+    // counting it as text trimmed history early — see the ratio in History.ts.
+    expect(withBlob.totalEstimatedTokens).toBeLessThan(asText.totalEstimatedTokens / 2);
+    // Still counted: it does occupy the provider's context once decrypted.
+    expect(withBlob.totalEstimatedTokens).toBeGreaterThan(80);
   });
 });

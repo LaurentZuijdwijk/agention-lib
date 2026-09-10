@@ -240,6 +240,13 @@ async function main() {
   const usage = agent.lastTokenUsage;
   console.log("tokens:", usage);
 
+  // The prompt cache on this backend is routed by the `session_id` header, and
+  // sending one is opt-in — unset here, so this example does not cache. Without
+  // it, repeated prefixes essentially never hit (0/14 measured live, against
+  // 12/14 with it). Pass `sessionId` to switch it on: `randomUUID()` caches
+  // within one run, a stable id shares a warm cache across runs.
+  console.log("session:", agent.sessionId ?? "(caching off)");
+
   if (usage?.cache_read_tokens !== undefined) {
     // Cached prompt tokens are part of input_tokens, not extra on top of them.
     const share = usage.input_tokens

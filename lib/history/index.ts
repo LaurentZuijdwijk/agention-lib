@@ -16,6 +16,7 @@ export type {
   ToolUseContent,
   ToolResultContent,
   ThinkingContent,
+  ReasoningDetailsFormat,
   ProviderMeta,
   ReduceOptions,
 } from "./types";
@@ -30,4 +31,5 @@ export {
   isToolUseContent,
   isToolResultContent,
   isThinkingContent,
+  reasoningDetailsFormatOf,
 } from "./types";

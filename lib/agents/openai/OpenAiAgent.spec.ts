@@ -757,6 +757,153 @@ describe("OpenAiAgent", () => {
     });
   });
 
+  describe("prompt caching", () => {
+    const textResponse = {
+      output: [{ type: "message", status: "completed", content: "ok" }],
+      output_text: "ok",
+      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    };
+
+    const makeAgent = (config: object) =>
+      new OpenAiAgent({
+        apiKey: "test-api-key",
+        id: "1",
+        name: "TestAgent",
+        description: "Test Description",
+        ...config,
+      });
+
+    it("omits the cache parameters when unconfigured", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await agent.execute("hi");
+
+      const params = mockClient.responses.create.mock.calls[0][0];
+      expect(params).not.toHaveProperty("prompt_cache_key");
+      expect(params).not.toHaveProperty("prompt_cache_retention");
+    });
+
+    it("sends the configured cache key and retention", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await makeAgent({
+        promptCacheKey: "conversation-42",
+        promptCacheRetention: "24h",
+      }).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0]).toMatchObject({
+        prompt_cache_key: "conversation-42",
+        prompt_cache_retention: "24h",
+      });
+    });
+
+    it("reads them from vendorConfig too", async () => {
+      mockClient.responses.create.mockResolvedValue(textResponse);
+
+      await makeAgent({
+        vendorConfig: { openai: { promptCacheKey: "from-vendor-config" } },
+      }).execute("hi");
+
+      expect(mockClient.responses.create.mock.calls[0][0]).toMatchObject({
+        prompt_cache_key: "from-vendor-config",
+      });
+    });
+
+    it("keeps the key on the follow-up call of a tool loop, where the prefix repeats", async () => {
+      const toolCall: ResponseFunctionToolCall = {
+        type: "function_call",
+        call_id: "call_1",
+        name: "noop",
+        arguments: "{}",
+        id: "fc_1",
+        status: "completed",
+      };
+      mockClient.responses.create
+        .mockResolvedValueOnce({
+          output: [toolCall],
+          output_text: "",
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        })
+        .mockResolvedValueOnce(textResponse);
+
+      const toolAgent = makeAgent({ promptCacheKey: "conversation-42" });
+      toolAgent["tools"].set("noop", {
+        execute: jest.fn().mockResolvedValue("done"),
+        getPrompt: () => ({
+          name: "noop",
+          description: "does nothing",
+          input_schema: { type: "object", properties: {}, required: [] },
+        }),
+      } as any);
+
+      await toolAgent.execute("hi");
+
+      expect(mockClient.responses.create).toHaveBeenCalledTimes(2);
+      expect(mockClient.responses.create.mock.calls[1][0]).toMatchObject({
+        prompt_cache_key: "conversation-42",
+      });
+    });
+
+    it("sends the key on the streaming path", async () => {
+      mockClient.responses.create.mockReturnValue(
+        (async function* () {
+          yield { type: "response.output_text.delta", delta: "ok" };
+          yield {
+            type: "response.completed",
+            response: {
+              output: [{ type: "message", status: "completed", content: "ok" }],
+              output_text: "ok",
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            },
+          };
+        })()
+      );
+
+      const streamAgent = makeAgent({ promptCacheKey: "conversation-42" });
+      for await (const _ of streamAgent.executeStream("hi")) {
+        // drain
+      }
+
+      expect(mockClient.responses.create.mock.calls[0][0]).toMatchObject({
+        prompt_cache_key: "conversation-42",
+      });
+    });
+
+    it("reports the cached prompt tokens the API breaks out", async () => {
+      await agent["handleResponse"]({
+        output: [{ type: "message", status: "completed", content: "ok" }],
+        output_text: "ok",
+        usage: {
+          input_tokens: 2048,
+          output_tokens: 10,
+          total_tokens: 2058,
+          input_tokens_details: { cached_tokens: 1920 },
+          output_tokens_details: { reasoning_tokens: 0 },
+        },
+      });
+
+      expect(agent.lastTokenUsage).toMatchObject({
+        input_tokens: 2048,
+        // A subset of input_tokens — the totals stay as reported.
+        cache_read_tokens: 1920,
+        total_tokens: 2058,
+      });
+      // The platform API reports no write count, only the Codex backend does.
+      expect(agent.lastTokenUsage?.cache_write_tokens).toBeUndefined();
+    });
+
+    it("leaves the cache counts undefined when a host reports no breakdown", async () => {
+      await agent["handleResponse"]({
+        output: [{ type: "message", status: "completed", content: "ok" }],
+        output_text: "ok",
+        usage: { input_tokens: 5, output_tokens: 10, total_tokens: 15 },
+      });
+
+      expect(agent.lastTokenUsage?.cache_read_tokens).toBeUndefined();
+      expect(agent.lastTokenUsage?.cache_write_tokens).toBeUndefined();
+    });
+  });
+
   describe("cancellation", () => {
     const toolPrompt = {
       name: "test_tool",

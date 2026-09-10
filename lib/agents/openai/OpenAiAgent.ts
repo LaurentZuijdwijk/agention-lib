@@ -84,6 +84,26 @@ export type AgentConfig<M extends OpenAIModel = OpenAIModel> = Omit<
    * @see lib/tools/BuiltInTool.ts
    */
   builtInTools?: BuiltInTool[];
+  /**
+   * Cache-routing key sent as `prompt_cache_key`. Requests sharing a key are
+   * steered to the same cache, which raises the prompt-cache hit rate for a
+   * long conversation or a fleet of agents that share a system prompt and tool
+   * belt. Any stable string works — a conversation id is the usual choice.
+   *
+   * Left unset by default: caching still happens without it, this only
+   * improves the routing.
+   *
+   * @see https://platform.openai.com/docs/guides/prompt-caching
+   */
+  promptCacheKey?: string;
+  /**
+   * How long cached prefixes stay warm. `"24h"` opts into extended retention;
+   * the default (`undefined`, i.e. the API's `in-memory`) expires a prefix
+   * within minutes.
+   *
+   * Ignored by the ChatGPT/Codex backend, which manages its own cache.
+   */
+  promptCacheRetention?: "in-memory" | "24h";
 };
 
 /**
@@ -115,6 +135,22 @@ export function lowestReasoningEffort(
 
   return group?.efforts[0];
 }
+
+/**
+ * `usage.input_tokens_details` as the wire actually carries it.
+ *
+ * The SDK's `ResponseUsage.InputTokensDetails` declares `cached_tokens` alone,
+ * but the ChatGPT/Codex backend also reports `cache_write_tokens` (observed
+ * live on 2026-09-10). Declared here rather than cast at the use site, and
+ * every field optional because a non-OpenAI host behind this SDK may report
+ * neither.
+ */
+export type OpenAIInputTokensDetails = {
+  /** Prompt tokens served from cache. */
+  cached_tokens?: number;
+  /** Prompt tokens written to cache. Codex backend only. */
+  cache_write_tokens?: number;
+};
 
 /**
  * `fetch` wrapper that rewrites a non-OpenAI-shaped error body into the shape
@@ -294,6 +330,9 @@ export class OpenAiAgent<
       config.reasoningEffort ?? vendorConfig.reasoningEffort;
     const user = config.user ?? vendorConfig.user;
     const builtInTools = config.builtInTools ?? vendorConfig.builtInTools;
+    const promptCacheKey = config.promptCacheKey ?? vendorConfig.promptCacheKey;
+    const promptCacheRetention =
+      config.promptCacheRetention ?? vendorConfig.promptCacheRetention;
 
     this.config = {
       model: config.model || "gpt-4.1-mini",
@@ -309,6 +348,8 @@ export class OpenAiAgent<
       reasoningEffort,
       user,
       builtInTools,
+      promptCacheKey,
+      promptCacheRetention,
       apiKey: config.apiKey,
       baseURL,
       temperature: config.temperature,
@@ -515,6 +556,28 @@ export class OpenAiAgent<
     };
   }
 
+  /**
+   * Prompt-caching parameters, omitted entirely when unconfigured so a request
+   * stays byte-identical to what earlier versions sent.
+   *
+   * Caching itself is automatic and needs no opt-in — these only influence
+   * which cache a request is routed to and how long the prefix stays warm. What
+   * was actually reused comes back on `lastTokenUsage.cache_read_tokens`.
+   */
+  private buildCacheParams(): {
+    prompt_cache_key?: string;
+    prompt_cache_retention?: "in-memory" | "24h";
+  } {
+    return {
+      ...(this.config.promptCacheKey
+        ? { prompt_cache_key: this.config.promptCacheKey }
+        : {}),
+      ...(this.config.promptCacheRetention
+        ? { prompt_cache_retention: this.config.promptCacheRetention }
+        : {}),
+    };
+  }
+
   protected async process(_input: string): Promise<string> {
     return "";
   }
@@ -579,6 +642,7 @@ export class OpenAiAgent<
           // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
           user: this.config.user,
           ...this.buildReasoningParams(),
+          ...this.buildCacheParams(),
         },
         { signal: options?.signal }
       );
@@ -795,6 +859,7 @@ export class OpenAiAgent<
               // Note: Responses API doesn't support seed, presence_penalty, frequency_penalty, stop
               user: this.config.user,
               ...this.buildReasoningParams(),
+              ...this.buildCacheParams(),
             },
             { signal: options?.signal }
           );
@@ -1063,6 +1128,7 @@ export class OpenAiAgent<
         top_p: this.config.topP,
         user: this.config.user,
         ...this.buildReasoningParams("auto"),
+        ...this.buildCacheParams(),
       }),
       { signal: options?.signal }
     ) as AsyncIterable<ResponseStreamEvent>;
@@ -1233,12 +1299,19 @@ export class OpenAiAgent<
   }
 
   protected parseUsage(input: ResponseUsage): TokenUsage {
+    const inputDetails = input.input_tokens_details as
+      | OpenAIInputTokensDetails
+      | undefined;
+
     return {
       input_tokens: input.input_tokens,
       output_tokens: input.output_tokens,
       total_tokens: input.total_tokens,
       // Reasoning tokens are already counted inside `output_tokens`.
       reasoning_tokens: input.output_tokens_details?.reasoning_tokens,
+      // Cache counts are part of `input_tokens`, not extra on top of it.
+      cache_read_tokens: inputDetails?.cached_tokens,
+      cache_write_tokens: inputDetails?.cache_write_tokens,
     };
   }
 }

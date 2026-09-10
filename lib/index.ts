@@ -27,6 +27,13 @@ export type {
   CodexTokenProvider,
   CodexTokenProviderOptions,
 } from "./agents/openai/codex-auth";
+export {
+  parseCodexUsageLimits,
+  observeHeadersFetch,
+  type CodexUsageLimits,
+  type CodexRateLimitWindow,
+  type CodexCredits,
+} from "./agents/openai/codex-usage";
 export { CodexAgent } from "./agents/openai/CodexAgent";
 export type {
   CodexAgentConfig,

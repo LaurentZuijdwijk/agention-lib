@@ -5,6 +5,7 @@ export {
   describeOpenAIError,
   wrapErrorBodyFetch,
 } from "./agents/openai/OpenAiAgent";
+export type { OpenAIInputTokensDetails } from "./agents/openai/OpenAiAgent";
 export { CodexAgent } from "./agents/openai/CodexAgent";
 export type {
   CodexAgentConfig,
@@ -28,3 +29,10 @@ export {
   type CodexTokenProviderOptions,
   type CodexModelCard,
 } from "./agents/openai/codex-auth";
+export {
+  parseCodexUsageLimits,
+  observeHeadersFetch,
+  type CodexUsageLimits,
+  type CodexRateLimitWindow,
+  type CodexCredits,
+} from "./agents/openai/codex-usage";

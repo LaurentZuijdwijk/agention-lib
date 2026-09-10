@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-09-10
+
+### Added
+- **Cache accounting on `TokenUsage`** — `cache_read_tokens` (prompt tokens the
+  provider served from cache) and `cache_write_tokens` (prompt tokens written
+  to it). Both are **subsets of `input_tokens`**, not additions to it, and both
+  are summed across a turn's API calls like the other counts. `0` means nothing
+  hit the cache; `undefined` means the provider reported nothing about caching.
+
+  ```typescript
+  await agent.execute("…");
+  const usage = agent.lastTokenUsage;
+  console.log(`${usage?.cache_read_tokens}/${usage?.input_tokens} input tokens reused`);
+  ```
+
+  Filled from `usage.input_tokens_details` on `OpenAiAgent`, so `CodexAgent`
+  reports them too. The OpenAI SDK's `ResponseUsage` declares only
+  `cached_tokens`, so the new exported `OpenAIInputTokensDetails` widens it for
+  the Codex-only `cache_write_tokens`. Other providers leave both undefined for
+  now.
+
+- **`promptCacheKey` / `promptCacheRetention` on `OpenAiAgent`** (flat config or
+  `vendorConfig.openai`), sent as `prompt_cache_key` and
+  `prompt_cache_retention`. Caching needs no opt-in — these steer *which* cache
+  a request is routed to and how long a prefix stays warm, which pays off most
+  in a tool loop, where every hop replays the whole prefix. Both are sent on
+  every call of a run and omitted entirely when unset, so a request stays
+  byte-identical to earlier versions unless you opt in.
+
+- **Quota accounting for `CodexAgent`: `lastUsageLimits` and
+  `AgentEvent.USAGE_LIMITS`.** A ChatGPT subscription is not priced per request,
+  so `cost_usd` is undefined on that backend and always will be. What a call
+  spends is *plan allowance*, which the backend reports on every response:
+
+  ```typescript
+  await agent.execute("Hello!");
+
+  const limits = agent.lastUsageLimits;
+  limits?.primary?.usedPercent;    // 1  — 5-hour rolling window
+  limits?.secondary?.usedPercent;  // 49 — weekly rolling window
+  limits?.primary?.resetAt;        // Date
+  limits?.credits?.balance;        // pay-as-you-go top-up
+  limits?.planType;                // 'plus'
+  ```
+
+  New `lib/agents/openai/codex-usage.ts` exports `CodexUsageLimits`,
+  `CodexRateLimitWindow`, `CodexCredits`, `parseCodexUsageLimits()` and
+  `observeHeadersFetch()`. The event fires once per API call — tool-loop hops
+  included, and failed requests too, since the headers ride on a `429` as well.
+  Unlike `lastTokenUsage`, `lastUsageLimits` is not reset per run: it describes
+  the account, not the turn. There is no endpoint to poll (`/usage`,
+  `/rate_limits` and `/limits` all answer `403`, and `/models` carries no quota
+  headers), so it only refreshes on a real call.
+
+  Caching on that backend cannot be steered: measured live, an identical
+  4000-token prefix sent five times reported `cache_read_tokens: 0` four times
+  and `3840` once, and neither `prompt_cache_key` nor echoing the
+  `x-codex-turn-state` header back changed it. The agent therefore reports what
+  was cached without pretending to control it.
+
+
 ## [1.13.0] - 2026-09-09
 
 ### Added

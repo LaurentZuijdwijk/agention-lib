@@ -33,6 +33,7 @@ import { anthropicTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { ClaudeModel } from "../model-types";
+import { serializeToolResult } from "../tool-result";
 
 /** A capability node in Anthropic's model card — always at least `supported`. */
 type AnthropicSupported = { supported: boolean };
@@ -475,7 +476,7 @@ export class ClaudeAgent extends BaseAgent {
         // in history with no tool_result to answer it.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-        this.emit(AgentEvent.TOOL_USE, response.content);
+        this.emitToolUse(response.content);
 
         // Add assistant response to history (normalized format)
         const assistantEntry = anthropicTransformer.fromProviderContent(
@@ -609,7 +610,7 @@ export class ClaudeAgent extends BaseAgent {
             vizReporter.toolComplete(vizEventId, block.name, block.id, true, result);
           }
 
-          return toolResult(block.id, JSON.stringify(result));
+          return toolResult(block.id, serializeToolResult(result));
         } catch (error) {
           const errorMessage = `Error executing tool '${block.name}': ${
             error instanceof Error ? error.message : "Unknown error"
@@ -880,7 +881,7 @@ export class ClaudeAgent extends BaseAgent {
         // so a cancelled run leaves no unanswered tool_use in history.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-        this.emit(AgentEvent.TOOL_USE, orderedBlocks);
+        this.emitToolUse(orderedBlocks);
         this.currentToolCallCount += toolUseBlocks.length;
 
         const assistantEntry = anthropicTransformer.fromProviderContent("assistant", orderedBlocks);

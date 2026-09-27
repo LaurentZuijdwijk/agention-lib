@@ -686,6 +686,36 @@ describe("OpenAiAgent", () => {
       expect(reasoningOfCall(2)).toEqual({ effort: "minimal" });
     });
 
+    // Not about reasoning, but it needs the same stubbed tool round. The
+    // non-streamed path used to run its tools without emitting TOOL_USE at all.
+    it("announces a non-streamed tool call on TOOL_USE and TOOL_CALLS", async () => {
+      const call = { type: "function_call", id: "fc_1", call_id: "call_1", name: "noop", arguments: '{"a":1}' };
+      mockClient.responses.create
+        .mockResolvedValueOnce({ output: [call], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } })
+        .mockResolvedValueOnce(textResponse);
+
+      const toolAgent = makeAgent({});
+      toolAgent["tools"].set("noop", {
+        execute: jest.fn().mockResolvedValue("done"),
+        getPrompt: jest.fn().mockReturnValue({
+          name: "noop",
+          description: "noop",
+          input_schema: { type: "object", properties: {} },
+        }),
+      } as any);
+      const raw: unknown[] = [];
+      const calls: unknown[] = [];
+      toolAgent.on(AgentEvent.TOOL_USE, (payload) => raw.push(payload));
+      toolAgent.on(AgentEvent.TOOL_CALLS, (payload) => calls.push(...payload));
+
+      await toolAgent.execute("hi");
+
+      expect(raw).toEqual([[call]]);
+      expect(calls).toEqual([
+        { id: "call_1", name: "noop", input: { a: 1 }, rawArguments: '{"a":1}' },
+      ]);
+    });
+
     it("adds summary: auto only when streaming with an effort", async () => {
       mockClient.responses.create.mockResolvedValue(
         (async function* () {
@@ -1404,7 +1434,7 @@ describe("OpenAiAgent", () => {
 
       const result = await agent["handleToolUse"](toolCall);
 
-      expect(result[0].output).toBe(JSON.stringify(mockToolResult));
+      expect(result[0].output).toBe(mockToolResult);
 
       expect(mockTool.execute).toHaveBeenCalledWith(
         "1",

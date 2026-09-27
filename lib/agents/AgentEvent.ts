@@ -4,7 +4,18 @@ export class AgentEvent {
   public static BEFORE_EXECUTE = "before_execute";
   public static AFTER_EXECUTE = "after_execute";
   public static DONE = "done";
+  /**
+   * The model asked for one or more tools. The listener receives the
+   * provider's own payload, whose shape differs per agent; `TOOL_CALLS`
+   * follows with the same calls in one shape.
+   */
   public static TOOL_USE = "toolUse";
+  /**
+   * The model asked for one or more tools. Emitted right after `TOOL_USE`, for
+   * the same calls, with a `ToolCallInfo[]` that has the same shape whichever
+   * provider produced it.
+   */
+  public static TOOL_CALLS = "toolCalls";
   public static ERROR = "error";
   public static RETRY = "retry";
   public static MAX_RETRIES_EXCEEDED = "max_retries_exceeded";

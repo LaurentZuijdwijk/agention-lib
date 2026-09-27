@@ -17,6 +17,7 @@ import { ollamaTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { OllamaModel } from "../model-types";
+import { serializeToolResult } from "../tool-result";
 
 type AgentConfig = BaseAgentConfig & {
   /** Ollama server URL (default: `http://localhost:11434`) */
@@ -391,13 +392,14 @@ export class OllamaAgent extends BaseAgent {
     // with no tool message to answer it.
     throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-    this.emit(AgentEvent.TOOL_USE, toolCalls);
-    this.currentToolCallCount += toolCalls.length;
-
-    // Generate IDs — Ollama doesn't provide tool call IDs
+    // Generate IDs — Ollama doesn't provide tool call IDs. Before the event,
+    // so TOOL_CALLS carries the same ids the results are written under.
     const generatedIds = toolCalls.map(
       (_: unknown, i: number) => `ollama_${Date.now()}_${i}`
     );
+
+    this.emitToolUse(toolCalls, generatedIds);
+    this.currentToolCallCount += toolCalls.length;
 
     const assistantEntry = ollamaTransformer.fromProviderMessage(
       message,
@@ -473,7 +475,7 @@ export class OllamaAgent extends BaseAgent {
             { signal: options?.signal }
           );
 
-          return { toolCallId, content: JSON.stringify(result) };
+          return { toolCallId, content: serializeToolResult(result) };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${
             error instanceof Error ? error.message : "Unknown error"

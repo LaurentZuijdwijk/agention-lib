@@ -18,6 +18,7 @@ import type {
   OpenRouterGenerationInfo,
   OpenRouterRetryConfig,
 } from "./types";
+import { serializeToolResult } from "../tool-result";
 
 /**
  * A single chunk yielded by `executeStream()`.
@@ -646,7 +647,7 @@ export class OpenRouterAgent extends BaseAgent {
     // tool message to answer it.
     throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-    this.emit(AgentEvent.TOOL_USE, toolCalls);
+    this.emitToolUse(toolCalls);
     this.currentToolCallCount += toolCalls.length;
 
     this.addToHistory(openRouterTransformer.fromProviderMessage(message));
@@ -793,7 +794,7 @@ export class OpenRouterAgent extends BaseAgent {
             function: { name: tc.name, arguments: tc.arguments },
           }));
 
-        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.emitToolUse(toolCalls);
         this.currentToolCallCount += toolCalls.length;
 
         this.addToHistory(
@@ -883,7 +884,7 @@ export class OpenRouterAgent extends BaseAgent {
             { signal: options?.signal }
           );
 
-          return { toolCallId, content: JSON.stringify(result) };
+          return { toolCallId, content: serializeToolResult(result) };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${
             error instanceof Error ? error.message : "Unknown error"

@@ -29,6 +29,7 @@ import { setTimeout } from "timers/promises";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { MistralModel } from "../model-types";
+import { serializeToolResult } from "../tool-result";
 
 /**
  * One entry from Mistral's `/v1/models` response — a base model card or a
@@ -413,7 +414,7 @@ export class MistralAgent extends BaseAgent {
         // in history with no tool message to answer it.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-        this.emit(AgentEvent.TOOL_USE, message.toolCalls);
+        this.emitToolUse(message.toolCalls);
 
         // Add assistant message with tool calls to history (normalized)
         const assistantEntry = mistralTransformer.fromProviderMessage(message);
@@ -576,7 +577,7 @@ export class MistralAgent extends BaseAgent {
           return {
             name: toolName,
             toolCallId,
-            content: JSON.stringify(result),
+            content: serializeToolResult(result),
           };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${

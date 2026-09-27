@@ -1440,6 +1440,7 @@ agent.on(AgentEvent.ERROR, (error) => {
 | `AgentEvent.AFTER_EXECUTE` | `"after_execute"` | The LLM returns a response (may fire multiple times during tool loops) | `response` |
 | `AgentEvent.DONE` | `"done"` | Execution fully completes (after all tool calls) | `response, tokenUsage` |
 | `AgentEvent.TOOL_USE` | `"toolUse"` | The LLM requests one or more tool calls | `toolCalls` (provider-specific) |
+| `AgentEvent.TOOL_CALLS` | `"toolCalls"` | Right after `TOOL_USE`, for the same calls | `ToolCallInfo[]` — `{ id?, name, input, rawArguments }`, the same shape for every provider |
 | `AgentEvent.TOOL_ERROR` | `"tool_error"` | A tool throws an error during execution | `error` |
 | `AgentEvent.ERROR` | `"error"` | Any error during execution | `error` |
 | `AgentEvent.MAX_TOKENS_EXCEEDED` | `"max_tokens_exceeded"` | Response was cut off by token limit | `error` |
@@ -1469,8 +1470,8 @@ researcher.on(AgentEvent.DONE, (_, usage) => {
   console.log(`Researcher used ${usage?.total_tokens} tokens`);
 });
 
-writer.on(AgentEvent.TOOL_USE, (toolCalls) => {
-  console.log('Writer is calling tools:', toolCalls);
+writer.on(AgentEvent.TOOL_CALLS, (calls) => {
+  console.log('Writer is calling tools:', calls.map((call) => call.name));
 });
 
 const pipeline = AgentGraph.sequential(researcher, writer);

@@ -38,6 +38,7 @@ import {
 } from "../model-types";
 import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
 import { canUseStrictSchema } from "./openai-strict";
+import { serializeToolResult } from "../tool-result";
 
 // `apiKey` is widened past BaseAgentConfig's `string`, so it is omitted rather
 // than intersected — an intersection would resolve to `string & (() => …)`.
@@ -957,6 +958,10 @@ export class OpenAiAgent<
         // call in history with no output to answer it.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
+        // The streaming path always announced its calls; this one never did,
+        // so a non-streamed OpenAI run ran its tools without a TOOL_USE event.
+        this.emitToolUse(toolCalls);
+
         // Add assistant message with tool calls to history (normalized)
         const functionCalls = toolCalls.map((tc) => ({
           id: tc.id || tc.call_id,
@@ -1135,7 +1140,7 @@ export class OpenAiAgent<
 
           return {
             call_id: toolCall.call_id,
-            output: JSON.stringify(result),
+            output: serializeToolResult(result),
           };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${
@@ -1408,7 +1413,7 @@ export class OpenAiAgent<
         // so a cancelled run leaves no unanswered function call in history.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.emitToolUse(toolCalls);
         this.currentToolCallCount += toolCalls.length;
 
         const functionCalls = toolCalls.map((tc) => ({

@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rule behind the event, exported for anything holding a raw `TOOL_USE`
   payload. `id` is the one the tool result is keyed on (`call_id` for the
   Responses API); it is absent only for Gemini, which matches results by name.
+- `@agentionai/agents/core` now exports `normalizeToolCalls`/`ToolCallInfo`,
+  and `serializeToolResult` from 1.16.0, which only the root entry had.
 
 ### Fixed
 - **`OpenAiAgent` announces tool calls when not streaming.** The streamed path

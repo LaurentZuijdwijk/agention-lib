@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { OllamaAgent } from "./OllamaAgent";
 import { AbortError, ExecutionError } from "../errors/AgentError";
+import { AgentEvent } from "../AgentEvent";
 
 /** Minimal tool prompt, enough for the agent's tool-definition builder. */
 const toolPrompt = {
@@ -215,6 +216,36 @@ describe("OllamaAgent", () => {
         "ollama",
         { signal: controller.signal }
       );
+    });
+
+    // Not about cancellation, but it needs the same stubbed tool round.
+    it("announces each call on TOOL_CALLS under the id its result is written with", async () => {
+      const chat = jest
+        .fn()
+        .mockResolvedValueOnce(toolCallResponse)
+        .mockResolvedValueOnce(textResponse);
+      const { StubOllama } = stubOllamaClass(chat);
+      agent["_clientClass"] = StubOllama as any;
+      agent["tools"].set("test_tool", {
+        execute: jest.fn().mockResolvedValue("sunny"),
+        getPrompt: jest.fn().mockReturnValue(toolPrompt),
+      } as any);
+
+      const announced: any[] = [];
+      agent.on(AgentEvent.TOOL_CALLS, (calls) => announced.push(...calls));
+      await agent.execute("Hi");
+
+      expect(announced).toEqual([
+        { id: expect.any(String), name: "test_tool", input: { param: "value" }, rawArguments: '{"param":"value"}' },
+      ]);
+      // Ollama sends no ids; the agent makes them up, and the event has to
+      // carry the one the result is filed under or nothing can pair the two.
+      const resultIds = agent["history"]
+        .getEntries()
+        .flatMap((entry: any) => entry.content)
+        .filter((block: any) => block.type === "tool_result")
+        .map((block: any) => block.tool_use_id);
+      expect(resultIds).toEqual([announced[0].id]);
     });
   });
 

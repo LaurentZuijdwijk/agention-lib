@@ -958,6 +958,10 @@ export class OpenAiAgent<
         // call in history with no output to answer it.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
+        // The streaming path always announced its calls; this one never did,
+        // so a non-streamed OpenAI run ran its tools without a TOOL_USE event.
+        this.emitToolUse(toolCalls);
+
         // Add assistant message with tool calls to history (normalized)
         const functionCalls = toolCalls.map((tc) => ({
           id: tc.id || tc.call_id,
@@ -1409,7 +1413,7 @@ export class OpenAiAgent<
         // so a cancelled run leaves no unanswered function call in history.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.emitToolUse(toolCalls);
         this.currentToolCallCount += toolCalls.length;
 
         const functionCalls = toolCalls.map((tc) => ({

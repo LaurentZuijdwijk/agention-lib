@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-09-27
+
+### Added
+- **`AgentEvent.TOOL_CALLS`**, emitted by every agent right after `TOOL_USE`
+  for the same calls, with a `ToolCallInfo[]` (`{ id?, name, input,
+  rawArguments }`) in one shape whatever the provider. `TOOL_USE` carries each
+  provider's own payload — Anthropic blocks, chat-completions `tool_calls`,
+  Responses `function_call` items, Gemini parts — so a listener that only
+  wanted the call names had to recognise every shape, and silently saw nothing
+  for whichever it missed. A listener that knew only the Anthropic and
+  chat-completions shapes (Marshall's did) saw no calls at all from
+  `OpenAiAgent`/`CodexAgent`, none from `GeminiAgent`, and none from a Mistral
+  call sent without its optional `type`. `TOOL_USE` is unchanged.
+- **`normalizeToolCalls(payload, ids?)`** (`lib/agents/tool-calls.ts`), the
+  rule behind the event, exported for anything holding a raw `TOOL_USE`
+  payload. `id` is the one the tool result is keyed on (`call_id` for the
+  Responses API); it is absent only for Gemini, which matches results by name.
+
+### Fixed
+- **`OpenAiAgent` announces tool calls when not streaming.** The streamed path
+  emitted `TOOL_USE`; `handleResponse()` ran its tools without emitting it at
+  all. Applies to `CodexAgent` too.
+- **`OllamaAgent` generates its tool-call ids before announcing the calls**, so
+  `TOOL_CALLS` carries the ids the results are filed under.
+
 ## [1.16.0] - 2026-09-27
 
 ### Fixed

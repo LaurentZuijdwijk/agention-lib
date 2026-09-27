@@ -80,6 +80,7 @@ export * from "./agents/errors/AgentError";
 export * from "./agents/cancellation";
 export * from "./agents/reasoning-text";
 export * from "./agents/tool-result";
+export * from "./agents/tool-calls";
 
 // History
 export * from "./history/History";

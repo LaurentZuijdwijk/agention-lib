@@ -613,7 +613,7 @@ export class GeminiAgent extends BaseAgent {
       // history with no functionResponse to answer it.
       throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-      this.emit(AgentEvent.TOOL_USE, functionCalls);
+      this.emitToolUse(functionCalls);
 
       // Add assistant response with function calls to history (normalized)
       const assistantEntry = geminiTransformer.fromProviderContent(

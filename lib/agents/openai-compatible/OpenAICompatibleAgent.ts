@@ -413,7 +413,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
     // with no tool message to answer it.
     throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-    this.emit(AgentEvent.TOOL_USE, toolCalls);
+    this.emitToolUse(toolCalls);
     this.currentToolCallCount += toolCalls.length;
 
     const assistantEntry = chatCompletionsTransformer.fromProviderMessage(message);
@@ -737,7 +737,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
             function: { name: tc.name, arguments: tc.arguments },
           }));
 
-        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.emitToolUse(toolCalls);
         this.currentToolCallCount += toolCalls.length;
 
         const assistantEntry = chatCompletionsTransformer.fromProviderMessage({

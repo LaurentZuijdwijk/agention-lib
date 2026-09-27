@@ -414,7 +414,7 @@ export class MistralAgent extends BaseAgent {
         // in history with no tool message to answer it.
         throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-        this.emit(AgentEvent.TOOL_USE, message.toolCalls);
+        this.emitToolUse(message.toolCalls);
 
         // Add assistant message with tool calls to history (normalized)
         const assistantEntry = mistralTransformer.fromProviderMessage(message);

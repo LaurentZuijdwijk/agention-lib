@@ -647,7 +647,7 @@ export class OpenRouterAgent extends BaseAgent {
     // tool message to answer it.
     throwIfAborted(options?.signal, `Execution of agent ${this.getName()}`);
 
-    this.emit(AgentEvent.TOOL_USE, toolCalls);
+    this.emitToolUse(toolCalls);
     this.currentToolCallCount += toolCalls.length;
 
     this.addToHistory(openRouterTransformer.fromProviderMessage(message));
@@ -794,7 +794,7 @@ export class OpenRouterAgent extends BaseAgent {
             function: { name: tc.name, arguments: tc.arguments },
           }));
 
-        this.emit(AgentEvent.TOOL_USE, toolCalls);
+        this.emitToolUse(toolCalls);
         this.currentToolCallCount += toolCalls.length;
 
         this.addToHistory(

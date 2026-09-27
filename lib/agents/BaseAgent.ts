@@ -20,6 +20,7 @@ import {
 } from "./errors/AgentError";
 import { ExecuteOptions, isAbortError } from "./cancellation";
 import { AgentEvent } from "./AgentEvent";
+import { normalizeToolCalls, ToolCallInfo } from "./tool-calls";
 
 // Re-export for convenience
 export type { HistoryEntry, MessageRole, MessageContent, ImageMimeType };
@@ -492,6 +493,25 @@ export abstract class BaseAgent<
     );
     this.emit(AgentEvent.ERROR, abortError);
     return abortError;
+  }
+
+  /**
+   * Announces the tool calls the model just asked for, before any of them run.
+   *
+   * Emits `TOOL_USE` with the provider's own payload, then `TOOL_CALLS` with the
+   * same calls normalized to `ToolCallInfo`. Every agent goes through here, so a
+   * listener on `TOOL_CALLS` sees every provider without knowing any of their
+   * shapes.
+   *
+   * @param payload The provider's tool calls, exactly as `TOOL_USE` has always carried them.
+   * @param ids     Ids the agent generated for a provider that sends none, in call order.
+   * @returns The normalized calls.
+   */
+  protected emitToolUse(payload: unknown, ids?: readonly string[]): ToolCallInfo[] {
+    this.emit(AgentEvent.TOOL_USE, payload);
+    const calls = normalizeToolCalls(payload, ids);
+    this.emit(AgentEvent.TOOL_CALLS, calls);
+    return calls;
   }
 
   protected abstract parseUsage(input: unknown): TokenUsage;

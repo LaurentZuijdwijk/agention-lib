@@ -29,6 +29,7 @@ import { setTimeout } from "timers/promises";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { MistralModel } from "../model-types";
+import { serializeToolResult } from "../tool-result";
 
 /**
  * One entry from Mistral's `/v1/models` response — a base model card or a
@@ -576,7 +577,7 @@ export class MistralAgent extends BaseAgent {
           return {
             name: toolName,
             toolCallId,
-            content: JSON.stringify(result),
+            content: serializeToolResult(result),
           };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${

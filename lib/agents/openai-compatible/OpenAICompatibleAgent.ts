@@ -26,6 +26,7 @@ import { isThinkingContent } from "../../history/types";
 import { chatCompletionsTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
+import { serializeToolResult } from "../tool-result";
 
 /**
  * A single chunk yielded by `executeStream()`.
@@ -480,7 +481,7 @@ export abstract class OpenAICompatibleAgent extends BaseAgent {
             { signal: options?.signal }
           );
 
-          return { toolCallId, content: JSON.stringify(result) };
+          return { toolCallId, content: serializeToolResult(result) };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${
             error instanceof Error ? error.message : "Unknown error"

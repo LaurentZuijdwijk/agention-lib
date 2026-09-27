@@ -1404,7 +1404,7 @@ describe("OpenAiAgent", () => {
 
       const result = await agent["handleToolUse"](toolCall);
 
-      expect(result[0].output).toBe(JSON.stringify(mockToolResult));
+      expect(result[0].output).toBe(mockToolResult);
 
       expect(mockTool.execute).toHaveBeenCalledWith(
         "1",

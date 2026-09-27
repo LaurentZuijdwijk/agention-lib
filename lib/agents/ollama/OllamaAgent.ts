@@ -17,6 +17,7 @@ import { ollamaTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { OllamaModel } from "../model-types";
+import { serializeToolResult } from "../tool-result";
 
 type AgentConfig = BaseAgentConfig & {
   /** Ollama server URL (default: `http://localhost:11434`) */
@@ -473,7 +474,7 @@ export class OllamaAgent extends BaseAgent {
             { signal: options?.signal }
           );
 
-          return { toolCallId, content: JSON.stringify(result) };
+          return { toolCallId, content: serializeToolResult(result) };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${
             error instanceof Error ? error.message : "Unknown error"

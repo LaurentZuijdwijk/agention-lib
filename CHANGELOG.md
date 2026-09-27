@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-09-27
+
+### Fixed
+- **String tool results reach the model as plain text.** Every agent except
+  Gemini serialized tool results with `JSON.stringify(result)`, so a tool
+  returning a string (file contents, shell output, logs) was sent as a quoted
+  literal with every newline escaped — the model read `"line 1\nline 2"`
+  instead of the output. Strings now pass through unchanged; objects, arrays
+  and scalars are still sent as JSON, and `undefined` becomes an empty string.
+  Affects `OpenAICompatibleAgent` (and so `LlamaCppAgent`), `OpenRouterAgent`,
+  `OllamaAgent`, `ClaudeAgent`, `OpenAiAgent` (and so `CodexAgent`) and
+  `MistralAgent`. `GeminiAgent` is unchanged: its `functionResponse` must be an
+  object, and plain strings were already nested under `result`.
+
+  Tools that relied on the quoting (e.g. by returning pre-serialized JSON and
+  expecting it to be wrapped again) now send that string verbatim.
+
+### Added
+- **`serializeToolResult(result)`** (`lib/agents/tool-result.ts`) — the shared
+  rule above, used by every agent that sends tool results as text.
+
 ## [1.14.0] - 2026-09-10
 
 ### Added

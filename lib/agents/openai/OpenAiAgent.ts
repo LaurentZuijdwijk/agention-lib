@@ -38,6 +38,7 @@ import {
 } from "../model-types";
 import { StreamChunk } from "../openai-compatible/OpenAICompatibleAgent";
 import { canUseStrictSchema } from "./openai-strict";
+import { serializeToolResult } from "../tool-result";
 
 // `apiKey` is widened past BaseAgentConfig's `string`, so it is omitted rather
 // than intersected — an intersection would resolve to `string & (() => …)`.
@@ -1135,7 +1136,7 @@ export class OpenAiAgent<
 
           return {
             call_id: toolCall.call_id,
-            output: JSON.stringify(result),
+            output: serializeToolResult(result),
           };
         } catch (error: unknown) {
           const errorMessage = `Error executing tool '${toolName}': ${

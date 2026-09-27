@@ -33,6 +33,7 @@ import { anthropicTransformer } from "../../history/transformers";
 import { vizReporter } from "../../viz/VizReporter";
 import { vizConfig } from "../../viz/VizConfig";
 import { ClaudeModel } from "../model-types";
+import { serializeToolResult } from "../tool-result";
 
 /** A capability node in Anthropic's model card — always at least `supported`. */
 type AnthropicSupported = { supported: boolean };
@@ -609,7 +610,7 @@ export class ClaudeAgent extends BaseAgent {
             vizReporter.toolComplete(vizEventId, block.name, block.id, true, result);
           }
 
-          return toolResult(block.id, JSON.stringify(result));
+          return toolResult(block.id, serializeToolResult(result));
         } catch (error) {
           const errorMessage = `Error executing tool '${block.name}': ${
             error instanceof Error ? error.message : "Unknown error"

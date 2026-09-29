@@ -1,4 +1,5 @@
 import { BaseAgent } from "../agents/BaseAgent";
+import { Classifier, isClassifier } from "../classifiers/Classifier";
 import { BaseExecutor, GraphNode, MetricsTokenUsage } from "./BaseExecutor";
 
 /**
@@ -35,6 +36,13 @@ export interface RouterExecutorOptions {
    * If not specified and router fails, an error is thrown.
    */
   fallbackRoute?: string;
+
+  /**
+   * Question posed to a `Classifier` router (ignored for a `BaseAgent`
+   * router, which uses `promptTemplate` instead).
+   * @default "Which route best handles this input?"
+   */
+  classifierQuestion?: string;
 }
 
 const DEFAULT_PROMPT_TEMPLATE = `You are a routing agent that must select the most appropriate handler for the given input.
@@ -50,11 +58,15 @@ Instructions:
 - Respond with ONLY the route name, nothing else
 - Do not explain your choice, just output the route name exactly as shown`;
 
+const DEFAULT_CLASSIFIER_QUESTION = "Which route best handles this input?";
+
 /**
- * Routes input to one of several available handlers based on an agent's decision.
- * The router agent analyzes the input and selects the most appropriate route.
+ * Routes input to one of several available handlers based on a decision —
+ * either an LLM agent's generated route name, or a `Classifier`'s typed
+ * choice (skips the generation call and the fuzzy text parsing entirely,
+ * since the classifier's option set is exactly the route names).
  *
- * @example
+ * @example LLM-driven routing
  * ```typescript
  * const router = new RouterExecutor(routerAgent, [
  *   { name: "technical", description: "Technical questions about code", handler: techAgent },
@@ -65,15 +77,23 @@ Instructions:
  * const result = await router.execute("How do I fix this TypeScript error?");
  * // Router selects "technical" route and executes techAgent
  * ```
+ *
+ * @example Classifier-driven routing (no LLM call spent on the decision)
+ * ```typescript
+ * const router = new RouterExecutor(new JevClassifier({ apiKey }), [
+ *   { name: "technical", description: "Technical questions about code", handler: techAgent },
+ *   { name: "general", description: "General knowledge questions", handler: generalAgent },
+ * ]);
+ * ```
  */
 export class RouterExecutor extends BaseExecutor<string, string> {
-  private router: BaseAgent;
+  private router: BaseAgent | Classifier;
   private routes: Map<string, Route>;
   private options: Required<RouterExecutorOptions>;
   private routeNames: string[];
 
   constructor(
-    router: BaseAgent,
+    router: BaseAgent | Classifier,
     routes: Route[],
     options: RouterExecutorOptions = {}
   ) {
@@ -90,6 +110,7 @@ export class RouterExecutor extends BaseExecutor<string, string> {
       promptTemplate: options.promptTemplate ?? DEFAULT_PROMPT_TEMPLATE,
       includeRouterContext: options.includeRouterContext ?? true,
       fallbackRoute: options.fallbackRoute ?? "",
+      classifierQuestion: options.classifierQuestion ?? DEFAULT_CLASSIFIER_QUESTION,
     };
 
     if (routes.length === 0) {
@@ -119,22 +140,46 @@ export class RouterExecutor extends BaseExecutor<string, string> {
         .replace("{input}", input)
         .replace("{routes}", routesDescription);
 
-      // Execute the router agent to select a route
-      const routerName = this.router.getName?.() ?? "Router";
+      // Select a route: either a Classifier's typed choice, or an LLM
+      // agent's generated route name.
+      const router = this.router;
+      const usingClassifier = isClassifier(router);
+      const routerName = usingClassifier
+        ? "Classifier"
+        : router.getName?.() ?? "Router";
       const routerExecId = collector?.startExecution(
         routerName,
-        "agent",
-        routingPrompt
+        usingClassifier ? "classifier" : "agent",
+        usingClassifier ? input : routingPrompt
       );
 
       let selectedRouteName: string;
       try {
-        const routerResponse = (await this.router.execute(
-          routingPrompt
-        )) as string;
-        selectedRouteName = this.parseRouteSelection(routerResponse);
+        if (usingClassifier) {
+          const result = await router.classify({
+            context: input,
+            question: this.options.classifierQuestion,
+            options: this.routeNames,
+            optionDescriptions: Object.fromEntries(
+              this.routeNames.map((name) => [
+                name,
+                this.routes.get(name.toLowerCase())!.description,
+              ])
+            ),
+          });
+          // The classifier's option set IS this.routeNames, so its answer is
+          // already a valid route name — no fuzzy text parsing needed.
+          selectedRouteName = result.choice.toLowerCase();
+        } else {
+          const routerResponse = (await router.execute(
+            routingPrompt
+          )) as string;
+          selectedRouteName = this.parseRouteSelection(routerResponse);
+        }
 
-        const tokenUsage = this.extractTokenUsage(this.router);
+        const tokenUsage = usingClassifier
+          ? undefined
+          : this.extractTokenUsage(router);
         if (routerExecId) {
           collector?.endExecution(
             routerExecId,

@@ -20,7 +20,7 @@ export interface NodeExecutionMetrics {
   id: string;
   /** Name of the node/agent */
   name: string;
-  /** Type of executor (sequential, parallel, pipeline, map, voting, router, agent) */
+  /** Type of executor (sequential, parallel, pipeline, map, voting, router, agent, classifier) */
   type:
     | "sequential"
     | "parallel"
@@ -29,6 +29,7 @@ export interface NodeExecutionMetrics {
     | "voting"
     | "router"
     | "agent"
+    | "classifier"
     | "custom";
   /** Start timestamp */
   startTime: number;
@@ -85,6 +86,7 @@ export interface PipelineStructure {
     | "voting"
     | "router"
     | "agent"
+    | "classifier"
     | "custom";
   /** Display name */
   name: string;

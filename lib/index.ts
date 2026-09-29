@@ -101,6 +101,10 @@ export * from "./graph/AgentGraph";
 // Tools
 export * from "./tools/Tool";
 export * from "./tools/BuiltInTool";
+export * from "./tools/errors";
+
+// Classifiers (fast, non-generative decision models such as Jev)
+export * from "./classifiers";
 
 // MCP (Model Context Protocol)
 export * from "./mcp";

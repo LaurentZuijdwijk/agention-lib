@@ -38,7 +38,7 @@ export interface ToolExecuteOptions {
  */
 const ABORT_ERROR_NAMES = new Set([
   "AbortError", // fetch / DOMException, ollama, and our own AbortError
-  "APIUserAbortError", // @anthropic-ai/sdk, openai
+  "APIUserAbortError", // @anthropic-ai/sdk, openai, @typesafe-ai/sdk
   "RequestAbortedError", // @mistralai/mistralai
   "GoogleGenerativeAIAbortError", // @google/generative-ai
 ]);

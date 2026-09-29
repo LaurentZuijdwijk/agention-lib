@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { RouterExecutor, Route } from "./RouterExecutor";
 import { BaseAgent } from "../agents/BaseAgent";
+import { Classifier } from "../classifiers/Classifier";
 import { GraphNode } from "./BaseExecutor";
 
 // Mock agent factory
@@ -10,6 +11,11 @@ const createMockAgent = (response: string) => {
     getName: jest.fn().mockReturnValue("MockAgent"),
   } as unknown as BaseAgent;
 };
+
+// Mock classifier factory
+const createMockClassifier = (choice: string, confidence = 0.9): Classifier => ({
+  classify: jest.fn().mockResolvedValue({ choice, confidence, probabilities: {} }),
+});
 
 // Mock GraphNode factory
 const createMockNode = (response: string): GraphNode<string, string> => {
@@ -308,6 +314,94 @@ describe("RouterExecutor", () => {
       const executor = new RouterExecutor(router, routes);
 
       expect(executor.nodeType).toBe("router");
+    });
+  });
+
+  describe("classifier routing", () => {
+    it("should route using a Classifier's choice, with no LLM call", async () => {
+      const classifier = createMockClassifier("technical");
+      const techHandler = createMockAgent("Technical answer");
+      const generalHandler = createMockAgent("General answer");
+
+      const routes: Route[] = [
+        { name: "technical", description: "Technical questions", handler: techHandler },
+        { name: "general", description: "General questions", handler: generalHandler },
+      ];
+
+      const executor = new RouterExecutor(classifier, routes);
+      const result = await executor.execute("How do I fix this TypeScript error?");
+
+      expect(result).toBe("Technical answer");
+      expect(classifier.classify).toHaveBeenCalledWith({
+        context: "How do I fix this TypeScript error?",
+        question: "Which route best handles this input?",
+        options: ["technical", "general"],
+        optionDescriptions: {
+          technical: "Technical questions",
+          general: "General questions",
+        },
+      });
+      expect(techHandler.execute).toHaveBeenCalledTimes(1);
+      expect(generalHandler.execute).not.toHaveBeenCalled();
+    });
+
+    it("should skip fuzzy parsing since the classifier's options ARE the route names", async () => {
+      // Not a substring the fuzzy `parseRouteSelection` would need to search for.
+      const classifier = createMockClassifier("technical");
+      const techHandler = createMockAgent("Technical answer");
+
+      const routes: Route[] = [
+        { name: "technical", description: "Technical questions", handler: techHandler },
+      ];
+
+      const executor = new RouterExecutor(classifier, routes);
+      const result = await executor.execute("Question");
+
+      expect(result).toBe("Technical answer");
+    });
+
+    it("should use a custom classifierQuestion", async () => {
+      const classifier = createMockClassifier("technical");
+      const routes: Route[] = [
+        { name: "technical", description: "Technical questions", handler: createMockAgent("response") },
+      ];
+
+      const executor = new RouterExecutor(classifier, routes, {
+        classifierQuestion: "Pick the best route",
+      });
+      await executor.execute("Question");
+
+      expect(classifier.classify).toHaveBeenCalledWith(
+        expect.objectContaining({ question: "Pick the best route" })
+      );
+    });
+
+    it("should use the fallback route when the classifier picks an unknown route", async () => {
+      const classifier = createMockClassifier("unknown_route");
+      const fallbackHandler = createMockAgent("Fallback answer");
+
+      const routes: Route[] = [
+        { name: "technical", description: "Technical questions", handler: createMockAgent("Technical answer") },
+        { name: "fallback", description: "Default handler", handler: fallbackHandler },
+      ];
+
+      const executor = new RouterExecutor(classifier, routes, { fallbackRoute: "fallback" });
+      const result = await executor.execute("Question");
+
+      expect(result).toBe("Fallback answer");
+    });
+
+    it("should propagate errors from the classifier", async () => {
+      const classifier: Classifier = {
+        classify: jest.fn().mockRejectedValue(new Error("Classifier failed")),
+      };
+      const routes: Route[] = [
+        { name: "route", description: "Route", handler: createMockAgent("response") },
+      ];
+
+      const executor = new RouterExecutor(classifier, routes);
+
+      await expect(executor.execute("Question")).rejects.toThrow("Classifier failed");
     });
   });
 });

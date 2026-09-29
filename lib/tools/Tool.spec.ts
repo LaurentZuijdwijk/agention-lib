@@ -1,4 +1,5 @@
-import { Tool, ToolConfig, ToolInputSchema } from "./Tool";
+import { Tool, ToolConfig, ToolInputSchema, ToolEvent } from "./Tool";
+import { ToolExecutionBlockedError } from "./errors";
 
 describe("Tool", () => {
   const mockInputSchema: ToolInputSchema = {
@@ -104,6 +105,97 @@ describe("Tool", () => {
         { some: "context" },
         { signal: controller.signal }
       );
+    });
+  });
+
+  describe("guards", () => {
+    const makeTool = (execute = mockSuccessExecute) =>
+      new Tool({
+        name: "GuardedTool",
+        description: "A guarded tool",
+        inputSchema: mockInputSchema,
+        execute,
+      });
+
+    it("should await an async guard before executing", async () => {
+      const execute = jest.fn().mockResolvedValue("done");
+      const tool = makeTool(execute);
+      let guardResolved = false;
+
+      tool.addGuard(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        guardResolved = true;
+      });
+
+      await tool.execute("agentId1", "agentName1", { query: "q" }, "id");
+
+      expect(guardResolved).toBe(true);
+      expect(execute).toHaveBeenCalled();
+    });
+
+    it("should block execution when an async guard calls preventDefault", async () => {
+      const execute = jest.fn().mockResolvedValue("done");
+      const tool = makeTool(execute);
+
+      tool.addGuard(async (event) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        event.preventDefault("too risky");
+      });
+
+      await expect(
+        tool.execute("agentId1", "agentName1", { query: "q" }, "id")
+      ).rejects.toThrow(ToolExecutionBlockedError);
+      await expect(
+        tool.execute("agentId1", "agentName1", { query: "q" }, "id")
+      ).rejects.toThrow("too risky");
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it("should run guards in order and short-circuit on the first block", async () => {
+      const tool = makeTool();
+      const secondGuard = jest.fn();
+
+      tool.addGuard((event) => {
+        event.preventDefault("blocked by first");
+      });
+      tool.addGuard(secondGuard);
+
+      await expect(
+        tool.execute("agentId1", "agentName1", { query: "q" }, "id")
+      ).rejects.toThrow("blocked by first");
+      expect(secondGuard).not.toHaveBeenCalled();
+    });
+
+    it("should stop honoring a guard after removeGuard", async () => {
+      const execute = jest.fn().mockResolvedValue("done");
+      const tool = makeTool(execute);
+      const guard = (event: ToolEvent) => event.preventDefault("blocked");
+
+      tool.addGuard(guard);
+      tool.removeGuard(guard);
+
+      const result = await tool.execute(
+        "agentId1",
+        "agentName1",
+        { query: "q" },
+        "id"
+      );
+
+      expect(result).toBe("done");
+    });
+
+    it("should keep existing synchronous ToolEvent.EXECUTE listeners working", async () => {
+      const execute = jest.fn().mockResolvedValue("done");
+      const tool = makeTool(execute);
+
+      tool.addListener(ToolEvent.EXECUTE, (event: ToolEvent) => {
+        event.preventDefault("blocked by sync listener");
+      });
+
+      await expect(
+        tool.execute("agentId1", "agentName1", { query: "q" }, "id")
+      ).rejects.toThrow("blocked by sync listener");
+      expect(execute).not.toHaveBeenCalled();
     });
   });
 

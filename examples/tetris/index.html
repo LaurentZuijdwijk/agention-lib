@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jev Tetris</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* Dark only, on purpose: the page is built to be screen-recorded. */
+  :root {
+    --bg: #0b0c10;
+    --bg-glow: #151833;
+    --surface: #14161c;
+    --surface-2: #1c1f27;
+    --text: #eef0f6;
+    --muted: #8b90a0;
+    --border: #262a35;
+    --left: #7c8cff;
+    --right: #ff9f5a;
+    --good: #45d18b;
+    --bad: #ff6b62;
+    --gold: #ffd166;
+    --u: min(1vh, 0.5625vw); /* 1% of a 16:9 frame's height, whatever the window */
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden;
+    background: radial-gradient(ellipse at 50% -10%, var(--bg-glow), var(--bg) 60%);
+    color: var(--text);
+    font: 500 calc(var(--u) * 1.6) / 1.4 Inter, system-ui, sans-serif;
+  }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  .stage {
+    width: calc(var(--u) * 177.78); height: calc(var(--u) * 100);
+    margin: 0 auto; padding: calc(var(--u) * 2.4) calc(var(--u) * 3);
+    display: grid; grid-template-rows: auto 1fr; gap: calc(var(--u) * 1.8);
+  }
+
+  /* Top bar: title, clock, credit */
+  .top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .title h1 { margin: 0; font-size: calc(var(--u) * 3.4); font-weight: 800; letter-spacing: -0.02em; }
+  .title p { margin: 0; color: var(--muted); font-size: calc(var(--u) * 1.6); }
+  .clock {
+    font: 700 calc(var(--u) * 6.4) / 1 "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    padding: calc(var(--u) * 0.6) calc(var(--u) * 2.4);
+    border-radius: calc(var(--u) * 1.6);
+    background: var(--surface); border: 1px solid var(--border);
+    min-width: calc(var(--u) * 22); text-align: center;
+  }
+  .clock.hurry { color: var(--bad); border-color: var(--bad); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 calc(var(--u) * 3) rgba(255, 107, 98, .45); } }
+  .credit { justify-self: end; text-align: right; color: var(--muted); font-size: calc(var(--u) * 1.5); }
+  .credit strong { color: var(--text); font-weight: 700; }
+  .credit .hint { font-size: calc(var(--u) * 1.2); opacity: .7; }
+
+  /* Arena: left panel, VS strip, right panel */
+  .arena { display: grid; grid-template-columns: 1fr calc(var(--u) * 13) 1fr; gap: calc(var(--u) * 1.6); min-height: 0; }
+  .vs { display: grid; align-content: center; justify-items: center; gap: calc(var(--u) * 2); text-align: center; }
+  .vs .badge {
+    font-size: calc(var(--u) * 3.2); font-weight: 800; color: var(--muted);
+    width: calc(var(--u) * 9); height: calc(var(--u) * 9); border-radius: 50%;
+    display: grid; place-items: center; border: 2px solid var(--border); background: var(--surface);
+  }
+  .vs .ratio { font-size: calc(var(--u) * 1.4); color: var(--muted); }
+  .vs .ratio b { display: block; font-size: calc(var(--u) * 3.4); color: var(--good); font-weight: 800; line-height: 1.1; }
+
+  .panel {
+    --accent: var(--left);
+    background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--u) * 2);
+    padding: calc(var(--u) * 1.8); min-height: 0; min-width: 0;
+    display: grid; grid-template-rows: auto 1fr auto; gap: calc(var(--u) * 1.2);
+    transition: border-color .4s, box-shadow .4s;
+  }
+  .panel.right { --accent: var(--right); }
+  .panel.leading { border-color: var(--accent); box-shadow: 0 0 calc(var(--u) * 4) color-mix(in srgb, var(--accent) 35%, transparent); }
+  .phead { display: flex; align-items: baseline; gap: calc(var(--u) * 1.2); min-width: 0; }
+  .phead h2 { margin: 0; font-size: calc(var(--u) * 3); font-weight: 800; color: var(--accent); white-space: nowrap; }
+  .phead .sub { color: var(--muted); font-size: calc(var(--u) * 1.5); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip { font-size: calc(var(--u) * 1.3); font-weight: 700; padding: calc(var(--u) * .3) calc(var(--u) * 1.1); border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+  .chip.live { color: var(--accent); }
+  .chip.over { color: var(--bad); }
+
+  .play { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u) * 1.8); min-height: 0; }
+  .well { position: relative; height: 100%; aspect-ratio: 1 / 2; min-height: 0; }
+  /* Absolutely positioned so the canvas's pixel buffer never feeds back into the layout. */
+  canvas.board { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: calc(var(--u) * 1); background: #07080b; }
+  .pop {
+    position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+    font-weight: 800; font-size: calc(var(--u) * 3.4); color: var(--gold); letter-spacing: .04em;
+    text-shadow: 0 0 calc(var(--u) * 2) rgba(255, 209, 102, .6); pointer-events: none; white-space: nowrap;
+    animation: pop 900ms ease-out forwards;
+  }
+  @keyframes pop {
+    0% { opacity: 0; transform: translate(-50%, -30%) scale(.6); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -110%) scale(1); }
+  }
+
+  .side { display: grid; align-content: start; gap: calc(var(--u) * 1.2); min-width: 0; }
+  .big { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 1); }
+  .stat { background: var(--surface-2); border-radius: calc(var(--u) * 1); padding: calc(var(--u) * 1) calc(var(--u) * 1.2); min-width: 0; }
+  .stat .k { font-size: calc(var(--u) * 1.15); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; white-space: nowrap; }
+  .stat .v { font: 700 calc(var(--u) * 2.6) / 1.15 "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stat.hero .v { font-size: calc(var(--u) * 5.2); color: var(--accent); }
+  .stat .v.bump { animation: bump 400ms ease-out; }
+  @keyframes bump { 30% { transform: scale(1.18); color: var(--gold); } }
+  .next { display: flex; align-items: center; gap: calc(var(--u) * 1); color: var(--muted); font-size: calc(var(--u) * 1.3); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  canvas.preview { width: calc(var(--u) * 7); height: calc(var(--u) * 3.5); }
+
+  .cands h3, .spark h3 { margin: 0 0 calc(var(--u) * .6); font-size: calc(var(--u) * 1.15); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .cand { display: grid; grid-template-columns: calc(var(--u) * 6) 1fr calc(var(--u) * 4.5); gap: calc(var(--u) * .8); align-items: center; font-size: calc(var(--u) * 1.4); height: calc(var(--u) * 2.4); }
+  .cand .lbl { font-family: "JetBrains Mono", monospace; color: var(--muted); }
+  .cand.chosen .lbl { color: var(--accent); font-weight: 700; }
+  .cand .track { height: calc(var(--u) * 1); background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .cand .fill { height: 100%; background: var(--accent); opacity: .35; border-radius: 999px; transition: width .2s; }
+  .cand.chosen .fill { opacity: 1; }
+  .cand .pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .answer { font-size: calc(var(--u) * 1.4); color: var(--muted); }
+  .answer b { font-family: "JetBrains Mono", monospace; color: var(--accent); font-size: calc(var(--u) * 2.2); }
+
+  .spark svg { width: 100%; height: calc(var(--u) * 6); display: block; }
+  .spark .axis { display: flex; justify-content: space-between; color: var(--muted); font-size: calc(var(--u) * 1.1); }
+
+  /* Overlays */
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 5; }
+  .count {
+    font: 800 calc(var(--u) * 30) / 1 Inter, sans-serif; color: var(--text);
+    text-shadow: 0 0 calc(var(--u) * 6) rgba(124, 140, 255, .6);
+    animation: count 900ms ease-out forwards;
+  }
+  .count.go { color: var(--good); text-shadow: 0 0 calc(var(--u) * 6) rgba(69, 209, 139, .6); }
+  @keyframes count { 0% { opacity: 0; transform: scale(1.8); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.85); } }
+
+  .results { background: rgba(7, 8, 11, .72); backdrop-filter: blur(6px); opacity: 0; transition: opacity .5s; }
+  .results:empty { display: none; }
+  .results.show { opacity: 1; pointer-events: auto; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--u) * 2.4);
+    padding: calc(var(--u) * 3.6) calc(var(--u) * 4.8); min-width: calc(var(--u) * 80); text-align: center;
+    box-shadow: 0 calc(var(--u) * 3) calc(var(--u) * 10) rgba(0,0,0,.5);
+  }
+  .card .crown { font-size: calc(var(--u) * 1.6); color: var(--gold); text-transform: uppercase; letter-spacing: .2em; font-weight: 700; }
+  .card h2 { margin: calc(var(--u) * .6) 0 calc(var(--u) * 2.4); font-size: calc(var(--u) * 6); font-weight: 800; letter-spacing: -0.02em; }
+  .card table { width: 100%; border-collapse: collapse; font-size: calc(var(--u) * 2); }
+  .card th, .card td { padding: calc(var(--u) * .9) calc(var(--u) * 1.6); text-align: right; font-variant-numeric: tabular-nums; }
+  .card th:first-child, .card td:first-child { text-align: left; color: var(--muted); font-weight: 500; }
+  .card thead th { font-size: calc(var(--u) * 2.2); font-weight: 800; }
+  .card tbody tr { border-top: 1px solid var(--border); }
+  .card td.win { color: var(--good); font-weight: 700; }
+  .card .foot { margin-top: calc(var(--u) * 2.4); color: var(--muted); font-size: calc(var(--u) * 1.5); }
+
+  .settings {
+    position: fixed; right: calc(var(--u) * 3); bottom: calc(var(--u) * 3); z-index: 10;
+    background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--u) * 1.6);
+    padding: 16px; display: none; gap: 10px; grid-template-columns: repeat(2, auto); align-items: center;
+    font-size: 13px; box-shadow: 0 10px 40px rgba(0,0,0,.5); max-width: 360px;
+  }
+  .settings.open { display: grid; }
+  .settings label { color: var(--muted); }
+  .settings select, .settings input, .settings button {
+    font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px;
+  }
+  .settings button { grid-column: 1 / -1; background: var(--left); border-color: var(--left); color: #0b0c10; font-weight: 700; cursor: pointer; }
+  .settings .note { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+  .start-hint {
+    position: fixed; left: 50%; bottom: calc(var(--u) * 4); transform: translateX(-50%); z-index: 4;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+    padding: calc(var(--u) * 1) calc(var(--u) * 2.4); color: var(--muted); font-size: calc(var(--u) * 1.6);
+  }
+  .start-hint kbd { font-family: "JetBrains Mono", monospace; color: var(--text); background: var(--surface-2); border-radius: 6px; padding: 2px 8px; }
+  body.racing .start-hint, body.finished .start-hint { display: none; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header class="top">
+    <div class="title">
+      <h1>Jev Tetris</h1>
+      <p>Same pieces. One question per move: where does it go?</p>
+    </div>
+    <div class="clock" id="clock">1:00</div>
+    <div class="credit">
+      Built with <strong>@agentionai/agents</strong><br>
+      <span class="hint mono">github.com/laurentzuijdwijk/agention-lib</span>
+    </div>
+  </header>
+
+  <section class="arena">
+    <article class="panel left" id="panel-left"></article>
+    <div class="vs">
+      <div class="badge">VS</div>
+      <div class="ratio" id="ratio"></div>
+    </div>
+    <article class="panel right" id="panel-right"></article>
+  </section>
+</div>
+
+<div class="start-hint" id="hint">Press <kbd>Space</kbd> to start · <kbd>S</kbd> settings</div>
+<div class="overlay" id="countdown"></div>
+<div class="overlay results" id="results"></div>
+
+<form class="settings" id="settings">
+  <label for="left">Left</label><select id="left"></select>
+  <label for="right">Right</label><select id="right"></select>
+  <label for="seconds">Race length</label>
+  <select id="seconds"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="90">90 s</option><option value="120">120 s</option></select>
+  <label for="seed">Seed</label><input id="seed" type="number" value="42">
+  <button type="submit">Start race</button>
+  <div class="note">Space starts, S toggles this panel. URL params work too: ?left=jev&amp;right=cerebras&amp;seconds=60&amp;seed=42</div>
+</form>
+
+<template id="panel-tpl">
+  <div class="phead"><h2 class="name"></h2><span class="sub"></span><span class="chip status">Ready</span></div>
+  <div class="play">
+    <div class="well"><canvas class="board"></canvas></div>
+    <div class="side">
+      <div class="big">
+        <div class="stat hero"><div class="k">Lines</div><div class="v lines">0</div></div>
+        <div class="stat hero"><div class="k">Moves</div><div class="v moves">0</div></div>
+      </div>
+      <div class="big">
+        <div class="stat"><div class="k">Median decision</div><div class="v median">–</div></div>
+        <div class="stat"><div class="k">Cost so far</div><div class="v cost">–</div></div>
+        <div class="stat"><div class="k">Per 1,000 moves</div><div class="v rate">–</div></div>
+        <div class="stat"><div class="k">Holes</div><div class="v holes">0</div></div>
+      </div>
+      <div class="next">Next <canvas class="preview"></canvas></div>
+      <div class="cands">
+        <h3 class="cands-title">Top placements</h3>
+        <div class="list"></div>
+      </div>
+    </div>
+  </div>
+  <div class="spark">
+    <h3>Decision time per move</h3>
+    <svg preserveAspectRatio="none" viewBox="0 0 100 40"></svg>
+    <div class="axis"><span>0</span><span class="axis-max"></span></div>
+  </div>
+</template>
+
+<script>
+const COLORS = { I: "#3fd0e0", O: "#ffd166", T: "#b38cff", S: "#5fdc8a", Z: "#ff6b62", J: "#5b8cff", L: "#ff9f5a" };
+const SHAPES = { I: [[0,0],[1,0],[2,0],[3,0]], O: [[0,0],[1,0],[0,1],[1,1]], T: [[0,0],[1,0],[2,0],[1,1]],
+  S: [[1,0],[2,0],[0,1],[1,1]], Z: [[0,0],[1,0],[1,1],[2,1]], J: [[0,0],[0,1],[1,1],[2,1]], L: [[2,0],[0,1],[1,1],[2,1]] };
+const META = {
+  jev: { name: "Jev", sub: "TypeSafe decision model · via OpenRouter" },
+  cerebras: { name: "Qwen 3.8 27B", sub: "LLM on Cerebras · thinking off" },
+  claude: { name: "Claude Haiku 4.5", sub: "LLM · Anthropic" },
+  heuristic: { name: "Heuristic", sub: "hand-tuned scoring rule · offline" },
+};
+const W = 10, H = 20;
+const DROP_MS = 110, CLEAR_MS = 260;
+const CLEAR_WORDS = ["", "LINE", "DOUBLE", "TRIPLE", "TETRIS!"];
+
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+let panels = [];
+let race = null;
+
+// ---------- drawing ----------
+
+function sizeCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const r = canvas.getBoundingClientRect();
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: r.width, h: r.height };
+}
+
+function cell(ctx, x, y, s, color, alpha = 1) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x * s + 1.5, y * s + 1.5, s - 3, s - 3, s * 0.18);
+  ctx.fill();
+  ctx.globalAlpha = alpha * 0.28;
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.roundRect(x * s + 1.5, y * s + 1.5, s - 3, s * 0.28, [s * 0.18, s * 0.18, 0, 0]);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function outline(ctx, x, y, s, color, width) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.roundRect(x * s + 1.5, y * s + 1.5, s - 3, s - 3, s * 0.18);
+  ctx.stroke();
+}
+
+function drawGrid(grid, ctx, s) {
+  grid.forEach((row, y) => row.forEach((c, x) => { if (c !== ".") cell(ctx, x, y, s, COLORS[c], 0.92); }));
+}
+
+function drawGhosts(ctx, s, m) {
+  for (const c of m.candidates) {
+    if (c.label === m.chosen || !(c.probability > 0.03)) continue;
+    ctx.globalAlpha = Math.min(0.9, 0.2 + c.probability * 1.4);
+    ctx.setLineDash([3, 3]);
+    for (const [x, y] of c.cells) outline(ctx, x, y, s, "#fff", 1.5);
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** Draws one panel's board at the current moment of its move animation. */
+function drawBoard(panel, now) {
+  const { ctx, w } = sizeCanvas(panel.board);
+  const s = w / W;
+  ctx.fillStyle = "#07080b";
+  ctx.fillRect(0, 0, w, s * H);
+  ctx.strokeStyle = "#151821";
+  ctx.lineWidth = 1;
+  for (let x = 1; x < W; x++) { ctx.beginPath(); ctx.moveTo(x * s, 0); ctx.lineTo(x * s, H * s); ctx.stroke(); }
+  for (let y = 1; y < H; y++) { ctx.beginPath(); ctx.moveTo(0, y * s); ctx.lineTo(W * s, y * s); ctx.stroke(); }
+
+  const m = panel.anim;
+  if (!m) return;
+  const t = now - m.start;
+
+  if (m.final || t >= DROP_MS + (m.clear.length ? CLEAR_MS : 0)) {
+    // Settled: the post-clear board, plus this move's alternatives when no rows moved.
+    drawGrid(m.board, ctx, s);
+    if (!m.clear.length && !m.final) {
+      drawGhosts(ctx, s, m);
+      for (const [x, y] of m.cells) outline(ctx, x, y, s, "#fff", 2);
+    }
+    return;
+  }
+
+  drawGrid(m.before, ctx, s);
+  drawGhosts(ctx, s, m);
+  if (t < DROP_MS) {
+    // Falling: ease the piece down from above the board to where it lands.
+    const minY = Math.min(...m.cells.map(([, y]) => y));
+    const k = 1 - Math.pow(1 - t / DROP_MS, 3);
+    const offset = (minY + 2) * (1 - k);
+    for (const [x, y] of m.cells) cell(ctx, x, y - offset, s, COLORS[m.piece]);
+  } else {
+    // Clearing: completed rows flash white and fade.
+    for (const [x, y] of m.cells) cell(ctx, x, y, s, COLORS[m.piece]);
+    const k = (t - DROP_MS) / CLEAR_MS;
+    ctx.fillStyle = `rgba(255,255,255,${0.85 * (1 - k)})`;
+    for (const y of m.clear) ctx.fillRect(0, y * s, W * s, s);
+  }
+}
+
+function drawPreview(panel, piece) {
+  const { ctx, w, h } = sizeCanvas(panel.preview);
+  ctx.clearRect(0, 0, w, h);
+  if (!piece) return;
+  const cells = SHAPES[piece];
+  const s = h / 2.4;
+  const pw = (Math.max(...cells.map(([x]) => x)) + 1) * s;
+  const ph = (Math.max(...cells.map(([, y]) => y)) + 1) * s;
+  ctx.save();
+  ctx.translate((w - pw) / 2, (h - ph) / 2);
+  for (const [x, y] of cells) cell(ctx, x, y, s, COLORS[piece]);
+  ctx.restore();
+}
+
+function frame(now) {
+  for (const p of panels) drawBoard(p, now);
+  if (race && race.phase === "racing") tickClock(now);
+  requestAnimationFrame(frame);
+}
+
+// ---------- panels & stats ----------
+
+const median = (v) => v.length ? [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)] : 0;
+const fmtMs = (ms) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+function fmtUsd(usd) {
+  if (usd === undefined) return "n/a";
+  if (usd === 0) return "$0";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(2)}`;
+}
+const nameOf = (p) => META[p.player]?.name ?? p.player;
+
+function buildPanel(side, player) {
+  const root = $(`panel-${side}`);
+  root.replaceChildren($("panel-tpl").content.cloneNode(true));
+  root.classList.remove("leading");
+  const q = (sel) => root.querySelector(sel);
+  q(".name").textContent = META[player]?.name ?? player;
+  q(".sub").textContent = META[player]?.sub ?? "";
+  const panel = {
+    side, player, root, latencies: [], moves: 0, lines: 0, holes: 0, cost: undefined, anim: null,
+    board: q(".board"), preview: q(".preview"), status: q(".status"),
+    elLines: q(".lines"), elMoves: q(".moves"), elMedian: q(".median"), elCost: q(".cost"),
+    elRate: q(".rate"), elHoles: q(".holes"), list: q(".list"),
+    spark: q(".spark svg"), axisMax: q(".axis-max"),
+  };
+  q(".cands-title").textContent = player === "jev" ? "Top placements · probability" : "Answer";
+  return panel;
+}
+
+function setStatus(panel, text, cls = "") {
+  panel.status.textContent = text;
+  panel.status.title = text;
+  panel.status.className = `chip status ${cls}`;
+}
+
+function bump(el) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+
+function popText(panel, text) {
+  const el = document.createElement("div");
+  el.className = "pop";
+  el.textContent = text;
+  panel.root.querySelector(".well").appendChild(el);
+  setTimeout(() => el.remove(), 950);
+}
+
+function onMove(panel, move) {
+  // A new move replaces whatever animation was still running.
+  const clear = [];
+  const landed = move.before.map((row) => [...row]);
+  for (const [x, y] of move.cells) landed[y][x] = move.piece;
+  landed.forEach((row, y) => { if (!row.includes(".")) clear.push(y); });
+  panel.anim = { ...move, clear, start: performance.now() };
+
+  panel.moves = move.n;
+  panel.latencies.push(move.ms);
+  panel.holes = move.holes;
+  panel.cost = move.costUsd;
+  panel.elMoves.textContent = move.n;
+  if (move.linesCleared > 0) {
+    panel.lines = move.lines;
+    setTimeout(() => {
+      panel.elLines.textContent = move.lines;
+      bump(panel.elLines);
+      popText(panel, `+${move.linesCleared} ${CLEAR_WORDS[move.linesCleared]}`);
+    }, DROP_MS);
+  }
+  panel.elMedian.textContent = fmtMs(median(panel.latencies));
+  panel.elCost.textContent = fmtUsd(move.costUsd);
+  panel.elRate.textContent = move.costUsd === undefined ? "n/a" : fmtUsd((move.costUsd / move.n) * 1000);
+  panel.elHoles.textContent = move.holes;
+  drawPreview(panel, move.next);
+  renderCandidates(panel, move);
+  drawSparks();
+  updateLeader();
+  updateRatio();
+}
+
+function renderCandidates(panel, move) {
+  const hasProbs = move.candidates.some((c) => c.probability !== undefined);
+  if (!hasProbs) {
+    panel.list.innerHTML = `<div class="answer"><b>${move.chosen}</b> of ${move.optionCount} options</div>`;
+    return;
+  }
+  panel.list.innerHTML = move.candidates.map((c) => `
+    <div class="cand${c.label === move.chosen ? " chosen" : ""}">
+      <span class="lbl">${c.label}</span>
+      <span class="track"><span class="fill" style="display:block;width:${((c.probability ?? 0) * 100).toFixed(1)}%"></span></span>
+      <span class="pct">${Math.round((c.probability ?? 0) * 100)}%</span>
+    </div>`).join("");
+}
+
+function drawSparks() {
+  const max = Math.max(1, ...panels.flatMap((p) => p.latencies));
+  const n = Math.max(40, ...panels.map((p) => p.latencies.length));
+  for (const p of panels) {
+    const bw = 100 / n;
+    const color = getComputedStyle(p.root).getPropertyValue("--accent").trim();
+    p.spark.innerHTML = p.latencies.map((ms, i) => {
+      const h = Math.max(0.6, (ms / max) * 40);
+      return `<rect x="${i * bw}" y="${40 - h}" width="${Math.max(bw * 0.75, 0.25)}" height="${h}" fill="${color}"/>`;
+    }).join("");
+    p.axisMax.textContent = fmtMs(max);
+  }
+}
+
+/** Lines decide the race; fewer holes breaks a tie. */
+const score = (p) => p.lines * 1000 - p.holes;
+
+function updateLeader() {
+  const [a, b] = panels;
+  a.root.classList.toggle("leading", score(a) > score(b) && a.lines > 0);
+  b.root.classList.toggle("leading", score(b) > score(a) && b.lines > 0);
+}
+
+/** "Nx cheaper per move", once both sides report a non-zero cost. */
+function updateRatio() {
+  const rate = (p) => (p.cost && p.moves ? p.cost / p.moves : undefined);
+  const [a, b] = panels;
+  const ra = rate(a), rb = rate(b);
+  if (!ra || !rb) { $("ratio").replaceChildren(); return; }
+  const cheap = ra < rb ? a : b;
+  const x = Math.max(ra, rb) / Math.min(ra, rb);
+  $("ratio").innerHTML = `<b>${x.toFixed(x < 10 ? 1 : 0)}×</b>cheaper per move<br>${nameOf(cheap)}`;
+}
+
+// ---------- race ----------
+
+function fmtClock(ms) {
+  const s = Math.max(0, ms) / 1000;
+  if (s < 10) return `0:0${s.toFixed(1)}`;
+  const whole = Math.ceil(s);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+function tickClock(now) {
+  const left = race.endsAt - now;
+  $("clock").textContent = fmtClock(left);
+  $("clock").classList.toggle("hurry", left <= 10000);
+  if (left <= 0) endRace();
+}
+
+function resetBoards() {
+  panels = [buildPanel("left", $("left").value), buildPanel("right", $("right").value)];
+  $("clock").textContent = fmtClock(Number($("seconds").value) * 1000);
+  $("clock").classList.remove("hurry");
+  $("ratio").replaceChildren();
+  for (const p of panels) drawPreview(p, null);
+}
+
+async function startRace() {
+  if (race && race.phase !== "done") return;
+  $("settings").classList.remove("open");
+  $("results").classList.remove("show");
+  $("results").replaceChildren();
+  document.body.classList.remove("finished");
+  document.body.classList.add("racing");
+  resetBoards();
+  race = { phase: "countdown", sources: [] };
+
+  for (const n of ["3", "2", "1", "GO"]) {
+    const el = document.createElement("div");
+    el.className = `count${n === "GO" ? " go" : ""}`;
+    el.textContent = n;
+    $("countdown").replaceChildren(el);
+    await new Promise((r) => setTimeout(r, n === "GO" ? 450 : 900));
+  }
+  setTimeout(() => $("countdown").replaceChildren(), 500);
+
+  race.phase = "racing";
+  race.endsAt = performance.now() + Number($("seconds").value) * 1000;
+  for (const panel of panels) {
+    setStatus(panel, "Playing", "live");
+    const qs = new URLSearchParams({ player: panel.player, seed: $("seed").value, pieces: "1000", delay: "0" });
+    const source = new EventSource(`/api/game?${qs}`);
+    race.sources.push(source);
+    source.addEventListener("move", (e) => race.phase === "racing" && onMove(panel, JSON.parse(e.data)));
+    source.addEventListener("end", (e) => {
+      source.close();
+      if (JSON.parse(e.data).toppedOut) setStatus(panel, "Topped out", "over");
+    });
+    source.addEventListener("failed", (e) => {
+      source.close();
+      setStatus(panel, JSON.parse(e.data).message, "over");
+    });
+    source.onerror = () => source.readyState !== EventSource.CLOSED && source.close();
+  }
+}
+
+function endRace() {
+  race.phase = "done";
+  for (const s of race.sources) s.close();
+  $("clock").textContent = "0:00";
+  for (const p of panels) {
+    if (p.anim) p.anim.final = true;
+    if (!p.status.classList.contains("over")) setStatus(p, "Time");
+  }
+  setTimeout(showResults, 700);
+}
+
+function showResults() {
+  const [a, b] = panels;
+  const winner = score(a) === score(b) ? null : score(a) > score(b) ? a : b;
+  const per1k = (p) => (p.cost !== undefined && p.moves ? (p.cost / p.moves) * 1000 : undefined);
+  const same = (v) => v;
+  const rows = [
+    ["Lines cleared", a.lines, b.lines, "high", same],
+    ["Moves", a.moves, b.moves, "high", same],
+    ["Holes left", a.holes, b.holes, "low", same],
+    ["Median decision", median(a.latencies), median(b.latencies), "low", fmtMs],
+    ["Cost", a.cost, b.cost, "low", fmtUsd],
+    ["Per 1,000 moves", per1k(a), per1k(b), "low", fmtUsd],
+  ];
+  const cells = (va, vb, better, fmt) => {
+    const cmp = va === undefined || vb === undefined || va === vb ? 0 : (better === "high" ? va > vb : va < vb) ? -1 : 1;
+    return `<td class="${cmp < 0 ? "win" : ""}">${fmt(va)}</td><td class="${cmp > 0 ? "win" : ""}">${fmt(vb)}</td>`;
+  };
+  $("results").innerHTML = `
+    <div class="card">
+      <div class="crown">${winner ? "Winner" : "It's a draw"}</div>
+      <h2 style="color:${winner ? `var(--${winner.side})` : "var(--text)"}">${winner ? nameOf(winner) : "Level on lines"}</h2>
+      <table>
+        <thead><tr><th></th><th style="color:var(--left)">${nameOf(a)}</th><th style="color:var(--right)">${nameOf(b)}</th></tr></thead>
+        <tbody>${rows.map(([k, va, vb, better, fmt]) => `<tr><td>${k}</td>${cells(va, vb, better, fmt)}</tr>`).join("")}</tbody>
+      </table>
+      <div class="foot">${$("seconds").value}-second race · seed ${$("seed").value} · built with @agentionai/agents · Space to race again</div>
+    </div>`;
+  requestAnimationFrame(() => $("results").classList.add("show"));
+  document.body.classList.remove("racing");
+  document.body.classList.add("finished");
+}
+
+// ---------- setup ----------
+
+async function init() {
+  const available = await fetch("/api/players").then((r) => r.json());
+  const fallbackRight = available.cerebras ? "cerebras" : available.claude ? "claude" : "heuristic";
+  for (const [id, fallback] of [["left", "jev"], ["right", fallbackRight]]) {
+    const select = $(id);
+    for (const [player, ok] of Object.entries(available)) {
+      const option = new Option(`${META[player]?.name ?? player}${ok ? "" : " (no API key)"}`, player);
+      option.disabled = !ok;
+      select.add(option);
+    }
+    const wanted = params.get(id) ?? fallback;
+    select.value = available[wanted] ? wanted : "heuristic";
+  }
+  if (params.get("seconds")) $("seconds").value = params.get("seconds");
+  if (params.get("seed")) $("seed").value = params.get("seed");
+  resetBoards();
+
+  for (const id of ["left", "right", "seconds"]) {
+    $(id).addEventListener("change", () => (!race || race.phase === "done") && resetBoards());
+  }
+  $("settings").addEventListener("submit", (e) => { e.preventDefault(); startRace(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.target.matches("input, select")) return;
+    if (e.code === "Space") { e.preventDefault(); startRace(); }
+    if (e.key === "s" || e.key === "S") $("settings").classList.toggle("open");
+  });
+  requestAnimationFrame(frame);
+  if (params.get("autostart")) startRace();
+}
+init();
+</script>
+</body>
+</html>

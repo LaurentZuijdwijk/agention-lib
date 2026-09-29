@@ -99,6 +99,8 @@ const result = await router.execute('I need help with my invoice');
 // Routes to billingAgent
 ```
 
+The first argument can also be a `Classifier` (e.g. `JevClassifier`) instead of an agent — the route is picked by a typed classification instead of an LLM generation call, and no fuzzy text parsing is needed since the classifier's answer is already one of the route names. See [Classifiers → Routing without an LLM call](/guide/classifiers#routing-without-an-llm-call).
+
 ### PlanExecutor
 
 Orchestrates plan-based execution with separate planning and worker agents. The planning agent creates a plan, then worker agents execute each step. Supports concurrent step execution and enforces step limits.

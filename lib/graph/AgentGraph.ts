@@ -1,4 +1,5 @@
 import { BaseAgent } from "../agents/BaseAgent";
+import { Classifier } from "../classifiers/Classifier";
 import { Tool } from "../tools/Tool";
 import { GraphNode } from "./BaseExecutor";
 import { MapExecutor, MapExecutorOptions } from "./MapExecutor";
@@ -178,9 +179,11 @@ export class AgentGraph {
 
   /**
    * Creates a router executor that routes input to one of several handlers.
-   * A router agent analyzes the input and selects the most appropriate route.
+   * The router can be an LLM agent (analyzes the input and generates a route
+   * name) or a `Classifier` (picks a route via a typed choice, no generation
+   * call spent on the decision).
    *
-   * @param router - Agent that decides which route to select
+   * @param router - Agent or Classifier that decides which route to select
    * @param routes - Array of available routes with names, descriptions, and handlers
    * @param options - Configuration options
    * @returns RouterExecutor instance
@@ -195,7 +198,7 @@ export class AgentGraph {
    * ```
    */
   static router(
-    router: BaseAgent,
+    router: BaseAgent | Classifier,
     routes: Route[],
     options: RouterExecutorOptions = {}
   ): RouterExecutor {

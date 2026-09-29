@@ -49,6 +49,7 @@ export default defineConfig({
             { text: "Multimodal / Vision", link: "/guide/multimodal" },
             { text: "MCP", link: "/guide/mcp" },
             { text: "Graph Pipelines", link: "/guide/graph-pipelines" },
+            { text: "Classifiers", link: "/guide/classifiers" },
           ],
         },
         {

@@ -317,6 +317,29 @@ myTool.on(ToolEvent.EXECUTE, (event: ToolEvent) => {
 
 Similarly, calling `preventDefault()` on a `ToolResultEvent` will suppress the result from being returned to the agent.
 
+`preventDefault()` also accepts an optional reason, surfaced to the model as the tool result's error message:
+
+```typescript
+event.preventDefault('Local file access is not allowed for this tool.');
+```
+
+### Async Guards
+
+`ToolEvent.EXECUTE` listeners are fire-and-forget — `emit()` is synchronous, so a listener that calls `preventDefault()` from inside an `async` callback runs too late to block the call. Use `tool.addGuard()` instead when the decision needs to `await` something (an API call, a permission check):
+
+```typescript
+myTool.addGuard(async (event) => {
+  const allowed = await checkPermission(event.agentId, event.target.name);
+  if (!allowed) {
+    event.preventDefault(`Agent "${event.agentName}" lacks permission for this tool.`);
+  }
+});
+```
+
+Guards run in registration order, after the synchronous `ToolEvent.EXECUTE` listeners, and stop as soon as one blocks the call. A blocked call throws `ToolExecutionBlockedError` (`reason`, `toolName`), which every agent's tool loop already converts into the model-visible failed tool result — the model sees the reason and can adjust. Remove a guard with `tool.removeGuard(guard)`.
+
+For gating tool calls with a fast classifier instead of hand-written logic, see [Classifiers](/guide/classifiers#gating-tool-calls).
+
 ### Logging Tool Usage Across All Tools
 
 Attach listeners to shared tool instances to centralise observability:

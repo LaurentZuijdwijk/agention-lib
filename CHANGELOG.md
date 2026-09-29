@@ -7,6 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-09-29
+
+### Added
+- **Fast-classifier support (`lib/classifiers/`) and `JevClassifier`** for
+  TypeSafe AI's Jev model — a non-generative decision model that answers a
+  typed multiple-choice question with a confidence score instead of
+  generating text. New `Classifier` interface (`classify(request, options)`
+  → `{ choice, confidence?, probabilities?, raw? }`), deliberately narrow
+  rather than a full reflection of any one provider's question-type system,
+  since the two consumers below both reduce to "pick one of N labeled
+  options." `JevClassifier` wraps `@typesafe-ai/sdk` (optional peer
+  dependency, lazily imported — never required unless `classify()` is
+  actually called) and rethrows a cancelled classification unwrapped rather
+  than as a generic failure, matching this codebase's existing
+  `isAbortError()` convention.
+
+  ```typescript
+  const classifier = new JevClassifier({ apiKey: process.env.TYPESAFE_API_KEY });
+  const result = await classifier.classify({
+    context: { ticket: "I was charged twice." },
+    question: "What is this ticket about?",
+    options: ["billing", "technical", "account"],
+  });
+  ```
+
+- **Async guards on `Tool`: `addGuard()` / `removeGuard()`.** `Tool.execute()`
+  already had a `ToolEvent.EXECUTE` / `preventDefault()` hook, but `emit()`
+  is synchronous — an async listener's `preventDefault()` call was never
+  awaited, so nothing could gate a tool call on an external decision (a
+  classifier call, a permission service) before it ran. Guards are awaited in
+  registration order and stop as soon as one blocks the call, ahead of viz
+  reporting so a blocked call never appears in the timeline as "started."
+  `preventDefault(reason?)` now takes an optional reason, surfaced to the
+  calling agent via the new `ToolExecutionBlockedError` (`lib/tools/errors.ts`)
+  — every agent's tool loop already converts a thrown tool error into the
+  model-visible failed tool result, so the reason reaches the model with no
+  agent-side changes needed. `classifierToolGuard()` adapts any `Classifier`
+  into a guard:
+
+  ```typescript
+  dangerousTool.addGuard(classifierToolGuard(new JevClassifier({ apiKey }), {
+    question: "Should this tool call be allowed?",
+  }));
+  ```
+
+- **`RouterExecutor` accepts a `Classifier` in place of an LLM router.**
+  Previously `RouterExecutor` always spent a full LLM generation call asking
+  the router agent to "respond with ONLY the route name," then fuzzy-matched
+  the free-text response against the known routes. A `Classifier` router
+  skips both: its answer's option set *is* the route-name set, so the choice
+  is already a valid route with no parsing needed. New
+  `RouterExecutorOptions.classifierQuestion` customizes the question sent to
+  a classifier router (ignored for an LLM router, which uses
+  `promptTemplate` instead). `AgentGraph.router()` and `NodeExecutionMetrics`/
+  `PipelineStructure` (`"classifier"` added alongside `"agent"`) updated to
+  match.
+
+  ```typescript
+  const router = new RouterExecutor(new JevClassifier({ apiKey }), [
+    { name: "technical", description: "Technical questions about code", handler: techAgent },
+    { name: "general", description: "General knowledge questions", handler: generalAgent },
+  ]);
+  ```
+
+  Examples: `examples/classifier-tool-guard.ts`, `examples/classifier-routing.ts`.
+  Docs: new "Classifiers" guide (`docs/guide/classifiers.md`).
+  **Not done:** TypeSafe's `noul` (yes/no) and `score` (rubric) question
+  types aren't wired into `Classifier` — neither consumer needs them, add
+  only when a third real consumer does.
+
+- **`ClassifyRequest.optionDescriptions`** — an optional `{ label: description }`
+  map telling the classifier what each option means. `RouterExecutor` fills it
+  from each route's `description`, so a classifier router is no longer choosing
+  between bare route names, and `JevClassifier` sends it as the Choice
+  criteria (it previously sent `null` for every label).
+- **Jev through OpenRouter.** OpenRouter serves Jev on its System One API,
+  billed to the OpenRouter account — `JevClassifier` needs no changes, just
+  `baseURL: "https://openrouter.ai/api"` and an OpenRouter key. Verified live
+  against `jev-1.13`. Documented in the Classifiers guide.
+- **Tetris examples** (`examples/jev-tetris.ts`, `examples/jev-tetris-web.ts`)
+  — Jev plays Tetris through the plain `Classifier` interface: each piece's
+  legal placements are the options, their outcomes the `optionDescriptions`.
+  The web version races two players on the same seeded pieces (Jev, Qwen on
+  Cerebras with thinking off, Claude Haiku, or an offline heuristic) with live
+  cost, decision-time and probability displays, laid out for screen recording.
+
+### Fixed
+- **`JevClassifier` setup failures surface as `ClassifierCallError`.** A
+  missing `@typesafe-ai/sdk` peer or API key used to escape as the raw error,
+  bypassing callers that catch `ClassifierError`. Concurrent first calls now
+  share one client, and a failed client load is retried on the next call
+  instead of being cached.
+
 ## [1.17.0] - 2026-09-27
 
 ### Added
